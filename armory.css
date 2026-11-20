@@ -1,0 +1,842 @@
+/* ============================================================
+ * armory.css —— 军械库区块的样式
+ *
+ * 单独一个文件，别和 style.css 里正在改的编辑器 / 主菜单样式打架。
+ * 配色沿用主菜单：深色底 + 琥珀色 accent，文字用同一套 var()。
+ * 前缀统一 .ar-，不会撞到编辑器的 .panel / .terra / .menu-*。
+ * ============================================================ */
+
+.armory {
+  position: fixed;
+  inset: 0;
+  z-index: 110;                 /* 主菜单是 100，编辑器更低 */
+  overflow-x: hidden;
+  overflow-y: auto;
+  background:
+    radial-gradient(1000px 700px at 94% -12%, rgba(74, 134, 224, 0.10), transparent 62%),
+    radial-gradient(820px 620px at 0% 106%, rgba(224, 164, 88, 0.10), transparent 60%),
+    #0b0e13;
+  color: var(--text);
+  isolation: isolate;
+  outline: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* 战术网格底纹，和主菜单一致 */
+.armory::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background-image:
+    linear-gradient(rgba(150, 170, 200, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(150, 170, 200, 0.05) 1px, transparent 1px),
+    linear-gradient(rgba(150, 170, 200, 0.02) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(150, 170, 200, 0.02) 1px, transparent 1px);
+  background-size: 56px 56px, 56px 56px, 14px 14px, 14px 14px;
+  -webkit-mask-image: radial-gradient(ellipse 100% 92% at 46% 26%, #000 28%, transparent 86%);
+          mask-image: radial-gradient(ellipse 100% 92% at 46% 26%, #000 28%, transparent 86%);
+  pointer-events: none;
+}
+
+.armory:focus { outline: none; }
+
+/* ---------------- 顶栏 ---------------- */
+.ar-top {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  height: 58px;
+  padding: 0 clamp(16px, 4vw, 44px);
+  background: rgba(11, 14, 19, 0.86);
+  border-bottom: 1px solid #1e252e;
+  backdrop-filter: blur(10px);
+}
+
+.ar-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 32px;
+  padding: 0 12px 0 9px;
+  border: 1px solid #2a323d;
+  border-radius: 8px;
+  background: #141a21;
+  color: #a3aebb;
+  font: inherit;
+  font-size: 12px;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color 0.16s ease, border-color 0.16s ease, background 0.16s ease;
+}
+
+.ar-back:hover,
+.ar-back:focus-visible {
+  outline: none;
+  color: var(--accent);
+  border-color: rgba(224, 164, 88, 0.45);
+  background: #1b2129;
+}
+
+.ar-back-i { font-size: 14px; line-height: 1; }
+
+.ar-top .menu-brand { flex: 0 0 auto; }
+
+.ar-top-meta {
+  margin-left: auto;
+  font: 10px/1.4 var(--mono);
+  letter-spacing: 0.12em;
+  color: #6b7684;
+  white-space: nowrap;
+}
+
+.ar-top-meta .sep { margin: 0 7px; color: #3d4653; }
+
+/* ---------------- 内容容器 ---------------- */
+.ar-body {
+  display: flex;
+  flex-direction: column;
+  width: min(1320px, 100%);
+  min-height: calc(100vh - 58px);
+  min-height: calc(100dvh - 58px);
+  margin: 0 auto;
+  padding: clamp(22px, 4.6vh, 48px) clamp(16px, 4.4vw, 64px) clamp(18px, 3vh, 30px);
+}
+
+/* 主菜单那套逐个淡入的动画不要套到军械库上：
+ * 元素是动态插进来的，被动画停在 opacity:0 就整行看不见了。 */
+.armory .menu-kicker,
+.armory .menu-note { animation: none; }
+
+.ar-head { padding-top: clamp(2px, 1vh, 10px); }
+
+/* 国家列表这一屏的内容在竖直方向居中，上下留白对半分 */
+.ar-stage {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 0;
+}
+
+/* 主菜单那套小标题在深色里偏暗，这里提亮一档 */
+.armory .menu-kicker {
+  font-size: 11px;
+  letter-spacing: 0.26em;
+  color: #dfae66;
+}
+
+.ar-title {
+  margin: 0;
+  font-size: clamp(30px, 3.4vw, 44px);
+  font-weight: 700;
+  line-height: 1.12;
+  letter-spacing: 0.12em;
+  color: #f2f4f7;
+}
+
+.ar-lead {
+  margin: 12px 0 0;
+  font-size: 12.5px;
+  line-height: 1.95;
+  color: #828d9c;
+}
+
+/* ---------------- 国家卡 ---------------- */
+.ar-nations {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: clamp(9px, 1.1vw, 15px);
+  flex: 0 0 auto;
+  margin-top: clamp(18px, 3.2vh, 32px);
+}
+
+.ar-nation {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-height: clamp(206px, 30vh, 296px);
+  padding: 13px 14px 15px;
+  border: 1px solid #262e38;
+  border-radius: 13px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0) 44%),
+    #111620;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  overflow: hidden;
+  transition: border-color 0.18s ease, background 0.18s ease,
+              transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+/* 顶部一条国家色 */
+.ar-nation::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 2px;
+  background: linear-gradient(90deg, var(--c), rgba(255, 255, 255, 0) 80%);
+  opacity: 0.9;
+}
+
+.ar-nation:hover,
+.ar-nation:focus-visible {
+  outline: none;
+  border-color: var(--c-soft);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0) 46%),
+    #141a24;
+  transform: translateY(-3px);
+  box-shadow: 0 20px 38px -24px #000, 0 0 0 1px var(--c-soft) inset;
+}
+
+.ar-nation:active { transform: translateY(-1px); }
+
+.ar-nation-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  margin-bottom: auto;          /* 把国名挤到卡片下半部 */
+}
+
+.ar-no {
+  font: 10px/1.4 var(--mono);
+  letter-spacing: 0.16em;
+  color: #59636f;
+}
+
+.ar-code {
+  padding: 3px 6px;
+  border: 1px solid var(--c-soft);
+  border-radius: 4px;
+  font: 9.5px/1 var(--mono);
+  letter-spacing: 0.1em;
+  color: var(--c);
+}
+
+/* 大字水印：美 / 苏 / 德 / 英 / 中 */
+.ar-wm {
+  position: absolute;
+  right: 2px;
+  bottom: 30px;
+  font-size: clamp(92px, 12.5vh, 132px);
+  font-weight: 700;
+  line-height: 1;
+  color: var(--c);
+  opacity: 0.09;
+  pointer-events: none;
+  user-select: none;
+  transition: opacity 0.25s ease, transform 0.45s ease;
+}
+
+.ar-nation:hover .ar-wm,
+.ar-nation:focus-visible .ar-wm {
+  opacity: 0.16;
+  transform: translateY(-4px) scale(1.03);
+}
+
+.ar-nation-name {
+  position: relative;
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: 0.1em;
+  color: #eef2f7;
+}
+
+.ar-nation-en {
+  position: relative;
+  margin-top: 5px;
+  font: 9px/1.4 var(--mono);
+  letter-spacing: 0.2em;
+  color: #5d6877;
+}
+
+.ar-nation-eras {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 12px;
+}
+
+.ar-nation-eras i {
+  padding: 3px 5px;
+  border-radius: 3px;
+  background: #171d26;
+  font: 9px/1 var(--mono);
+  font-style: normal;
+  letter-spacing: 0.06em;
+  color: #6b7583;
+}
+
+/* ============================================================
+   国家工作台：左单位 / 中 3D / 右数据 / 底兵种
+   ============================================================ */
+
+/* 工作台这一屏不整体滚动，三栏各自滚 */
+.armory.is-bench {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* 顶栏里的国家 + 年代 */
+.ar-crumb {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: 2px;
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  color: #b7c1cd;
+  white-space: nowrap;
+}
+
+.ar-crumb i {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border: 1px solid var(--c, #4a5563);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.03);
+  font-style: normal;
+  font-size: 12px;
+  line-height: 1;
+  color: var(--c, #b7c1cd);
+}
+
+.ar-era {
+  display: flex;
+  gap: 5px;
+  margin-left: auto;
+}
+
+.ar-era-btn {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  padding: 6px 9px;
+  border: 1px solid #2a323d;
+  border-radius: 7px;
+  background: #131922;
+  color: #93a0b0;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  transition: border-color 0.16s ease, background 0.16s ease, color 0.16s ease;
+}
+
+.ar-era-btn em {
+  font-style: normal;
+  font-size: 10px;
+  color: #5f6a78;
+}
+
+.ar-era-btn:hover { border-color: #3a4553; color: #cfd7e1; }
+.ar-era-btn:focus-visible { outline: none; border-color: rgba(224, 164, 88, 0.45); }
+
+.ar-era-btn.is-on {
+  border-color: rgba(224, 164, 88, 0.5);
+  background: #1a212b;
+  color: #f2f5f8;
+}
+
+.ar-era-btn.is-on em { color: var(--accent); }
+
+/* ---------------- 工作台骨架 ---------------- */
+.ar-work {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 208px minmax(0, 1fr) 336px;
+  border-top: 1px solid #1e252e;
+}
+
+/* 左：单位列 */
+.ar-units {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-right: 1px solid #1e252e;
+  background: rgba(17, 22, 30, 0.55);
+}
+
+.ar-units h2 {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin: 0;
+  padding: 14px 14px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  color: #8d97a5;
+}
+
+.ar-units h2 em {
+  font: 10px/1 var(--mono);
+  font-style: normal;
+  color: #59636f;
+}
+
+.ar-units-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 0 8px 12px;
+}
+
+.ar-unit {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+  width: 100%;
+  padding: 10px 11px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: #a9b3c0;
+  font: inherit;
+  font-size: 13px;
+  letter-spacing: 0.03em;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.14s ease, border-color 0.14s ease, color 0.14s ease;
+}
+
+.ar-unit:hover { background: #141b23; color: #dfe6ee; }
+
+.ar-unit:focus-visible {
+  outline: none;
+  border-color: rgba(224, 164, 88, 0.45);
+}
+
+.ar-unit.is-on {
+  border-color: rgba(224, 164, 88, 0.42);
+  background: #1a212b;
+  color: #f2f5f8;
+}
+
+.ar-unit-no {
+  font: 10px/1.5 var(--mono);
+  color: #59636f;
+}
+
+.ar-unit.is-on .ar-unit-no { color: var(--accent); }
+
+.ar-units-empty {
+  padding: 16px 14px;
+  font-size: 12px;
+  line-height: 1.8;
+  color: #6f7a87;
+}
+
+/* 中：3D 视图 */
+.ar-view {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background:
+    radial-gradient(120% 90% at 50% 8%, rgba(90, 120, 160, 0.14), transparent 62%),
+    radial-gradient(60% 40% at 50% 100%, rgba(224, 164, 88, 0.07), transparent 70%),
+    #0d1117;
+}
+
+.ar-view-box {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+#ar-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  cursor: grab;
+  touch-action: none;
+}
+
+#ar-canvas.is-dragging { cursor: grabbing; }
+
+.ar-view-hint {
+  flex: 0 0 auto;
+  padding: 6px 14px 12px;
+  text-align: center;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: #5f6a78;
+}
+
+/* 右：数据面板 */
+.ar-data {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-left: 1px solid #1e252e;
+  background: rgba(17, 22, 30, 0.72);
+}
+
+.ar-data-head {
+  flex: 0 0 auto;
+  padding: 15px 16px 12px;
+  border-bottom: 1px solid #1e252e;
+}
+
+.ar-data-head h2 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  color: #f7fafd;
+}
+
+.ar-data-tag {
+  display: block;
+  margin-top: 5px;
+  font: 11px/1.4 var(--mono);
+  letter-spacing: 0.1em;
+  color: #8d97a5;
+}
+
+.ar-data-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0 16px 18px;
+}
+
+.ar-dsec {
+  padding: 13px 0;
+  border-bottom: 1px solid #1b222b;
+}
+
+.ar-dsec:last-child { border-bottom: 0; }
+
+.ar-dsec h3,
+.ar-desc-block h3 {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0 0 8px;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  color: #b7c1cd;
+}
+
+.ar-dsec h3 em {
+  font: 10px/1 var(--mono);
+  font-style: normal;
+  letter-spacing: 0.06em;
+  color: #6f7a87;
+}
+
+.ar-stats { margin: 0; }
+
+.ar-stats > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 4px 0;
+}
+
+.ar-stats dt {
+  font-size: 13px;
+  color: #a6b1be;
+}
+
+.ar-stats dd {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 500;
+  color: #f2f6fa;
+  font-variant-numeric: tabular-nums;
+}
+
+.ar-stats dd i {
+  font-style: normal;
+  color: #4f5a67;
+}
+
+.ar-stats dd.mono {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: #b9c3cf;
+}
+
+.ar-traits {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.ar-traits li {
+  padding: 8px 10px;
+  border: 1px solid #262e38;
+  border-radius: 8px;
+  background: #11161e;
+}
+
+.ar-traits li b {
+  display: block;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #f0dcb8;
+}
+
+.ar-traits li span {
+  display: block;
+  margin-top: 3px;
+  font-size: 12.5px;
+  line-height: 1.7;
+  color: #a9b3c0;
+}
+
+.ar-traits li.is-none {
+  border-style: dashed;
+  background: transparent;
+  font-size: 12.5px;
+  color: #8d97a5;
+}
+
+.ar-desc {
+  display: block;
+  width: 100%;
+  min-height: 88px;
+  padding: 10px 11px;
+  border: 1px solid #2a323d;
+  border-radius: 8px;
+  background: #0f141b;
+  color: #d7dee7;
+  font: inherit;
+  font-size: 12.5px;
+  line-height: 1.8;
+  outline: none;
+  resize: vertical;
+}
+
+.ar-desc::placeholder { color: #5a6472; }
+
+.ar-desc:focus {
+  border-color: rgba(224, 164, 88, 0.5);
+  box-shadow: 0 0 0 3px rgba(224, 164, 88, 0.08);
+}
+
+.ar-desc-block {
+  flex: 0 0 auto;
+  padding: 9px 16px 12px;
+  border-top: 1px solid #1e252e;
+  background: rgba(12, 16, 22, 0.92);
+}
+
+.ar-desc-block h3 {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0 0 6px;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  color: #8d97a5;
+}
+.ar-desc-hint {
+  margin: 6px 0 0;
+  font: 10.5px/1.5 var(--mono);
+  color: #5f6a78;
+}
+
+.ar-desc-export {
+  margin-left: auto;
+  padding: 3px 8px;
+  border: 1px solid #2a323d;
+  border-radius: 5px;
+  background: #141a21;
+  color: #8d97a5;
+  font: inherit;
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+}
+
+.ar-desc-export:hover {
+  color: var(--accent);
+  border-color: rgba(224, 164, 88, 0.45);
+}
+
+.ar-data-empty {
+  padding: 30px 18px;
+  font-size: 12.5px;
+  line-height: 1.9;
+  color: #8d97a5;
+}
+
+.ar-data-empty p { margin: 0 0 6px; }
+.ar-data-empty .muted { font-size: 11.5px; color: #66707d; }
+
+/* 底部兵种条 */
+.ar-cats {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 6px;
+  padding: 10px 14px 12px;
+  border-top: 1px solid #1e252e;
+  background: rgba(15, 19, 26, 0.92);
+  overflow-x: auto;
+}
+
+.ar-catbtn {
+  flex: 1 1 0;
+  min-width: 94px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  height: 56px;
+  border: 1px solid #262e38;
+  border-radius: 10px;
+  background: #11161e;
+  color: #9aa5b2;
+  font: inherit;
+  font-size: 14px;
+  letter-spacing: 0.1em;
+  cursor: pointer;
+  transition: border-color 0.16s ease, background 0.16s ease, color 0.16s ease;
+}
+
+.ar-catbtn em {
+  font: 10px/1 var(--mono);
+  font-style: normal;
+  color: #59636f;
+}
+
+.ar-catbtn:hover {
+  border-color: #3a4553;
+  background: #141b23;
+  color: #dfe6ee;
+}
+
+.ar-catbtn:focus-visible { outline: none; border-color: rgba(224, 164, 88, 0.45); }
+
+.ar-catbtn.is-on {
+  border-color: rgba(224, 164, 88, 0.5);
+  background: #1c232d;
+  color: #f4e3c7;
+  box-shadow: 0 0 0 1px rgba(224, 164, 88, 0.15) inset;
+}
+
+.ar-catbtn.is-on em { color: var(--accent); }
+
+.ar-catbtn.is-empty { opacity: 0.55; }
+.ar-catbtn.is-on.is-empty { opacity: 0.85; }
+
+/* ---------------- 页脚 ---------------- */
+.ar-foot {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px 18px;
+  margin-top: auto;
+  padding-top: 14px;
+  border-top: 1px solid #1e252e;
+  font-size: 10.5px;
+  color: #5b6673;
+}
+
+.ar-foot .mono { font-family: var(--mono); color: #6c7786; }
+
+/* ---------------- 响应式 ---------------- */
+/* 矮屏（1366×768 这类）把右栏再压一压，保证数据、词条和简介都露得出来 */
+@media (max-height: 820px) {
+  .ar-data-head { padding: 8px 14px 7px; }
+  .ar-data-head h2 { font-size: 17px; }
+  .ar-data-tag { margin-top: 3px; }
+  .ar-dsec { padding: 6px 0; }
+  .ar-dsec h3 { margin-bottom: 4px; }
+  .ar-stats > div { padding: 1.5px 0; }
+  .ar-desc { min-height: 64px; height: 64px; }
+  .ar-desc-block { padding: 6px 14px 8px; }
+  .ar-desc-hint { margin-top: 4px; }
+}
+@media (max-width: 1180px) {
+  .ar-body { padding-left: 26px; padding-right: 26px; }
+  .ar-nation { padding-left: 12px; padding-right: 12px; }
+  .ar-nation-name { font-size: 22px; }
+  .ar-nation-en { letter-spacing: 0.14em; }
+  .ar-wm { font-size: clamp(78px, 10vh, 104px); }
+  .ar-top-meta { display: none; }
+  .ar-work { grid-template-columns: 186px minmax(0, 1fr) 304px; }
+  .ar-catbtn { min-width: 84px; height: 52px; font-size: 13px; }
+}
+
+@media (max-width: 980px) {
+  .ar-work { grid-template-columns: 168px minmax(0, 1fr) 280px; }
+  .ar-crumb { display: none; }
+  .ar-catbtn { min-width: 74px; height: 48px; font-size: 12.5px; }
+  .ar-data-head h2 { font-size: 17.5px; }
+}
+
+@media (max-width: 860px) {
+  /* 窄屏不再三栏并排，改成上下堆叠、整页滚动 */
+  .armory.is-bench { display: block; overflow-y: auto; }
+  .ar-work { display: block; }
+  .ar-units { border-right: 0; border-bottom: 1px solid #1e252e; }
+  .ar-units-list { flex-direction: row; overflow-x: auto; padding: 0 10px 12px; }
+  .ar-unit { width: auto; white-space: nowrap; }
+  .ar-view { height: 46vh; border-bottom: 1px solid #1e252e; }
+  .ar-data { border-left: 0; }
+  .ar-data-scroll { overflow: visible; }
+  .ar-cats { flex-wrap: wrap; }
+  .ar-catbtn { flex: 1 1 88px; }
+}
+
+@media (max-width: 900px) {
+  .ar-body { min-height: 0; }
+  .ar-nations { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .ar-nation { min-height: 168px; }
+}
+
+@media (max-width: 720px) {
+  .ar-nations { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ar-nation { min-height: 156px; }
+}
+
+@media (max-width: 460px) {
+  .ar-nations { grid-template-columns: 1fr; }
+  .ar-nation { min-height: 132px; }
+}
+
+@media (max-height: 720px) and (min-width: 1181px) {
+  .ar-body { padding-top: 18px; }
+  .ar-nation { padding-top: 11px; }
+}
+
+@media (max-height: 600px) {
+  .ar-stage { justify-content: flex-start; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ar-nation,
+  .ar-wm { transition: none !important; }
+  .ar-nation:hover { transform: none; }
+}

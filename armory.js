@@ -1,0 +1,1191 @@
+/* =============================================================
+ * armory.js —— 军械库
+ *
+ * 主菜单「军械库」→ 五个国家 → 国家的单位工作台：
+ *   左列：该兵种下所有单位
+ *   中间：3D 模型（右键拖动旋转、滚轮缩放）
+ *   右侧：数据 / 词条 / 简介（简介可直接编辑，存在本机）
+ *   底部：兵种切换（大按钮）
+ *
+ * 单位数据来源（只读，没有改动原文件）：
+ *   图鉴更新记录/图鉴.xlsx   数据卡（软/硬攻、反伤、血量）+ 二战价格（穿甲、装甲、价格、行动力、词条）
+ *   线上版/单位/<年代>/<国家>/<兵种>/*.blend   模型（Blender 4.2 导出，见文末生成数据）
+ *
+ * 和别的区块的接口：
+ *   - home.js 的 activate() 里 data-module="armory" 调 window.Armory.open()；
+ *   - 军械库是盖在主菜单上的一层，关掉就露出原来的菜单；
+ *   - 打开时把 #menu 设成 inert，键盘在 window 捕获阶段接管。
+ * ============================================================= */
+(function () {
+  'use strict';
+
+  let mount = document.getElementById('armory');
+  if (!mount) {
+    mount = document.createElement('div');
+    mount.id = 'armory';
+    mount.className = 'armory hidden';
+    mount.setAttribute('role', 'dialog');
+    mount.setAttribute('aria-modal', 'true');
+    mount.setAttribute('aria-label', '军械库');
+    mount.setAttribute('tabindex', '-1');
+    document.body.appendChild(mount);
+  }
+
+  const TITLE = '军械库 · 兵棋';
+
+  /* ---------------- 国家 ---------------- */
+  const COUNTRIES = [
+    { id: 'us',   name: '美国', en: 'UNITED STATES',  code: 'US',   char: '美',
+      color: '#5b8ad6', soft: 'rgba(91, 138, 214, 0.42)', eras: ['40s', '80s', '2020s'] },
+    { id: 'ussr', name: '苏联', en: 'SOVIET UNION',   code: 'USSR', char: '苏',
+      color: '#d2453c', soft: 'rgba(210, 69, 60, 0.42)',  eras: ['40s', '80s', '2020s'] },
+    { id: 'de',   name: '德国', en: 'GERMANY',        code: 'DE',   char: '德',
+      color: '#909cab', soft: 'rgba(144, 156, 171, 0.42)', eras: ['40s', '80s', '2020s'] },
+    { id: 'uk',   name: '英国', en: 'UNITED KINGDOM', code: 'UK',   char: '英',
+      color: '#8a9a58', soft: 'rgba(138, 154, 88, 0.42)', eras: ['40s', '80s', '2020s'] },
+    { id: 'cn',   name: '中国', en: 'CHINA',          code: 'CN',   char: '中',
+      color: '#c2603f', soft: 'rgba(194, 96, 63, 0.42)',  eras: ['40s', '80s', '2020s'] },
+  ];
+
+  const BY_ID = {};
+  COUNTRIES.forEach(function (c) { BY_ID[c.id] = c; });
+
+  const ERAS = [
+    { id: '40s', label: '二战' },
+    { id: '80s', label: '冷战' },
+    { id: '2020s', label: '现代' },
+  ];
+
+  /* ---------------- 兵种 ---------------- */
+  const CATS = [
+    { id: 'inf', name: '步兵' },
+    { id: 'armor', name: '装甲' },
+    { id: 'arty', name: '炮兵' },
+    { id: 'at', name: '反坦克' },
+    { id: 'aa', name: '防空' },
+    { id: 'recon', name: '侦察' },
+    { id: 'support', name: '支援' },
+    { id: 'fort', name: '防御工事' },
+    { id: 'air', name: '飞机' },
+    { id: 'heli', name: '直升机', eras: ['80s', '2020s'] },
+  ];
+
+  function catsFor(era) {
+    return CATS.filter(function (c) { return !c.eras || c.eras.indexOf(era) !== -1; });
+  }
+
+  function catName(id) {
+    for (let i = 0; i < CATS.length; i++) if (CATS[i].id === id) return CATS[i].name;
+    return id;
+  }
+
+  /* ---------------- 单位数据 ----------------
+   * 键：`国家|年代|兵种`。数值全部来自 图鉴.xlsx：
+   *   atk  = 数据卡「巷战 / 射程1 / 射程2」的 [软攻, 硬攻]
+   *   ref  = 反伤系数（反击伤害 = 攻 × 反伤系数）
+   *   ap   = 属性卡「巷战 / 1 / 2 穿甲」
+   *   armor= 属性卡「正甲 / 侧甲 / 背甲」
+   *   move = 行动力，price = 价格（动员点）
+   * 目前只录了 美国 40s 步兵；其它空着，界面会提示「还没录」。
+   */
+  const UNITS = {
+    us: {
+      inf: [
+        { name: "步兵营", atk: [[2, 0.75], [1.75, 0.5], [0.5, 0.25]], ref: 1.375, hp: 6, ap: [13, 5, 3], armor: [0, 0, 0], move: 4, price: 30, traits: [] },
+        { name: "游骑兵营", atk: [[3.5, 1.25], [1.5, 0.5], [0.5, 0.25]], ref: 1.25, hp: 5, ap: [13, 10, 7], armor: [0, 0, 0], move: 5, price: 42, traits: ["山地作战"] },
+        { name: "山地步兵营", atk: [[2, 0.5], [2, 0.75], [0.5, 0.25]], ref: 1.375, hp: 6, ap: [11, 10, 7], armor: [0, 0, 0], move: 4, price: 35, traits: ["山地作战"] },
+        { name: "海军陆战队营", atk: [[3.25, 1], [1.25, 0.25], [0.25, 0.25]], ref: 1.25, hp: 4, ap: [13, 10, 7], armor: [0, 0, 0], move: 5, price: 38, traits: ["政治军队"] },
+        { name: "伞兵营", atk: [[2, 0.75], [1.5, 0.25], [0, 0]], ref: 1.375, hp: 6, ap: [13, 0, 0], armor: [0, 0, 0], move: 4, price: 25, traits: ["空降"] },
+        { name: "机械化步兵营", atk: [[3.25, 1], [3.25, 1], [1, 0.25]], ref: 1.25, hp: 6, ap: [13, 10, 7], armor: [2, 1, 1], move: 6, price: 28, traits: [] },
+        { name: "突击工兵营", atk: [[2.5, 0.75], [1, 0.25], [0, 0]], ref: 1.375, hp: 4, ap: [13, 0, 0], armor: [0, 0, 0], move: 4, price: 40, traits: ["爆破"] }
+      ],
+      armor: [
+        { name: "斯图亚特轻坦营", atk: [[3.5, 1.5], [3.5, 1], [1.5, 0.5]], ref: 1.2, hp: 6, ap: [13, 5, 3], armor: [6, 4, 3], move: 7, price: 50, traits: [] },
+        { name: "75谢尔曼中坦营", atk: [[4.25, 1.75], [4.5, 1.75], [1.75, 0.75]], ref: 1.2, hp: 6, ap: [13, 10, 7], armor: [9, 4, 4], move: 5, price: 70, traits: [] },
+        { name: "76谢尔曼中坦营", atk: [[4, 1.75], [4.25, 2], [1.75, 1]], ref: 1.2, hp: 6, ap: [15, 13, 10], armor: [11, 5, 5], move: 5, price: 78, traits: [] },
+        { name: "潘兴重坦营", atk: [[4.25, 2], [5, 2.5], [2.25, 1.25]], ref: 1.2, hp: 6, ap: [18, 16, 12], armor: [16, 8, 8], move: 5, price: 110, traits: [] },
+        { name: "巨无霸重坦营", atk: [[4.25, 1.75], [4.5, 1.75], [1.75, 0.75]], ref: 1.2, hp: 6, ap: [13, 10, 7], armor: [20, 9, 9], move: 5, price: 95, traits: [] },
+        { name: "超级潘兴重坦营", atk: [[4, 1.75], [4.75, 2.5], [2, 1.25]], ref: 1.2, hp: 6, ap: [22, 20, 18], armor: [23, 9, 8], move: 5, price: 120, traits: [] }
+      ],
+      at: [
+        { name: "反坦克小组", atk: [[0.5, 0.25], [0.25, 0], [0, 0]], ref: 1.375, hp: 1, ap: [13, 13, 0], armor: [0, 0, 0], move: 5, price: 5, traits: ["隐蔽"] },
+        { name: "反坦克营", atk: [[1.5, 0.75], [1.5, 1], [0.25, 0.25]], ref: 1.75, hp: 6, ap: [13, 10, 7], armor: [0, 0, 0], move: 3, price: 35, traits: [] },
+        { name: "M10中型坦歼营", atk: [[4, 1.75], [4.25, 2], [1.75, 1]], ref: 1.2, hp: 6, ap: [15, 13, 10], armor: [8, 3, 3], move: 6, price: 70, traits: [] },
+        { name: "T95超重坦营", atk: [[2, 1], [3, 1.5], [1.5, 0.75]], ref: 1.5, hp: 6, ap: [25, 24, 19], armor: [32, 15, 9], move: 3, price: 125, traits: [] }
+      ],
+      arty: [
+        { name: "105炮兵营", atk: [[0.75, 0.25], [1.75, 0.25], [1, 0.25]], ref: 1, hp: 3, ap: [0, 0, 0], armor: [0, 0, 0], move: 2, price: 40, traits: ["曲射伤害1", "半径7"] },
+        { name: "155炮兵营", atk: [[0.75, 0.25], [2.5, 0.5], [1.5, 0.25]], ref: 1, hp: 3, ap: [0, 0, 0], armor: [0, 0, 0], move: 2, price: 60, traits: ["曲射伤害1.5", "半径11"] },
+        { name: "M7自行火炮营", atk: [[1.5, 0.25], [2.5, 0.5], [1.5, 0.25]], ref: 1, hp: 3, ap: [0, 0, 0], armor: [4, 3, 2], move: 5, price: 40, traits: ["曲射伤害1", "半径7"] },
+        { name: "M12自行火炮营", atk: [[0.75, 0.25], [2.5, 0.5], [1.5, 0.25]], ref: 1, hp: 3, ap: [0, 0, 0], armor: [2, 1, 1], move: 5, price: 60, traits: ["曲射伤害1.5", "半径11"] },
+        { name: "反炮兵小组", atk: [[0, 0], [0, 0], [0, 0]], ref: 1, hp: 1, ap: [0, 0, 0], armor: [0, 0, 0], move: 4, price: 10, traits: ["反炮兵"] },
+        { name: "管风琴火箭炮营", atk: [[2.25, 0.75], [6.25, 1.75], [3.5, 0.75]], ref: 1, hp: 3, ap: [11, 10, 7], armor: [11, 4, 4], move: 5, price: 80, traits: ["火箭炮", "杀伤半径1", "伤害2"] }
+      ],
+      aa: [
+        { name: "40防空炮营", atk: [[2.25, 1.25], [2, 1.25], [0.25, 0.25]], ref: 1.75, hp: 3, ap: [4, 3, 2], armor: [0, 0, 0], move: 3, price: 25, traits: ["防空半径1", "伤害1"] },
+        { name: "90防空炮营", atk: [[1.25, 1.25], [2.5, 3], [1.5, 1.75]], ref: 1.75, hp: 3, ap: [18, 16, 12], armor: [0, 0, 0], move: 2, price: 40, traits: ["防空半径2", "伤害1.5"] },
+        { name: "M16自行防空炮营", atk: [[3.25, 1.25], [3.25, 1.25], [1, 0.25]], ref: 1.2, hp: 3, ap: [0, 0, 0], armor: [2, 1, 1], move: 6, price: 25, traits: ["辅助防空", "伤害0.5"] },
+        { name: "M15自行防空炮营", atk: [[2.5, 0.5], [2.75, 0.5], [1.25, 0.25]], ref: 1.2, hp: 3, ap: [4, 3, 2], armor: [2, 1, 1], move: 6, price: 40, traits: ["防空半径1", "伤害1"] }
+      ],
+      recon: [
+        { name: "侦察营", atk: [[1, 0.25], [0.75, 0.25], [0, 0]], ref: 1.375, hp: 3, ap: [13, 0, 0], armor: [0, 0, 0], move: 5, price: 25, traits: ["侦查半径2"] },
+        { name: "灰狗装甲侦察营", atk: [[2.25, 1], [2.25, 0.75], [1, 0.25]], ref: 1.2, hp: 4, ap: [13, 5, 3], armor: [3, 2, 2], move: 7, price: 55, traits: ["侦查半径1"] },
+        { name: "地狱猫装甲侦察营", atk: [[2.5, 1.25], [2.75, 1.25], [1.25, 0.75]], ref: 1.2, hp: 4, ap: [15, 13, 10], armor: [4, 2, 2], move: 7, price: 65, traits: ["侦查半径1"] }
+      ],
+      support: [
+        { name: "工兵营", atk: [[1, 0.25], [0.75, 0.25], [0, 0]], ref: 1.375, hp: 3, ap: [0, 0, 0], armor: [0, 0, 0], move: 4, price: 25, traits: ["工程"] },
+        { name: "宪兵连", atk: [[0.75, 0.25], [0.5, 0], [0, 0]], ref: 1.375, hp: 2, ap: [0, 0, 0], armor: [0, 0, 0], move: 4, price: 10, traits: ["宪兵"] },
+        { name: "医疗连", atk: [[0.75, 0.25], [0.5, 0], [0, 0]], ref: 1.375, hp: 2, ap: [0, 0, 0], armor: [0, 0, 0], move: 4, price: 5, traits: ["医疗"] },
+        { name: "摩托化运输队", atk: [[0, 0], [0, 0], [0, 0]], ref: 1, hp: 3, ap: [0, 0, 0], armor: [0, 0, 0], move: 6, price: 15, traits: ["地面运输"] }
+      ],
+      air: [
+        { name: "F5侦察机", atk: [[null, null], [null, null], [null, null]], ref: null, hp: 3, ap: [null, null, null], armor: [0, 0, 0], move: 650, price: 25, traits: ["侦查半径2"] },
+        { name: "F6战斗侦察机", atk: [[null, null], [null, null], [null, null]], ref: null, hp: 3, ap: [null, null, null], armor: [0, 0, 0], move: 650, price: 40, traits: ["拦截伤害1", "侦查半径2"] },
+        { name: "P38战斗机", atk: [[null, null], [null, null], [null, null]], ref: null, hp: 4, ap: [null, null, null], armor: [0, 0, 0], move: 550, price: 35, traits: ["拦截伤害1"] },
+        { name: "P51战斗机", atk: [[null, null], [null, null], [null, null]], ref: null, hp: 4, ap: [null, null, null], armor: [0, 0, 0], move: 650, price: 40, traits: ["拦截伤害1.5"] },
+        { name: "P47战斗轰炸机", atk: [[null, null], [null, null], [null, null]], ref: null, hp: 4, ap: [null, null, null], armor: [0, 0, 0], move: 550, price: 55, traits: ["拦截伤害1.25", "空中压制1.5/1.5"] },
+        { name: "B25轰炸机", atk: [[null, null], [null, null], [null, null]], ref: null, hp: 6, ap: [null, null, null], armor: [0, 0, 0], move: 400, price: 120, traits: ["重轰", "空中压制3/2"] },
+        { name: "B29轰炸机", atk: [[null, null], [null, null], [null, null]], ref: null, hp: 6, ap: [null, null, null], armor: [0, 0, 0], move: 500, price: 200, traits: ["重轰", "高空", "空中压制4/3", "核弹"] }
+      ],
+      fort: [
+        { name: "桥", atk: [[null, null], [null, null], [null, null]], ref: null, hp: null, ap: [null, null, null], armor: [0, 0, 0], move: null, price: null, traits: [] },
+        { name: "防御基座", atk: [[null, null], [null, null], [null, null]], ref: null, hp: null, ap: [null, null, null], armor: [0, 0, 0], move: null, price: null, traits: [] }
+      ]
+    },
+    de: {
+      inf: [
+        { name: "步兵营", atk: [[1.75, 0.75], [1.5, 0.25], [0.5, 0]], ref: 1.375, hp: 6, ap: [12, 10, 7], armor: [0, 0, 0], move: 4, price: 25, traits: ["空降"] },
+        { name: "突击步兵营", atk: [[3.5, 1.25], [3, 1.25], [0.75, 0.5]], ref: 1.25, hp: 5, ap: [14, 13, 10], armor: [0, 0, 0], move: 5, price: 45, traits: [] },
+        { name: "猎兵营", atk: [[2, 0.75], [0.75, 0.5], [0.5, 0.25]], ref: 1.375, hp: 6, ap: [14, 9, 7], armor: [0, 0, 0], move: 5, price: 30, traits: [] },
+        { name: "山地猎兵营", atk: [[2, 0.5], [0.75, 0.5], [0.5, 0.25]], ref: 1.375, hp: 6, ap: [10, 9, 7], armor: [0, 0, 0], move: 5, price: 38, traits: ["山地作战"] },
+        { name: "人民冲锋队", atk: [[1.5, 0.75], [0.5, 0], [0, 0]], ref: 1.375, hp: 6, ap: [14, 0, 0], armor: [0, 0, 0], move: 3, price: 10, traits: ["碎心"] },
+        { name: "装甲掷弹兵营", atk: [[2.75, 1], [3, 1], [1.5, 0.5]], ref: 1.25, hp: 6, ap: [14, 13, 10], armor: [2, 1, 1], move: 6, price: 28, traits: [] },
+        { name: "突击工兵营", atk: [[0.5, 0.25], [0.25, 0], [0, 0]], ref: 1.375, hp: 4, ap: [12, 0, 0], armor: [0, 0, 0], move: null, price: 35, traits: [] }
+      ],
+      armor: [
+        { name: "四号中坦营", atk: [[2.5, 1.5], [2.5, 1.5], [1, 0.75]], ref: 1.2, hp: 6, ap: [14, 13, 10], armor: [8, 3, 3], move: 5, price: 65, traits: [] },
+        { name: "豹式中坦营", atk: [[3, 1.75], [3.75, 2.25], [1.75, 1.25]], ref: 1.2, hp: 6, ap: [19, 17, 14], armor: [14, 5, 5], move: 6, price: 85, traits: [] },
+        { name: "虎式重坦营", atk: [[3.25, 1.75], [3.75, 2.25], [1.75, 1.25]], ref: 1.2, hp: 6, ap: [16, 15, 13], armor: [12, 9, 9], move: 5, price: 87, traits: [] },
+        { name: "虎王重坦营", atk: [[3.5, 2], [4.25, 3], [2, 1.5]], ref: 1.2, hp: 6, ap: [24, 22, 19], armor: [21, 9, 9], move: 4, price: 105, traits: [] },
+        { name: "鼠式超重坦营", atk: [[2.75, 1.5], [3.5, 2], [1.75, 1]], ref: 1.2, hp: 6, ap: [31, 29, 25], armor: [26, 23, 20], move: 3, price: 135, traits: [] }
+      ],
+      at: [
+        { name: "反坦克小组", atk: [[0.5, 0.25], [0.5, 0], [0, 0]], ref: 1.375, hp: 1, ap: [12, 0, 0], armor: [0, 0, 0], move: 4, price: 5, traits: [] },
+        { name: "反坦克敢死队", atk: [[0.5, 0.25], [0.25, 0], [0, 0]], ref: 1.375, hp: 1, ap: [14, 0, 0], armor: [0, 0, 0], move: 3, price: 2, traits: ["碎心"] },
+        { name: "反坦克营", atk: [[1.75, 1], [2.5, 2], [1.25, 1]], ref: 1.75, hp: 6, ap: [19, 17, 13], armor: [0, 0, 0], move: 3, price: 35, traits: ["隐蔽"] },
+        { name: "黄鼠狼轻型坦歼营", atk: [[1, 0.75], [1.5, 1.25], [0.5, 0.75]], ref: 1.5, hp: 6, ap: [15, 13, 10], armor: [3, 1, 1], move: 5, price: 55, traits: [] },
+        { name: "追猎者轻型坦歼营", atk: [[1.75, 1], [2, 1.25], [1, 0.75]], ref: 1.5, hp: 6, ap: [14, 13, 10], armor: [10, 3, 3], move: 6, price: 50, traits: [] },
+        { name: "四号突击炮营", atk: [[2, 1], [2.5, 1.25], [1, 0.75]], ref: 1.5, hp: 6, ap: [14, 13, 10], armor: [4, 3, 3], move: 5, price: 67, traits: [] },
+        { name: "四号中型坦歼营", atk: [[2.25, 1.25], [2.75, 1.75], [1.25, 1]], ref: 1.5, hp: 6, ap: [14, 13, 10], armor: [14, 5, 3], move: 5, price: 75, traits: [] },
+        { name: "猎豹重型坦歼营", atk: [[2, 1.25], [3, 2.25], [1.25, 1]], ref: 1.5, hp: 6, ap: [24, 22, 19], armor: [16, 5, 5], move: 6, price: 80, traits: [] },
+        { name: "猎虎重型坦歼营", atk: [[2, 1], [2.75, 1.25], [1.25, 0.5]], ref: 1.5, hp: 6, ap: [31, 29, 25], armor: [24, 10, 8], move: 4, price: 130, traits: [] }
+      ],
+      arty: [
+        { name: "105炮兵营", atk: [[0.5, 0], [1.5, 0.25], [1, 0.25]], ref: 1, hp: 3, ap: [0, 0, 0], armor: [0, 0, 0], move: 2, price: 50, traits: ["曲射伤害1", "半径7", "政治军队"] },
+        { name: "150炮兵营", atk: [[0.5, 0], [2.25, 0.5], [1.5, 0.25]], ref: 1, hp: 3, ap: [0, 0, 0], armor: [0, 0, 0], move: 2, price: 60, traits: ["曲射伤害1.5", "半径11"] },
+        { name: "黄蜂自行火炮营", atk: [[1, 0.25], [2.25, 0.5], [1.25, 0.25]], ref: 1, hp: 3, ap: [0, 0, 0], armor: [3, 2, 2], move: 5, price: 40, traits: ["曲射伤害1", "半径7"] },
+        { name: "野蜂自行火炮营", atk: [[0.75, 0.25], [2.25, 0.5], [1.5, 0.25]], ref: 1, hp: 3, ap: [0, 0, 0], armor: [2, 2, 2], move: 5, price: 60, traits: ["曲射伤害1.5", "半径11"] },
+        { name: "反炮兵小组", atk: [[0, 0], [0, 0], [0, 0]], ref: 1, hp: 1, ap: [0, 0, 0], armor: [0, 0, 0], move: 4, price: 10, traits: ["反炮兵"] }
+      ],
+      aa: [
+        { name: "20防空炮营", atk: [[1.25, 1.5], [0.75, 1], [0.25, 0.25]], ref: 1.75, hp: 3, ap: [5, 3, 1], armor: [0, 0, 0], move: 3, price: 25, traits: ["防空半径1", "伤害1"] },
+        { name: "88防空炮营", atk: [[1, 1.25], [2.25, 2.75], [1.5, 1.75]], ref: 1.75, hp: 3, ap: [16, 15, 13], armor: [0, 0, 0], move: 2, price: 35, traits: ["防空半径2", "伤害1.5"] },
+        { name: "卡车自行防空炮营", atk: [[2, 1.5], [1.25, 1], [0.25, 0.25]], ref: 1.2, hp: 3, ap: [5, 3, 1], armor: [0, 0, 0], move: 6, price: 30, traits: ["防空半径1", "伤害0.75"] },
+        { name: "东风自行防空炮营", atk: [[3.75, 3.25], [2.25, 1.75], [0.75, 0.75]], ref: 1.2, hp: 3, ap: [5, 3, 1], armor: [5, 3, 2], move: 6, price: 35, traits: ["防空半径1", "伤害1.75"] }
+      ],
+      recon: [
+        { name: "侦察营", atk: [[1, 0.5], [0.5, 0], [0, 0]], ref: 1.375, hp: 3, ap: [12, 0, 0], armor: [0, 0, 0], move: 5, price: 25, traits: ["侦查半径2"] },
+        { name: "222装甲侦察营", atk: [[1.5, 0.75], [1.25, 0.25], [0.5, 0]], ref: 1.2, hp: 4, ap: [14, 5, 3], armor: [3, 2, 2], move: 6, price: 50, traits: ["侦查半径1"] },
+        { name: "美洲狮装甲侦察营", atk: [[1.5, 0.75], [1.5, 0.75], [0.5, 0.25]], ref: 1.2, hp: 4, ap: [14, 12, 9], armor: [4, 2, 2], move: 6, price: 60, traits: ["侦查半径1"] }
+      ],
+      support: [
+        { name: "工兵营", atk: [[0.25, 0], [0.25, 0], [0, 0]], ref: 1.375, hp: 3, ap: [0, 0, 0], armor: [0, 0, 0], move: 4, price: 25, traits: ["工程"] },
+        { name: "宪兵连", atk: [[0.5, 0], [0.5, 0], [0, 0]], ref: 1.375, hp: 2, ap: [0, 0, 0], armor: [0, 0, 0], move: 5, price: 10, traits: ["宪兵"] },
+        { name: "医疗连", atk: [[0.5, 0], [0.5, 0], [0, 0]], ref: 1.375, hp: 2, ap: [0, 0, 0], armor: [0, 0, 0], move: 5, price: 5, traits: ["医疗", "政治军队"] },
+        { name: "摩托化运输队", atk: [[0, 0], [0, 0], [0, 0]], ref: 1, hp: 3, ap: [0, 0, 0], armor: [0, 0, 0], move: 6, price: 15, traits: ["地面运输"] }
+      ],
+      air: [
+        { name: "Fw189侦察机", atk: [[null, null], [null, null], [null, null]], ref: null, hp: 3, ap: [null, null, null], armor: [0, 0, 0], move: 500, price: 25, traits: ["侦查"] },
+        { name: "Bf109战斗机", atk: [[null, null], [null, null], [null, null]], ref: null, hp: 4, ap: [null, null, null], armor: [0, 0, 0], move: 600, price: 30, traits: ["拦截伤害1.25"] },
+        { name: "Me262战斗机", atk: [[null, null], [null, null], [null, null]], ref: null, hp: 4, ap: [null, null, null], armor: [0, 0, 0], move: 900, price: 45, traits: ["拦截伤害1.75"] },
+        { name: "Fw190战斗轰炸机", atk: [[null, null], [null, null], [null, null]], ref: null, hp: 4, ap: [null, null, null], armor: [0, 0, 0], move: 575, price: 48, traits: ["拦截伤害0.75", "空中压制1.5/1"] },
+        { name: "Ju88轰炸机", atk: [[null, null], [null, null], [null, null]], ref: null, hp: 6, ap: [null, null, null], armor: [0, 0, 0], move: 550, price: 135, traits: ["重轰", "空中压制3/2"] }
+      ]
+    }
+  };
+
+  function unitsOf(country, era, cat) {
+    const byEra = UNITS[country];
+    return (era === '40s' && byEra && byEra[cat]) ? byEra[cat] : [];
+  }
+
+  /* 词条说明：规则文档第 7 节有的照抄，没有的只显示名字，不编。 */
+  const TRAIT_INFO = {
+    '山地作战': '丘陵消耗 1 行动力，山地消耗 2（替代常规消耗）。',
+    '隐蔽': '不会受到反击伤害（任何距离）。',
+    '工程': '消耗 2 行动力，在半径 1 格内架桥或修路。',
+    '宪兵': '半径 1 格内友军免疫并解除混乱；半径 2 格内友军无法被敌军推进。',
+    '医疗': '与目标单位合并（消耗本回合行动），恢复目标 1 点血量。',
+    '侦察': '半径内目标视为有视野，并与友军共享；友军进攻该目标时行动力 −1。',
+    '防空': '半径内敌方飞机无法穿越，可按射程拦截。',
+    '曲射': '射程 ≥ 3 时不受反击。',
+    '火箭炮': '每回合 1 次曲射，下一大回合装填，半径 1 内敌友不分。',
+    '拦截': '遭受敌方飞机进攻时可立即起飞参战。',
+    '重轰': '轰炸消耗 2 行动力；防空无法拦截，但要承受路径上每个防空的伤害。',
+    '高空': '被防空攻击时防空射程 −1；不能被没有高空词条的战斗机攻击。',
+    '核弹': '中心目标必死；半径 1 内 3 点、半径 2 内 2 点，敌友不分。',
+    '碎心': '受到的反击伤害 ×2。',
+    '游击队': '进攻不消耗行动力，攻击后可继续移动，每回合限一次。',
+  };
+
+  /* ---------------- 状态 ---------------- */
+  const state = {
+    open: false,
+    view: 'list',       // list 国家列表 / country 工作台
+    country: null,
+    era: '40s',
+    cat: 'inf',
+    unit: 0,            // 当前单位下标
+  };
+
+  let savedTitle = '';
+  let unitListEl = null;
+  let dataEl = null;
+  let catsEl = null;
+  let viewer = null;
+
+  /* ---------------- 小工具 ---------------- */
+  function pad2(n) { return n < 10 ? '0' + n : String(n); }
+
+  function esc(s) {
+    return String(s).replace(/[&<>"]/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+    });
+  }
+
+  function focusEl(el) {
+    if (!el) return;
+    try { el.focus({ preventScroll: true }); } catch (e) { el.focus(); }
+  }
+
+  function num(v) {
+    if (v === null || v === undefined) return '—';
+    return String(Math.round(Number(v) * 1000) / 1000);
+  }
+
+  function pair(a, b) {
+    if ((a === null || a === undefined) && (b === null || b === undefined)) return '—';
+    return num(a) + ' <i>/</i> ' + num(b);
+  }
+
+  /* =============================================================
+   * 一、简介（存在同目录的 armory-desc.js 里，谁打开都能看到）
+   *
+   * 不再用浏览器 localStorage：数据是 线上版/armory-desc.js 里的
+   * window.UNIT_DESC 对象，页面启动时用 <script> 动态读进来。
+   * 界面上改完点「保存」，直接写回这个文件（Chrome/Edge 支持
+   * File System Access API 时弹窗选文件，否则退回下载一份同名文件）。
+   * ============================================================= */
+  const DESC_FILE = 'armory-desc.js';
+  let descDirty = false;
+
+  function unitKey(country, era, cat, name) {
+    return country + '|' + era + '|' + cat + '|' + name;
+  }
+
+  function descMap() {
+    if (!window.UNIT_DESC || typeof window.UNIT_DESC !== 'object') window.UNIT_DESC = {};
+    return window.UNIT_DESC;
+  }
+
+  function loadDescs() {
+    return descMap();
+  }
+
+  function setDesc(key, text) {
+    const all = descMap();
+    const before = all[key] || '';
+    if (text && text.trim()) all[key] = text;
+    else delete all[key];
+    if (before !== (all[key] || '')) descDirty = true;
+  }
+
+  function serializeDescs() {
+    const all = descMap();
+    const keys = Object.keys(all).sort();
+    const lines = keys.map(function (k) {
+      return '  ' + JSON.stringify(k) + ': ' + JSON.stringify(all[k]) + ',';
+    });
+    return '/* 军械库单位简介 —— 由军械库界面「保存」生成，也可以直接手改。\n' +
+      ' * 键：国家|年代|兵种|单位名；值是简介正文。\n' +
+      ' * 改完存回 线上版/armory-desc.js，刷新页面就能看到。\n' +
+      ' */\n' +
+      'window.UNIT_DESC = {\n' + lines.join('\n') + (lines.length ? '\n' : '') + '};\n';
+  }
+
+  function setDescStatus(msg) {
+    const hint = mount.querySelector('#ar-desc-hint');
+    if (hint) hint.textContent = msg;
+  }
+
+  function downloadDescs() {
+    const blob = new Blob([serializeDescs()], { type: 'text/javascript;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = DESC_FILE;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1500);
+  }
+
+  async function saveDescs() {
+    descDirty = false;
+    const text = serializeDescs();
+
+    if (window.showSaveFilePicker) {
+      try {
+        const handle = await window.showSaveFilePicker({
+          suggestedName: DESC_FILE,
+          types: [{ description: 'JavaScript', accept: { 'text/javascript': ['.js'] } }],
+        });
+        const w = await handle.createWritable();
+        await w.write(text);
+        await w.close();
+        setDescStatus('已写回 ' + DESC_FILE);
+        return;
+      } catch (err) {
+        if (err && err.name === 'AbortError') {
+          descDirty = true;
+          setDescStatus('已取消保存');
+          return;
+        }
+        // 没有权限 / file:// 不支持时退回下载
+      }
+    }
+
+    downloadDescs();
+    setDescStatus('已下载 ' + DESC_FILE + '，请覆盖 线上版/ 里的同名文件');
+  }
+
+  /* 页面启动时把 armory-desc.js 读进来；读不到就当空表 */
+  (function loadDescFile() {
+    const s = document.createElement('script');
+    s.src = DESC_FILE;
+    s.async = false;
+    s.onload = function () {
+      if (window.Armory && window.Armory.refreshDesc) window.Armory.refreshDesc();
+    };
+    s.onerror = function () { /* 还没建这个文件，忽略 */ };
+    document.head.appendChild(s);
+  })();
+
+
+  /* =============================================================
+   * 二、3D 查看器
+   * ============================================================= */
+  /* 只绕竖轴转（yaw 不限），俯仰压在这个范围里：
+   * 相机本身在基座上方约 20°，压到 -0.14rad（约 -8°）仍然在基座平面之上，
+   * 抬到 +0.34rad（约 +19°）是稍微俯视，这样任何角度都看不到底座下面。 */
+  const PITCH_MIN = -0.14;
+  const PITCH_MAX = 0.34;
+  const PITCH_HOME = 0.14;
+
+  /* 阵营模型颜色：用户指定美军纯蓝、德军灰，其它国家先留中性灰 */
+  const MODEL_COLOR = { us: 0x0000ff, de: 0x50565e };
+
+  /* 模型正面朝向的修正角：用户把美军 / 德军模型都统一成「正面朝 +X」，
+   * 转到正对相机要多转 -90°。 */
+  const MODEL_FACING = { us: -Math.PI / 2, de: -Math.PI / 2 };
+
+  /* 个别模型正面反了，单独再转 180° */
+  const MODEL_YAW = { 'us|40s|air|F6战斗侦察机': Math.PI };
+
+  function decodeGeometry(b64) {
+    const THREE = window.THREE;
+    const bin = atob(b64);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    const dv = new DataView(bytes.buffer);
+    const nv = dv.getUint16(0, true);
+
+    const pos = new Float32Array(nv * 3);
+    let o = 2;
+    for (let i = 0; i < nv * 3; i++) {
+      pos[i] = dv.getUint16(o, true) / 65535 * 2 - 1;
+      o += 2;
+    }
+
+    const nidx = (bytes.length - o) >> 1;
+    const idx = new Uint16Array(nidx);
+    for (let i = 0; i < nidx; i++) {
+      idx[i] = dv.getUint16(o + i * 2, true);
+    }
+
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    geo.setIndex(new THREE.BufferAttribute(idx, 1));
+    geo.computeVertexNormals();
+    return geo;
+  }
+
+  function ensureViewer() {
+    const THREE = window.THREE;
+    const canvas = mount.querySelector('#ar-canvas');
+    if (!THREE || !canvas) return null;
+    if (viewer) return viewer;
+
+    const renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, alpha: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    if (THREE.sRGBEncoding !== undefined) renderer.outputEncoding = THREE.sRGBEncoding;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.05;
+
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(30, 1, 0.01, 100);
+    camera.position.set(0, 1.35, 3.4);
+    camera.lookAt(0, 0.02, 0);
+
+    // 打光思路：环境光托底 + 跟相机的一盏补光，保证转到哪一面都不会黑成一片；
+    // 再用一盏主光和一点轮廓光把体积感提出来。不开阴影贴图，不会有投影。
+    scene.add(new THREE.AmbientLight(0xffffff, 0.38));
+
+    scene.add(new THREE.HemisphereLight(0xdfe8f5, 0x2b313a, 0.5));
+
+    const key = new THREE.DirectionalLight(0xffffff, 1.0);
+    key.position.set(2.2, 3.2, 2.6);
+    scene.add(key);
+
+    // 跟着相机方向的补光：模型转到背面也能看清
+    const head = new THREE.DirectionalLight(0xffffff, 0.5);
+    head.position.set(0, 1.25, 3.4);
+    head.target.position.set(0, 0, 0);
+    scene.add(head);
+    scene.add(head.target);
+
+    // 左侧补光：主光的背光面不至于黑成洞
+    const fill = new THREE.DirectionalLight(0xdfe8f5, 0.45);
+    fill.position.set(-2.8, 1.6, 1.4);
+    scene.add(fill);
+
+    const side = new THREE.DirectionalLight(0x9dc0e4, 0.32);
+    side.position.set(-2.6, 1.2, -1.8);
+    scene.add(side);
+
+    const rim = new THREE.DirectionalLight(0xe0a458, 0.18);
+    rim.position.set(-0.5, 0.6, -3.0);
+    scene.add(rim);
+
+    const group = new THREE.Group();
+    // 先绕竖轴转（yaw），再绕世界 X 轴俯仰（pitch）。
+    // 'XYZ' = Rx * Ry：俯仰方向不跟着水平转，上下拖动永远是「往前/往后点一下」。
+    group.rotation.order = 'XYZ';
+    group.rotation.y = -0.62;
+    group.rotation.x = PITCH_HOME;
+    group.scale.setScalar(0.7);
+    scene.add(group);
+
+    viewer = {
+      renderer: renderer, scene: scene, camera: camera, group: group,
+      mesh: null, canvas: canvas, dist: 3.4, yaw: -0.62, pitch: PITCH_HOME, ro: null,
+    };
+
+    bindOrbit(viewer);
+
+    // 面板尺寸变化（窗口缩放、数据栏换行等）时跟着重排
+    if (typeof ResizeObserver !== 'undefined') {
+      viewer.ro = new ResizeObserver(function () { sizeViewer(viewer); });
+      viewer.ro.observe(viewer.canvas.parentElement);
+    }
+
+    sizeViewer(viewer);
+    return viewer;
+  }
+
+  function sizeViewer(v) {
+    const box = v.canvas.parentElement;
+    if (!box) return;
+    const w = box.clientWidth || 1;
+    const h = box.clientHeight || 1;
+    v.renderer.setSize(w, h, false);
+    v.camera.aspect = w / h;
+    v.camera.updateProjectionMatrix();
+    drawViewer(v);
+  }
+
+  function drawViewer(v) {
+    if (!v) return;
+    v.renderer.render(v.scene, v.camera);
+  }
+
+  function bindOrbit(v) {
+    let dragging = false;
+    let lastX = 0;
+    let lastY = 0;
+
+    v.canvas.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+
+    v.canvas.addEventListener('pointerdown', function (e) {
+      if (e.button !== 2 && e.button !== 0 && e.button !== 1) return;
+      e.preventDefault();
+      dragging = true;
+      lastX = e.clientX;
+      lastY = e.clientY;
+      try { v.canvas.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
+      v.canvas.classList.add('is-dragging');
+    });
+
+    v.canvas.addEventListener('pointermove', function (e) {
+      if (!dragging) return;
+      const dx = e.clientX - lastX;
+      const dy = e.clientY - lastY;
+      lastX = e.clientX;
+      lastY = e.clientY;
+      v.yaw += dx * 0.012;
+      // 俯仰只给一点点：往下压不超过 -0.18rad，免得看到底座下面
+      v.pitch = Math.max(PITCH_MIN, Math.min(PITCH_MAX, v.pitch + dy * 0.006));
+      v.group.rotation.y = v.yaw;
+      v.group.rotation.x = v.pitch;
+      drawViewer(v);
+    });
+
+    function end(e) {
+      if (!dragging) return;
+      dragging = false;
+      v.canvas.classList.remove('is-dragging');
+      try { v.canvas.releasePointerCapture(e.pointerId); } catch (err) { /* ignore */ }
+    }
+    v.canvas.addEventListener('pointerup', end);
+    v.canvas.addEventListener('pointercancel', end);
+
+    v.canvas.addEventListener('wheel', function (e) {
+      e.preventDefault();
+      v.dist = Math.max(1.9, Math.min(5.6, v.dist + (e.deltaY > 0 ? 0.24 : -0.24)));
+      v.camera.position.set(0, 1.25 * (v.dist / 3.4), v.dist);
+      v.camera.lookAt(0, 0.02, 0);
+      drawViewer(v);
+    }, { passive: false });
+  }
+
+  function unitKeyOf(u) {
+    return unitKey(state.country, state.era, state.cat, u.name);
+  }
+
+  /* ---------------- 模型文件按兵种分包 ----------------
+   * armory.js 只放单位数据；模型放在 armory-models/<国家>-<年代>-<兵种>.js，
+   * 点开哪个兵种才加载哪个，单文件大概 1~2MB。
+   */
+  const MODEL_DIR = 'armory-models/';
+  const modelState = {};      // bag key -> 'loading' | 'ready' | 'error'
+  const modelWaiters = {};    // bag key -> [cb]
+
+  function modelBagKey() {
+    return state.country + '|' + state.era + '|' + state.cat;
+  }
+
+  function modelFile(key) {
+    return MODEL_DIR + key.split('|').join('-') + '.js';
+  }
+
+  function modelBag(key) {
+    const all = window.ARMORY_MODELS;
+    return (all && all[key]) || null;
+  }
+
+  function loadModels(key, cb) {
+    if (modelBag(key)) { cb(); return; }
+    const st = modelState[key];
+    if (st === 'loading') { (modelWaiters[key] = modelWaiters[key] || []).push(cb); return; }
+    if (st === 'error') { cb(); return; }
+
+    modelState[key] = 'loading';
+    modelWaiters[key] = [cb];
+    const s = document.createElement('script');
+    s.src = modelFile(key);
+    s.async = false;
+    s.onload = function () {
+      modelState[key] = 'ready';
+      const q = modelWaiters[key] || [];
+      modelWaiters[key] = null;
+      q.forEach(function (fn) { try { fn(); } catch (e) { /* ignore */ } });
+    };
+    s.onerror = function () {
+      modelState[key] = 'error';
+      const q = modelWaiters[key] || [];
+      modelWaiters[key] = null;
+      q.forEach(function (fn) { try { fn(); } catch (e) { /* ignore */ } });
+    };
+    document.head.appendChild(s);
+  }
+
+  function setViewHint(text) {
+    const el = mount.querySelector('#ar-view-hint');
+    if (el) el.textContent = text;
+  }
+
+  /* 先保证模型文件在，再画 */
+  function showModelFor(unit) {
+    if (!unit) { showModel(null); setViewHint('按住右键拖动旋转 · 滚轮缩放'); return; }
+    if (modelBag(modelBagKey())) { applyModel(unit); return; }
+    var bag = modelBagKey();
+    setViewHint('模型加载中…');
+    loadModels(bag, function () {
+      if (!state.open || state.view !== 'country') return;
+      if (!modelBag(modelBagKey())) {
+        showModel(null);
+        setViewHint('模型文件没找到（' + modelFile(bag) + '）');
+        return;
+      }
+      applyModel(currentUnit() || unit);
+    });
+  }
+
+  function applyModel(unit) {
+    const ok = showModel(unit);
+    setViewHint(ok ? '按住右键拖动旋转 · 滚轮缩放' : '这个单位的模型还没导出');
+  }
+
+  function showModel(unit) {
+    const v = ensureViewer();
+    if (!v) return false;
+
+    if (v.mesh) {
+      v.group.remove(v.mesh);
+      v.mesh.geometry.dispose();
+      v.mesh.material.dispose();
+      v.mesh = null;
+    }
+
+    if (!unit) { drawViewer(v); return false; }
+
+    const models = modelBag(modelBagKey()) || {};
+    const rec = models[unitKeyOf(unit)];
+    if (!rec || !window.THREE) { drawViewer(v); return false; }
+
+    const geo = decodeGeometry(rec.b64);
+    const mat = new THREE.MeshStandardMaterial({
+      color: (MODEL_COLOR[state.country] !== undefined ? MODEL_COLOR[state.country] : 0x98a3af),
+      roughness: 0.85, metalness: 0, flatShading: true, side: THREE.DoubleSide,
+    });
+    const mesh = new THREE.Mesh(geo, mat);
+    // 打印件的正面朝 +X：先 Z-up→Y-up，再绕竖轴转到正对相机（+Z）
+    mesh.rotation.order = 'YXZ';
+    mesh.rotation.y = (MODEL_FACING[state.country] || 0) + (MODEL_YAW[unitKeyOf(unit)] || 0);
+    mesh.rotation.x = -Math.PI / 2;
+    v.group.add(mesh);
+    v.mesh = mesh;
+
+    sizeViewer(v);
+    return true;
+  }
+
+  function disposeViewer() {
+    if (!viewer) return;
+    if (viewer.ro) { viewer.ro.disconnect(); viewer.ro = null; }
+    if (viewer.mesh) {
+      viewer.mesh.geometry.dispose();
+      viewer.mesh.material.dispose();
+      viewer.mesh = null;
+    }
+    viewer.renderer.dispose();
+    viewer = null;
+  }
+
+  /* =============================================================
+   * 三、渲染
+   * ============================================================= */
+  function topbar(backLabel, right) {
+    return '' +
+      '<header class="ar-top">' +
+        '<button type="button" class="ar-back" data-act="back">' +
+          '<span class="ar-back-i" aria-hidden="true">←</span>' +
+          '<span>' + backLabel + '</span>' +
+        '</button>' +
+        '<span class="menu-brand"><span class="logo">⬢</span><b>军械库</b><em>ARMORY</em></span>' +
+        (right || '<span class="ar-top-meta">5 个国家<span class="sep">/</span>单位 · 武器 · 编制</span>') +
+      '</header>';
+  }
+
+  function foot() {
+    return '' +
+      '<footer class="ar-foot">' +
+        '<span>单位模型由 单位/ 下的 .blend 只读导出，未改动原文件。</span>' +
+        '<span class="mono">数值来源 · 图鉴.xlsx</span>' +
+      '</footer>';
+  }
+
+  /* ---------------- 国家列表 ---------------- */
+  function listHTML() {
+    const cardsHTML = COUNTRIES.map(function (c, i) {
+      return '' +
+        '<button type="button" class="ar-nation" data-country="' + c.id + '"' +
+            ' style="--c:' + c.color + ';--c-soft:' + c.soft + '">' +
+          '<span class="ar-nation-top">' +
+            '<span class="ar-no">' + pad2(i + 1) + '</span>' +
+            '<span class="ar-code">' + c.code + '</span>' +
+          '</span>' +
+          '<span class="ar-wm" aria-hidden="true">' + c.char + '</span>' +
+          '<span class="ar-nation-name">' + c.name + '</span>' +
+          '<span class="ar-nation-en">' + c.en + '</span>' +
+          '<span class="ar-nation-eras">' +
+            c.eras.map(function (e) { return '<i>' + e + '</i>'; }).join('') +
+          '</span>' +
+        '</button>';
+    }).join('');
+
+    return '' +
+      topbar('主菜单') +
+      '<div class="ar-body">' +
+        '<div class="ar-stage">' +
+          '<section class="ar-head">' +
+            '<p class="menu-kicker">ORDER OF BATTLE <span>/</span> SELECT NATION</p>' +
+            '<h1 class="ar-title">选择国家</h1>' +
+            '<p class="ar-lead">军械库按国家归档：先选国家，再按年代、兵种查单位的数值与模型。<br>' +
+              '目前录好了 美国 40s 的步兵，其它兵种会陆续补上。</p>' +
+          '</section>' +
+          '<nav class="ar-nations" aria-label="国家">' + cardsHTML + '</nav>' +
+          '<p class="menu-note">' +
+            '<kbd>←</kbd><kbd>→</kbd> 选国家 <span>·</span>' +
+            '<kbd>1</kbd>–<kbd>5</kbd> 直达 <span>·</span>' +
+            '<kbd>Enter</kbd> 进入 <span>·</span>' +
+            '<kbd>Esc</kbd> 回主菜单' +
+          '</p>' +
+        '</div>' +
+        foot() +
+      '</div>';
+  }
+
+  /* ---------------- 国家工作台 ---------------- */
+  function eraTabsHTML(c) {
+    return '<div class="ar-era" role="tablist" aria-label="年代">' +
+      ERAS.map(function (e) {
+        const on = e.id === state.era;
+        return '<button type="button" class="ar-era-btn' + (on ? ' is-on' : '') + '"' +
+          ' data-era="' + e.id + '" role="tab" aria-selected="' + (on ? 'true' : 'false') + '">' +
+          e.id + '<em>' + e.label + '</em></button>';
+      }).join('') +
+    '</div>';
+  }
+
+  function countryTopbar(c) {
+    return topbar('全部国家',
+      '<span class="ar-crumb"><i style="--c:' + c.color + '">' + c.char + '</i>' + c.name + '</span>' +
+      eraTabsHTML(c));
+  }
+
+  function unitsListHTML() {
+    const units = unitsOf(state.country, state.era, state.cat);
+    if (!units.length) {
+      return '<p class="ar-units-empty">这个兵种还没录单位。</p>';
+    }
+    return units.map(function (u, i) {
+      return '<button type="button" class="ar-unit' + (i === state.unit ? ' is-on' : '') + '"' +
+        ' data-unit="' + i + '">' +
+        '<span class="ar-unit-no">' + pad2(i + 1) + '</span>' +
+        '<span class="ar-unit-nm">' + esc(u.name) + '</span>' +
+      '</button>';
+    }).join('');
+  }
+
+  function catBarHTML() {
+    const cats = catsFor(state.era);
+    return cats.map(function (c) {
+      const n = unitsOf(state.country, state.era, c.id).length;
+      return '<button type="button" class="ar-catbtn' + (c.id === state.cat ? ' is-on' : '') +
+        (n ? '' : ' is-empty') + '" data-cat="' + c.id + '">' +
+        '<span>' + c.name + '</span><em>' + (n || 0) + '</em>' +
+      '</button>';
+    }).join('');
+  }
+
+  function currentUnit() {
+    const units = unitsOf(state.country, state.era, state.cat);
+    return units[state.unit] || null;
+  }
+
+  function dataHTML() {
+    const u = currentUnit();
+    const c = BY_ID[state.country];
+    if (!u) {
+      return '<div class="ar-data-empty">' +
+        '<p>这个兵种还没有单位数据。</p>' +
+        '<p class="muted">先把 ' + esc(c.name) + ' ' + state.era + ' 的 ' + catName(state.cat) +
+        ' 的单位录进图鉴，再补模型。</p>' +
+      '</div>';
+    }
+
+    const armor = (u.armor && u.armor.some(function (v) { return v > 0; }))
+      ? u.armor.map(num).join(' / ')
+      : '—';
+
+    const traits = (u.traits && u.traits.length) ? u.traits.map(function (t) {
+      const info = TRAIT_INFO[t];
+      return '<li><b>' + esc(t) + '</b>' + (info ? '<span>' + esc(info) + '</span>' : '') + '</li>';
+    }).join('') : '<li class="is-none">没有词条</li>';
+
+    return '' +
+      '<div class="ar-data-head">' +
+        '<h2>' + esc(u.name) + '</h2>' +
+        '<span class="ar-data-tag">' + esc(c.name) + ' · ' + catName(state.cat) + ' · ' + state.era + '</span>' +
+      '</div>' +
+      '<div class="ar-data-scroll">' +
+        '<section class="ar-dsec">' +
+          '<h3>进攻 <em>软 / 硬</em></h3>' +
+          '<dl class="ar-stats">' +
+            '<div><dt>巷战</dt><dd>' + pair(u.atk[0][0], u.atk[0][1]) + '</dd></div>' +
+            '<div><dt>射程 1</dt><dd>' + pair(u.atk[1][0], u.atk[1][1]) + '</dd></div>' +
+            '<div><dt>射程 2</dt><dd>' + pair(u.atk[2][0], u.atk[2][1]) + '</dd></div>' +
+            '<div><dt>反击系数</dt><dd>' + num(u.ref) + '</dd></div>' +
+          '</dl>' +
+        '</section>' +
+        '<section class="ar-dsec">' +
+          '<h3>防御</h3>' +
+          '<dl class="ar-stats">' +
+            '<div><dt>血量</dt><dd>' + num(u.hp) + '</dd></div>' +
+            '<div><dt>装甲 正 / 侧 / 背</dt><dd>' + armor + '</dd></div>' +
+            '<div><dt>穿甲 巷 / 1 / 2</dt><dd>' + u.ap.map(num).join(' / ') + '</dd></div>' +
+          '</dl>' +
+        '</section>' +
+        '<section class="ar-dsec">' +
+          '<h3>机动与成本</h3>' +
+          '<dl class="ar-stats">' +
+            '<div><dt>行动力</dt><dd>' + num(u.move) + '</dd></div>' +
+            '<div><dt>价格</dt><dd>' + num(u.price) + '</dd></div>' +
+          '</dl>' +
+        '</section>' +
+        '<section class="ar-dsec">' +
+          '<h3>词条</h3>' +
+          '<ul class="ar-traits">' + traits + '</ul>' +
+        '</section>' +
+      '</div>' +
+      '<section class="ar-desc-block">' +
+        '<h3>简介 <button type="button" class="ar-desc-export" title="把简介写回 线上版/armory-desc.js">保存</button></h3>' +
+        '<textarea id="ar-desc" class="ar-desc" rows="4" spellcheck="false"' +
+          ' placeholder="还没写简介。点这里写，改完点「保存」写进 armory-desc.js，别人也能看到。"></textarea>' +
+        '<p class="ar-desc-hint" id="ar-desc-hint">还没有简介</p>' +
+      '</section>';
+  }
+
+  function workbenchHTML(c) {
+    return '' +
+      countryTopbar(c) +
+      '<div class="ar-work">' +
+        '<aside class="ar-units" aria-label="单位">' +
+          '<h2><span id="ar-cat-name">' + catName(state.cat) + '</span><em id="ar-unit-count">' + unitsOf(state.country, state.era, state.cat).length + '</em></h2>' +
+          '<div class="ar-units-list" id="ar-units-list">' + unitsListHTML() + '</div>' +
+        '</aside>' +
+        '<section class="ar-view">' +
+          '<div class="ar-view-box">' +
+            '<canvas id="ar-canvas"></canvas>' +
+          '</div>' +
+          '<p class="ar-view-hint" id="ar-view-hint">按住右键拖动旋转 · 滚轮缩放</p>' +
+        '</section>' +
+        '<aside class="ar-data" id="ar-data">' + dataHTML() + '</aside>' +
+      '</div>' +
+      '<nav class="ar-cats" aria-label="兵种" id="ar-cats">' + catBarHTML() + '</nav>';
+  }
+
+  /* =============================================================
+   * 四、切页与局部刷新
+   * ============================================================= */
+  function render() {
+    const c = state.country ? BY_ID[state.country] : null;
+    mount.classList.toggle('is-bench', !!(state.view === 'country' && c));
+    mount.setAttribute('aria-label', c ? c.name + ' · 军械库' : '军械库');
+    mount.innerHTML = (state.view === 'country' && c) ? workbenchHTML(c) : listHTML();
+    mount.scrollTop = 0;
+
+    if (state.view === 'country' && c) {
+      unitListEl = mount.querySelector('#ar-units-list');
+      dataEl = mount.querySelector('#ar-data');
+      catsEl = mount.querySelector('#ar-cats');
+      bindDesc();
+
+      // 先同步建一次：读 clientWidth 会强制 layout，尺寸是准的；
+      // 再补一帧，防止刚显示时 flex 还没算完。
+      const v = ensureViewer();
+      if (v) {
+        sizeViewer(v);
+        showModelFor(currentUnit());
+      }
+      requestAnimationFrame(function () {
+        if (!viewer) return;
+        sizeViewer(viewer);
+      });
+    }
+  }
+
+  function unitListRefresh() {
+    if (!unitListEl) return;
+    unitListEl.innerHTML = unitsListHTML();
+    const count = mount.querySelector('#ar-unit-count');
+    if (count) count.textContent = unitsOf(state.country, state.era, state.cat).length;
+    const nameEl = mount.querySelector('#ar-cat-name');
+    if (nameEl) nameEl.textContent = catName(state.cat);
+  }
+
+  function dataRefresh() {
+    if (!dataEl) return;
+    dataEl.innerHTML = dataHTML();
+    bindDesc();
+  }
+
+  function catsRefresh() {
+    if (!catsEl) return;
+    catsEl.innerHTML = catBarHTML();
+  }
+
+  function selectUnit(i) {
+    state.unit = i;
+    unitListRefresh();
+    dataRefresh();
+    showModelFor(currentUnit());
+    focusEl(unitListEl && unitListEl.querySelector('[data-unit="' + i + '"]'));
+  }
+
+  function selectCat(id) {
+    const units = unitsOf(state.country, state.era, id);
+    state.cat = id;
+    state.unit = 0;
+    catsRefresh();
+    unitListRefresh();
+    dataRefresh();
+    showModelFor(units[0] || null);
+    focusEl(catsEl && catsEl.querySelector('[data-cat="' + id + '"]'));
+  }
+
+  function selectEra(id) {
+    state.era = id;
+    const cats = catsFor(id);
+    if (!cats.some(function (c) { return c.id === state.cat; })) {
+      state.cat = cats[0].id;
+    }
+    state.unit = 0;
+    // 画布会被重建，旧的 WebGL 上下文先丢掉
+    disposeViewer();
+    render();
+    focusEl(mount.querySelector('[data-era="' + id + '"]'));
+  }
+
+  /* ---------------- 简介编辑 ---------------- */
+  function bindDesc() {
+    const ta = mount.querySelector('#ar-desc');
+    const u = currentUnit();
+    if (!ta || !u) return;
+
+    const key = unitKeyOf(u);
+    ta.value = loadDescs()[key] || '';
+    setDescStatus(ta.value ? ta.value.length + ' 字 · 改完记得保存' : '还没有简介');
+
+    ta.addEventListener('input', function () {
+      setDesc(key, ta.value);
+      setDescStatus(ta.value ? '未保存 · ' + ta.value.length + ' 字' : '已清空 · 点保存写入文件');
+    });
+  }
+
+  /* =============================================================
+   * 五、打开 / 关闭 / 交互
+   * ============================================================= */
+  function openCountry(id) {
+    const c = BY_ID[id];
+    if (!c) return;
+    state.view = 'country';
+    state.country = id;
+    state.era = '40s';
+    state.cat = 'inf';
+    state.unit = 0;
+    render();
+    focusEl(mount);
+  }
+
+  function goBack() {
+    if (state.view === 'country') {
+      const prev = state.country;
+      state.view = 'list';
+      state.country = null;
+      disposeViewer();
+      render();
+      if (prev) focusEl(mount.querySelector('[data-country="' + prev + '"]'));
+      return;
+    }
+    close();
+  }
+
+  function open(countryId) {
+    if (state.open) {
+      if (countryId) openCountry(countryId);
+      return;
+    }
+
+    savedTitle = document.title;
+    state.open = true;
+    state.era = '40s';
+    state.cat = 'inf';
+    state.unit = 0;
+    if (countryId && BY_ID[countryId]) {
+      state.view = 'country';
+      state.country = countryId;
+    } else {
+      state.view = 'list';
+      state.country = null;
+    }
+
+    mount.classList.remove('hidden');
+    mount.setAttribute('aria-hidden', 'false');
+    if (!mount.hasAttribute('tabindex')) mount.setAttribute('tabindex', '-1');
+    document.body.classList.add('armory-open');
+
+    const menu = document.getElementById('menu');
+    if (menu) menu.setAttribute('inert', '');
+
+    document.title = TITLE;
+    render();
+    focusEl(mount);
+
+    window.addEventListener('resize', onResize);
+  }
+
+  function close() {
+    if (!state.open) return;
+    state.open = false;
+
+    disposeViewer();
+    window.removeEventListener('resize', onResize);
+
+    mount.classList.add('hidden');
+    mount.setAttribute('aria-hidden', 'true');
+    mount.classList.remove('is-bench');
+    mount.innerHTML = '';
+    document.body.classList.remove('armory-open');
+
+    const menu = document.getElementById('menu');
+    if (menu) menu.removeAttribute('inert');
+
+    document.title = savedTitle || '兵棋 · 线上战术桌';
+    focusEl(document.querySelector('.menu-item[data-module="armory"]'));
+  }
+
+  function onResize() {
+    if (!state.open || state.view !== 'country') return;
+    if (viewer) sizeViewer(viewer);
+  }
+
+  /* ---------------- 鼠标 ---------------- */
+  mount.addEventListener('click', function (e) {
+    const t = e.target && e.target.closest
+      ? e.target.closest('[data-act], [data-country], [data-era], [data-cat], [data-unit], .ar-desc-export')
+      : null;
+    if (!t || !mount.contains(t)) return;
+
+    if (t.getAttribute('data-act') === 'back') { goBack(); return; }
+
+    if (t.classList.contains('ar-desc-export')) { saveDescs(); return; }
+
+    const country = t.getAttribute('data-country');
+    if (country) { openCountry(country); return; }
+
+    const era = t.getAttribute('data-era');
+    if (era) { selectEra(era); return; }
+
+    const cat = t.getAttribute('data-cat');
+    if (cat) { selectCat(cat); return; }
+
+    const unit = t.getAttribute('data-unit');
+    if (unit !== null) { selectUnit(Number(unit)); }
+  });
+
+  /* ---------------- 键盘 ----------------
+   * 捕获阶段接管：军械库开着时按键不漏给 home.js / app3d.js。
+   * 简介输入框有焦点时不抢 1–5 和方向键。 */
+  window.addEventListener('keydown', function (e) {
+    if (!state.open) return;
+    e.stopImmediatePropagation();
+
+    const active = document.activeElement;
+    const typing = !!active && (active.tagName === 'TEXTAREA' || active.tagName === 'INPUT');
+
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      goBack();
+      return;
+    }
+
+    if (typing) return;
+
+    if (state.view === 'list') {
+      if (e.key === 'ArrowRight' || e.key === 'ArrowDown') { e.preventDefault(); moveFocus(1); return; }
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') { e.preventDefault(); moveFocus(-1); return; }
+      if (/^[1-5]$/.test(e.key)) {
+        e.preventDefault();
+        const c = COUNTRIES[Number(e.key) - 1];
+        if (c) openCountry(c.id);
+      }
+      return;
+    }
+
+    // 工作台里：↑↓ 换单位，←→ 换兵种
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      const units = unitsOf(state.country, state.era, state.cat);
+      if (!units.length) return;
+      e.preventDefault();
+      const dir = e.key === 'ArrowDown' ? 1 : -1;
+      selectUnit((state.unit + dir + units.length) % units.length);
+      return;
+    }
+    if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+      const cats = catsFor(state.era);
+      const i = cats.map(function (x) { return x.id; }).indexOf(state.cat);
+      if (i < 0) return;
+      e.preventDefault();
+      const dir = e.key === 'ArrowRight' ? 1 : -1;
+      selectCat(cats[(i + dir + cats.length) % cats.length].id);
+    }
+  }, true);
+
+  window.addEventListener('keyup', function (e) {
+    if (state.open) e.stopImmediatePropagation();
+  }, true);
+
+  /* ---------------- 菜单焦点 ---------------- */
+  function cards() {
+    return Array.prototype.slice.call(mount.querySelectorAll('.ar-nation'));
+  }
+
+  function focusCard(i) {
+    const list = cards();
+    if (!list.length) return;
+    const n = ((i % list.length) + list.length) % list.length;
+    focusEl(list[n]);
+  }
+
+  function moveFocus(dir) {
+    const list = cards();
+    if (!list.length) return;
+    const i = list.indexOf(document.activeElement);
+    focusCard(i < 0 ? (dir > 0 ? 0 : list.length - 1) : i + dir);
+  }
+
+  /* ---------------- 对外接口 ---------------- */
+  window.Armory = {
+    open: open,
+    close: close,
+    isOpen: function () { return state.open; },
+    countries: COUNTRIES,
+    country: function (id) { return BY_ID[id] || null; },
+    eras: ERAS,
+    categories: catsFor,
+    units: function (country, era, cat) { return unitsOf(country, era, cat); },
+    descriptions: loadDescs,
+    /* armory-desc.js 加载完 / 换过文件之后调一下，把当前单位的简介刷出来 */
+    refreshDesc: function () {
+      if (!state.open || state.view !== 'country') return;
+      const ta = mount.querySelector('#ar-desc');
+      const u = currentUnit();
+      if (!ta || !u) return;
+      if (document.activeElement === ta) return;   // 别覆盖正在写的
+      ta.value = loadDescs()[unitKeyOf(u)] || '';
+      setDescStatus(ta.value ? ta.value.length + ' 字 · 改完记得保存' : '还没有简介');
+    },
+  };
+})();

@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>兵棋 · 线上战术桌</title>
+<meta name="description" content="兵棋线上战术桌：3D 打印六角图块地图编辑器与对局工具。">
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="armory.css">
+<link rel="stylesheet" href="codex.css">
+<link rel="stylesheet" href="online.css">
+</head>
+<body class="view3d menu-open">
+
+<!-- ================= 主菜单 ================= -->
+<div id="menu" class="menu" role="dialog" aria-modal="true" aria-label="主菜单" tabindex="-1">
+  <div class="menu-shell">
+    <div class="menu-top">
+      <span class="menu-brand"><span class="logo">⬢</span><b>兵棋</b><em>HEX WARGAME</em></span>
+      <span class="menu-meta"><i class="dot"></i>本地运行 · 无需联网</span>
+    </div>
+
+    <div class="menu-body">
+      <section class="menu-main">
+        <p class="menu-kicker">TACTICAL TABLE <span>/</span> 3D PRINTED EDITION</p>
+        <h1 class="menu-title">兵棋<span>线上战术桌</span></h1>
+        <p class="menu-lead">把 3D 打印的六角战场搬进浏览器。<br>先选一个区块开始。</p>
+
+        <nav class="menu-list" aria-label="功能区块">
+          <button type="button" class="menu-item is-ready" data-module="online" data-name="线上对战">
+            <span class="mi-no">01</span>
+            <span class="mi-text">
+              <span class="mi-title">线上对战<em>ONLINE BATTLE</em></span>
+              <span class="mi-desc">创建房间，把地图和作战模式同步给外地同学。</span>
+            </span>
+            <span class="mi-tag live">可用</span>
+            <span class="mi-arrow" aria-hidden="true">→</span>
+          </button>
+
+          <button type="button" class="menu-item is-ready" data-module="armory" data-name="军械库">
+            <span class="mi-no">02</span>
+            <span class="mi-text">
+              <span class="mi-title">军械库<em>ARMORY</em></span>
+              <span class="mi-desc">单位数值、武器与编制，一页查完。</span>
+            </span>
+            <span class="mi-tag live">可用</span>
+            <span class="mi-arrow" aria-hidden="true">→</span>
+          </button>
+
+          <button type="button" class="menu-item is-ready" data-module="codex" data-name="百科">
+            <span class="mi-no">03</span>
+            <span class="mi-text">
+              <span class="mi-title">百科<em>CODEX</em></span>
+              <span class="mi-desc">规则、地形与术语，随时速查。</span>
+            </span>
+            <span class="mi-tag live">可用</span>
+            <span class="mi-arrow" aria-hidden="true">→</span>
+          </button>
+
+          <button type="button" class="menu-item" data-module="editor" data-name="地图编辑器">
+            <span class="mi-no">04</span>
+            <span class="mi-text">
+              <span class="mi-title">地图编辑器<em>MAP EDITOR</em></span>
+              <span class="mi-desc">用实物图块拼战场，保存 JSON / 导出 PNG。</span>
+            </span>
+            <span class="mi-tag live">可用</span>
+            <span class="mi-arrow" aria-hidden="true">→</span>
+          </button>
+        </nav>
+
+        <p class="menu-note">
+          <kbd>↑</kbd><kbd>↓</kbd> 选择 <span>·</span> <kbd>Enter</kbd> 进入 <span>·</span> <kbd>1</kbd>–<kbd>4</kbd> 直达 <span>·</span> 编辑器内 <kbd>Esc</kbd> 返回
+        </p>
+      </section>
+
+      <aside class="menu-side" aria-label="地图编辑器预览">
+        <figure class="menu-art">
+          <div class="menu-art-box">
+            <img src="menu-board.png" width="980" height="505" alt="3D 打印六角图块拼成的示例战场">
+            <span class="menu-art-tag">MAP EDITOR · 3D</span>
+          </div>
+          <figcaption>
+            <span>实体图块 1:1 还原</span>
+            <span class="mono">1cm 六角 · 10 种地形</span>
+          </figcaption>
+        </figure>
+        <dl class="menu-facts">
+          <div><dt>列距</dt><dd>17.16<small>mm</small></dd></div>
+          <div><dt>行距</dt><dd>14.86<small>mm</small></dd></div>
+          <div><dt>存档</dt><dd>本机</dd></div>
+        </dl>
+      </aside>
+    </div>
+
+    <div class="menu-foot">
+      <span>地图模型只读载入，未改动任何 .3mf / .blend 文件。</span>
+      <span id="menu-local" class="mono">本地草稿：—</span>
+    </div>
+  </div>
+  <div id="menu-toast" class="menu-toast" role="status" aria-live="polite"></div>
+</div>
+
+<!-- ================= 军械库（内容由 armory.js 渲染） ================= -->
+<div id="armory" class="armory hidden" role="dialog" aria-modal="true" aria-label="军械库" tabindex="-1"></div>
+
+<!-- ================= 线上对战 ================= -->
+<section id="online" class="online hidden" role="dialog" aria-modal="true" aria-label="线上对战" tabindex="-1">
+  <div class="online-shell">
+    <header class="online-top">
+      <button id="online-back" type="button" class="btn icon online-back" title="返回主菜单" aria-label="返回主菜单">←</button>
+      <span class="online-brand"><span class="logo">⬢</span><b>线上对战</b><em>ONLINE</em></span>
+      <span id="online-status" class="online-status" data-state="idle"><i></i><span id="online-status-text">未连接</span></span>
+    </header>
+
+    <!-- ---------- 入口 ---------- -->
+    <div id="online-entry" class="online-view">
+      <div class="online-entry-grid">
+        <section class="online-entry-main">
+          <p class="online-kicker">ROOM CODE <span>/</span> ENCRYPTED RELAY</p>
+          <h1 class="online-title">把战场<br>搬到线上。</h1>
+          <p class="online-lead">房主创建房间，把 8 位房间码发给同学。地图、作战模式和玩家状态会自动同步。</p>
+
+          <div class="online-entry-card">
+            <div class="online-tabs" role="tablist" aria-label="联机方式">
+              <button type="button" class="online-tab active" data-tab="create" role="tab" aria-selected="true">创建房间</button>
+              <button type="button" class="online-tab" data-tab="join" role="tab" aria-selected="false">加入房间</button>
+            </div>
+
+            <label class="online-field">
+              <span>你的昵称</span>
+              <input id="online-name" type="text" maxlength="16" autocomplete="nickname" placeholder="指挥官">
+            </label>
+
+            <label id="online-code-field" class="online-field hidden">
+              <span>房间码</span>
+              <input id="online-code" type="text" maxlength="9" autocomplete="off" spellcheck="false" placeholder="ABCD-EFGH">
+            </label>
+
+            <button id="online-go" type="button" class="btn primary online-go">创建房间</button>
+            <p id="online-entry-hint" class="online-hint">创建后会生成 8 位房间码。房间是 2 人局：房主 + 1 位对手。</p>
+
+            <details class="online-advanced">
+              <summary>高级：中继服务器</summary>
+              <label class="online-field compact">
+                <span>MQTT 中继</span>
+                <select id="online-broker"></select>
+              </label>
+              <p>房主和加入者必须使用同一个中继。房间内容用房间码派生的密钥加密，中继只看到主题和密文。</p>
+            </details>
+          </div>
+        </section>
+
+        <aside class="online-entry-side">
+          <figure class="online-side-art">
+            <img src="menu-board.png" alt="3D 打印六角图块拼成的示例战场">
+            <figcaption><span>8 位房间码</span><span class="mono">AES-GCM</span></figcaption>
+          </figure>
+          <ol class="online-steps">
+            <li><b>01</b><span>房主创建房间，选一张地图。</span></li>
+            <li><b>02</b><span>把房间码发给外地同学。</span></li>
+            <li><b>03</b><span>客人准备，房主开始对战。</span></li>
+          </ol>
+          <p class="online-note">不经过游戏服务器：网页通过公共 MQTT 中继交换加密消息。中继能看到房间主题和流量，但读不到地图与玩家内容。</p>
+        </aside>
+      </div>
+    </div>
+
+    <!-- ---------- 房间 ---------- -->
+    <div id="online-room" class="online-view hidden">
+      <div class="online-room-head">
+        <div>
+          <p id="online-role-label" class="online-kicker">房主</p>
+          <h1 class="online-room-title">房间 <span id="online-code-display" class="online-code-inline">--------</span></h1>
+        </div>
+        <div class="online-room-actions">
+          <button id="online-copy" type="button" class="btn">复制房间码</button>
+          <button id="online-invite" type="button" class="btn hidden">复制邀请链接</button>
+          <button id="online-leave" type="button" class="btn danger">离开房间</button>
+        </div>
+      </div>
+
+      <div id="online-banner" class="online-banner hidden"></div>
+
+      <div class="online-room-grid">
+        <section class="online-map-panel">
+          <div class="online-panel-head">
+            <h2>作战地图</h2>
+            <span id="online-mode-badge" class="online-mode-badge hidden">攻防战</span>
+            <span id="online-map-dims" class="online-dims"></span>
+            <button id="online-pick-map" type="button" class="btn small online-pick-map hidden">选择地图</button>
+          </div>
+
+          <div class="online-map-wrap">
+            <canvas id="online-map" aria-label="作战地图预览"></canvas>
+            <div id="online-map-empty" class="online-map-empty">
+              <span class="online-map-empty-icon" aria-hidden="true">⬢</span>
+              <b id="online-map-empty-title">还没有选择地图</b>
+              <p id="online-map-empty-text">房主从地图库选一张，或导入 JSON。</p>
+              <button id="online-map-empty-action" type="button" class="btn small hidden">选择地图</button>
+            </div>
+          </div>
+
+          <div class="online-map-meta">
+            <div class="online-map-name">
+              <b id="online-map-title">—</b>
+              <span id="online-map-sub"></span>
+            </div>
+            <div id="online-deploy" class="online-deploy"></div>
+          </div>
+          <p id="online-mode-desc" class="online-mode-desc"></p>
+        </section>
+
+        <aside class="online-room-side">
+          <section class="online-card">
+            <div class="online-panel-head"><h2>玩家</h2><span id="online-player-count">1 / 2</span></div>
+            <ul id="online-players" class="online-players"></ul>
+          </section>
+
+          <section class="online-card online-room-code-card">
+            <h2>房间码</h2>
+            <div id="online-code-box" class="online-code-box">--------</div>
+            <p id="online-code-note">发给同学，输入同一串代码即可加入。</p>
+            <div id="online-phase-note" class="online-phase-note">等待玩家加入</div>
+          </section>
+
+          <section class="online-card online-log-card">
+            <h2>动态</h2>
+            <ul id="online-log" class="online-log"></ul>
+          </section>
+        </aside>
+      </div>
+
+      <div class="online-room-foot">
+        <span id="online-ready-note" class="online-ready-note">—</span>
+        <div class="online-foot-actions">
+          <button id="online-ready" type="button" class="btn hidden">准备</button>
+          <button id="online-start" type="button" class="btn primary hidden">开始对战</button>
+          <button id="online-back-lobby" type="button" class="btn hidden">返回大厅</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 地图选择 -->
+  <div id="online-map-dialog" class="online-modal hidden" role="dialog" aria-modal="true" aria-label="选择作战地图">
+    <div class="online-modal-box">
+      <div class="online-modal-head">
+        <div>
+          <p class="online-kicker">MAP LIBRARY</p>
+          <h2>选择作战地图</h2>
+        </div>
+        <button id="online-map-close" type="button" class="btn icon" aria-label="关闭">×</button>
+      </div>
+      <p class="online-modal-note">地图自带作战模式（攻防战 / 争夺战），选定后会同步给房间里的所有人。</p>
+      <div id="online-map-list" class="online-map-list"></div>
+      <div class="online-modal-foot">
+        <button id="online-map-import" type="button" class="btn">导入地图 JSON</button>
+        <span id="online-map-dialog-hint" class="online-hint">支持编辑器导出的 .json</span>
+        <input id="online-map-file" type="file" accept=".json,application/json" hidden>
+      </div>
+    </div>
+  </div>
+
+  <!-- 错误 / 提示 -->
+  <div id="online-alert" class="online-alert hidden" role="alertdialog" aria-modal="true" aria-label="提示">
+    <div class="online-alert-box">
+      <h2 id="online-alert-title">连接失败</h2>
+      <p id="online-alert-text"></p>
+      <div class="online-alert-actions">
+        <button id="online-alert-ok" type="button" class="btn primary">知道了</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="online-toast" class="online-toast" role="status" aria-live="polite"></div>
+</section>
+
+<header class="topbar" inert>
+  <button id="btn-home" class="btn icon btn-home" title="返回主菜单 (Esc)" aria-label="返回主菜单">←</button>
+  <div class="brand"><span class="logo">⬢</span><span>兵棋地图编辑器</span><em>3D</em></div>
+
+  <div class="group">
+    <label class="field">视图
+      <select id="viewSelect" class="sel">
+        <option value="terrain">地形</option>
+        <option value="move">行动力消耗</option>
+        <option value="protect">伤害抗性</option>
+      </select>
+    </label>
+    <label class="field">模式
+      <select id="modeSelect" class="sel">
+        <option value="attack">攻防战</option>
+        <option value="contest">争夺战</option>
+      </select>
+    </label>
+    <label class="field">列 <input id="cols" type="number" min="2" max="80" value="12"></label>
+    <label class="field">行 <input id="rows" type="number" min="2" max="60" value="9"></label>
+    <button id="btn-new" class="btn primary">新建地图</button>
+  </div>
+
+  <div class="group">
+    <button id="btn-undo" class="btn icon" title="撤销 (Ctrl+Z)">↶</button>
+    <button id="btn-redo" class="btn icon" title="重做 (Ctrl+Y)">↷</button>
+    <button id="btn-plain" class="btn">全部平原</button>
+  </div>
+
+  <div class="group right">
+    <button id="btn-view" class="btn" title="俯视 / 斜视 (F)">俯视</button>
+    <button id="btn-reset" class="btn" title="重置视角 (R)">复位视角</button>
+    <button id="btn-save" class="btn">保存</button>
+    <button id="btn-load" class="btn">载入</button>
+    <button id="btn-png" class="btn">导出 PNG</button>
+    <button id="btn-help" class="btn icon" title="帮助 (?)">?</button>
+  </div>
+</header>
+
+<main inert>
+  <aside class="panel" id="palette-panel">
+    <div class="tabs">
+      <button id="tab-terrain" class="tab active">地形</button>
+      <button id="tab-deploy" class="tab">部署</button>
+    </div>
+
+    <div id="terrain-pane">
+      <h2>地形 <span class="tip">数字键切换</span></h2>
+      <div class="palette-grid" id="paletteGrid"></div>
+    </div>
+
+    <div id="deploy-pane" class="hidden">
+      <h2>部署标记 <span class="tip">攻防战</span></h2>
+      <p id="deploy-note" class="note hidden">争夺战规则还没定，暂时没有特殊标记。<br>切到「攻防战」可以放出生点 / 指挥部 / 部署区。</p>
+      <div class="palette-grid" id="deployGrid"></div>
+      <button id="btn-clear-deploy" class="btn wide">清空部署标记</button>
+      <p class="note">部署标记只在这个标签页里显示，切回「地形」会自动隐藏，不会挡住地形颜色。<br>右键单击删除该格标记。</p>
+    </div>
+  </aside>
+
+  <section class="stage">
+    <div id="canvas-wrap">
+      <canvas id="board"></canvas>
+      <div id="legend" class="legend hidden"></div>
+    </div>
+    <div class="statusbar">
+      <span id="stat-coord" class="coord">—</span>
+      <span id="stat-terrain" class="muted">移到地图上查看格子</span>
+      <span class="grow"></span>
+      <span class="hint">左键绘制 · 右键拖动环绕 · WASD 平移 · 滚轮缩放 · Alt+拖动旋转</span>
+      <span id="stat-zoom" class="muted"></span>
+    </div>
+  </section>
+
+  <aside class="panel inspector">
+    <h2>地形信息</h2>
+    <div id="insp-body"></div>
+    <h2>图块用量</h2>
+    <div id="counts" class="counts"></div>
+  </aside>
+</main>
+
+<div id="toast" class="toast"></div>
+
+<div id="help" class="overlay hidden">
+  <div class="dialog">
+    <button class="close" title="关闭">×</button>
+    <h3>操作说明</h3>
+    <table>
+      <tr><td><kbd>1</kbd>–<kbd>0</kbd></td><td>切换当前地形（「地形」面板下）</td></tr>
+      <tr><td><kbd>左键</kbd></td><td>把格子换成当前地形，按住可连续涂刷</td></tr>
+      <tr><td><kbd>右键单击</kbd></td><td>吸取该格地形；在「部署」面板下则是删除该格标记</td></tr>
+      <tr><td><kbd>B</kbd></td><td>切换「地形 / 部署」面板</td></tr>
+      <tr><td><kbd>右键拖动</kbd> / <kbd>中键</kbd> / <kbd>Alt</kbd>+拖动</td><td>环绕旋转视角</td></tr>
+      <tr><td><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> / 方向键</td><td>平移视角</td></tr>
+      <tr><td><kbd>滚轮</kbd></td><td>拉近 / 拉远</td></tr>
+      <tr><td><kbd>F</kbd></td><td>俯视 / 斜视切换</td></tr>
+      <tr><td><kbd>R</kbd></td><td>重置视角</td></tr>
+      <tr><td><kbd>Ctrl</kbd>+<kbd>Z</kbd> / <kbd>Ctrl</kbd>+<kbd>Y</kbd></td><td>撤销 / 重做</td></tr>
+    </table>
+    <p class="muted"><b>攻防战</b>：进攻方出生点是一个格子，对战时单位必须从它开始一圈一圈往外放；
+      防守方是一片部署区。指挥部各一个。这些标记只在编辑和单位部署阶段显示，正式交战时不显示。</p>
+    <p class="muted"><b>争夺战</b>：双方争夺关键点位，规则还没定，暂时只记录地形和模式。</p>
+    <p class="muted">每一格用的就是 地图/ 里那套 .3mf 的实体图块模型（每块取打印板上的一块，未经改动），
+      格距按模型实际尺寸 17.16mm 排列，卡扣方向与实物一致。</p>
+  </div>
+</div>
+
+<input type="file" id="file" accept=".json,application/json" hidden>
+
+<script src="lib/three.min.js"></script>
+<script src="terrain.js"></script>
+<script src="hexgrid.js"></script>
+<script src="mapio.js"></script>
+<script src="markers.js"></script>
+<script src="models3d.js"></script>
+<script src="lib/mqtt.min.js"></script>
+<script src="home.js"></script>
+<script src="online-net.js"></script>
+<script src="online.js"></script>
+<script src="armory.js"></script>
+<script src="codex.js"></script>
+<script src="app3d.js"></script>
+</body>
+</html>
