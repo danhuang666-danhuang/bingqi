@@ -23,6 +23,8 @@
 
   const PROTO = 2;
   const PREFIX = 'bingqi/v2/';
+  const MAX_PLAYERS = 4;      // 2v2：攻方 2 + 守方 2，房主算其中一人
+  const MAX_PER_SIDE = 2;
   const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ0123456789'; // 去掉 I / O，避免和 1 / 0 混淆
   const CODE_LEN = 8;
   const KDF_ITERATIONS = 120000;
@@ -223,12 +225,16 @@
       if (role === 'host') {
         return {
           v: PROTO, role: 'host', id: selfId, name: name, online: online,
-          phase: 'lobby', map: null, maxPlayers: 2, ts: now,
+          phase: 'lobby', mode: null, side: null, faction: null,
+          factionReady: false, deckReady: false, prep: null,
+          map: null, teams: null, factions: null,
+          maxPlayers: MAX_PLAYERS, ts: now, joinedAt: now,
         };
       }
       return {
         v: PROTO, role: 'guest', id: selfId, name: name, online: online,
-        ready: false, ts: now,
+        side: null, faction: null, factionReady: false, deckReady: false, prep: null,
+        ready: false, ts: now, joinedAt: now,
       };
     }
 
@@ -527,6 +533,8 @@
   return {
     PROTO: PROTO,
     PREFIX: PREFIX,
+    MAX_PLAYERS: MAX_PLAYERS,
+    MAX_PER_SIDE: MAX_PER_SIDE,
     CODE_ALPHABET: CODE_ALPHABET,
     CODE_LEN: CODE_LEN,
     normalizeCode: normalizeCode,

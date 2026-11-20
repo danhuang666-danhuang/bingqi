@@ -11,8 +11,13 @@
  *     "cells": [0, 0, 3, ...],              // 行优先，数字是 terrains 里的下标
  *     "rules": { "city": { move, moveMech, protect, blocksSight, urban, riverReset, chaos } },
  *     "grid":  { "move": [...], "moveMech": [...], "protect": [...] },  // 逐格属性，与 cells 同序
- *     "deploy": { "spawn": [c,r], "hqA": [c,r], "hqD": [c,r], "zone": [[c,r], ...] }
+ *     "deploy": { "spawn": [c,r], "hqA": [c,r], "hqD": [c,r], "zone": [[c,r], ...] },
+ *     "phases": { "a": 1, "b": 4, "c": 9 }   // 阶段开始的大回合；b/c 为 null 表示没有该阶段
  *   }
+ *
+ * 阶段规则：第 1 大回合固定是 A 阶段；B、C 的开始回合由每张地图单独设置。
+ *   b 必须 ≥ 2，c 必须 > b；不合法会被纠正（见 normalizePhases）。
+ *   这是可选字段，老地图没有 phases 时按「只有 A 阶段」处理。
  *
  * 坐标约定（地图编辑器、小程序、线上对战都必须一致）：
  *   [列, 行] 都从 0 开始；列 0 在最左，行 0 在最下 —— 也就是**左下角为原点**，
@@ -152,6 +157,56 @@
   }
 
   /* ---------- 写出 ---------- */
+  /* ---------- 阶段（A / B / C） ----------
+   * 规则：第 1 大回合固定是 A 阶段开始；B、C 的开始回合由地图单独设置。
+   * 数据结构：{ a: 1, b: 4|null, c: 9|null }，null = 这张图没有该阶段。
+   * 这是可选字段：老地图没有 phases 时按 {a:1,b:null,c:null} 处理。 */
+
+  const DEFAULT_PHASES = { a: 1, b: null, c: null };
+  const MAX_ROUND = 99;
+
+  function toRound(v, min) {
+    const n = Math.floor(Number(v));
+    if (!isFinite(n)) return null;
+    if (n < min || n > MAX_ROUND) return null;
+    return n;
+  }
+
+  /* 规整成合法配置：A 恒为 1；B ≥ 2；C ≥ B+1；C 存在时 B 必须存在 */
+  function normalizePhases(p) {
+    const out = { a: 1, b: null, c: null };
+    if (!p || typeof p !== 'object') return out;
+    const b = toRound(p.b, 2);
+    if (b != null) {
+      out.b = b;
+      const c = toRound(p.c, b + 1);
+      if (c != null) out.c = c;
+    } else if (p.c != null) {
+      // 只给了 C 没给 B：B 退到 2；但 C 自己也必须是合法值，否则整组丢掉
+      const c = toRound(p.c, 3);
+      if (c != null) {
+        out.b = 2;
+        out.c = c;
+      }
+    }
+    return out;
+  }
+
+  /* 第 round 大回合属于哪个阶段；返回 'a' | 'b' | 'c' */
+  function phaseOfRound(p, round) {
+    const ph = normalizePhases(p);
+    const n = Math.max(1, Math.floor(Number(round) || 1));
+    if (ph.c != null && n >= ph.c) return 'c';
+    if (ph.b != null && n >= ph.b) return 'b';
+    return 'a';
+  }
+
+  function serializePhases(p) {
+    const ph = normalizePhases(p);
+    return { a: 1, b: ph.b, c: ph.c };
+  }
+
+  /* ---------- 写出 ---------- */
   function serialize(map, terrains) {
     const mode = MODE_IDS[map.mode] ? map.mode : 'attack';
     const out = {
@@ -166,6 +221,7 @@
       cells: Array.from(map.cells),
       rules: ruleTable(terrains),
       grid: cellGrid(map.cells, terrains),
+      phases: serializePhases(map.phases),
     };
     if (mode === 'attack') {
       const dep = serializeDeploy(map.deploy, map.cols);
@@ -256,6 +312,15 @@
     }
     const deploy = parseDeploy(raw.deploy, cols, rows, warnings);
 
+    /* 阶段：缺省 = A 从第 1 回合开始，没有 B/C */
+    const phases = normalizePhases(raw.phases);
+    if (raw.phases && typeof raw.phases === 'object') {
+      const wantB = raw.phases.b, wantC = raw.phases.c;
+      if ((wantB != null && phases.b !== wantB) || (wantC != null && phases.c !== wantC)) {
+        warnings.push('阶段起始回合不合法，已按 A=1 / B≥2 / C>B 修正');
+      }
+    }
+
     /* 格子属性：始终以 cells 里的地形为准重算。
      * 文件自带的 grid 只做校验——手改过 cells 却没重算属性时，这里会提示。 */
     const grid = cellGrid(cells, terrains);
@@ -265,6 +330,7 @@
 
     return {
       cols: cols, rows: rows, cells: cells, mode: mode, deploy: deploy,
+      phases: phases,
       grid: grid, rules: ruleTable(terrains), warnings: warnings,
     };
   }
@@ -301,6 +367,9 @@
     SAVE_KEY: SAVE_KEY,
     serialize: serialize,
     parse: parse,
+    DEFAULT_PHASES: DEFAULT_PHASES,
+    normalizePhases: normalizePhases,
+    phaseOfRound: phaseOfRound,
     ruleTable: ruleTable,
     cellGrid: cellGrid,
     ruleOf: ruleOf,

@@ -32,6 +32,7 @@
     toolTab: 'terrain',
     deployTool: 'spawn',
     viewMode: 'terrain',      // terrain 地形色 / move 行动力消耗 / protect 伤害抗性
+    phases: { a: 1, b: null, c: null },   // A 阶段固定第 1 回合起；B/C 由地图设置
     undo: [],
     redo: [],
     pending: null,
@@ -647,6 +648,7 @@
       cells: state.cells.slice(),
       mode: state.mode,
       deploy: MK.cloneDeploy(state.deploy),
+      phases: { a: 1, b: state.phases.b, c: state.phases.c },
     };
   }
 
@@ -670,6 +672,7 @@
     state.hover = -1;
     if (snap.mode) state.mode = snap.mode;
     if (snap.deploy) state.deploy = MK.cloneDeploy(snap.deploy);
+    if (snap.phases) state.phases = MAPIO.normalizePhases(snap.phases);
     showHover(0, 0, false);
     syncSizeInputs();
     syncModeUI();
@@ -678,6 +681,7 @@
     updateCounts();
     updateButtons();
     updateInspector();
+    renderPhaseUI();
     needRender = true;
     scheduleSave();
   }
@@ -1048,6 +1052,113 @@
     inspBody.innerHTML = html;
   }
 
+  /* =============================================================
+   * 阶段设置（A / B / C）
+   * 规则：第 1 大回合固定是 A 阶段；B、C 的开始回合由地图单独设置。
+   * 说明：index.html / style.css 归 UI agent，这里用运行时注入自己的一块面板，
+   *       不动他们的文件。
+   * ============================================================= */
+  function ensurePhaseStyles() {
+    if (document.getElementById('phase-style')) return;
+    const st = document.createElement('style');
+    st.id = 'phase-style';
+    st.textContent = [
+      '.phase-box{margin-top:14px;padding-top:10px;border-top:1px solid #323a46}',
+      '.phase-box h2{display:flex;align-items:baseline;justify-content:space-between;margin:0 0 8px;font-size:12px;font-weight:600;letter-spacing:1px;color:#8d97a5}',
+      '.phase-box h2 em{font-style:normal;font-size:11px;letter-spacing:0;color:#66707d}',
+      '.phase-row{display:flex;align-items:center;gap:7px;margin-bottom:7px;font-size:12px;color:#b9c2ce}',
+      '.phase-row .ph-name{width:15px;font-weight:600;color:#e0a458}',
+      '.phase-row input{width:58px;height:26px;padding:0 6px;border-radius:6px;border:1px solid #323a46;background:#262c35;color:#e3e7ec;font:inherit;font-size:12px;text-align:center;outline:none}',
+      '.phase-row input:focus{border-color:#e0a458}',
+      '.phase-row input:disabled{opacity:.45;cursor:not-allowed}',
+      '.phase-row .ph-desc{color:#8d97a5;font-size:11.5px}',
+      '.phase-summary{margin-top:8px;font-size:11.5px;line-height:1.65;color:#a9b3c0}',
+      '.phase-summary b{color:#e0a458;font-weight:600}',
+    ].join('\n');
+    document.head.appendChild(st);
+  }
+
+  function buildPhaseUI() {
+    ensurePhaseStyles();
+    if (document.getElementById('phase-box')) return;
+    const anchor = document.getElementById('counts');
+    const host = anchor ? anchor.parentNode : null;
+    if (!host) return;
+
+    const box = document.createElement('div');
+    box.id = 'phase-box';
+    box.className = 'phase-box';
+    box.innerHTML =
+      '<h2>阶段 <em>回合节奏</em></h2>' +
+      '<div class="phase-row"><span class="ph-name">A</span>' +
+      '<span class="ph-desc">第 1 回合起（固定）</span></div>' +
+      '<div class="phase-row"><span class="ph-name">B</span>' +
+      '<input id="phase-b" type="number" min="2" max="99" step="1" placeholder="—"><span class="ph-desc">回合起</span></div>' +
+      '<div class="phase-row"><span class="ph-name">C</span>' +
+      '<input id="phase-c" type="number" min="2" max="99" step="1" placeholder="—"><span class="ph-desc">回合起</span></div>' +
+      '<div class="phase-summary" id="phase-summary"></div>';
+    host.appendChild(box);
+
+    const bEl = document.getElementById('phase-b');
+    const cEl = document.getElementById('phase-c');
+    const onEdit = function () { applyPhasesFromInputs(); };
+    if (bEl) bEl.addEventListener('change', onEdit);
+    if (cEl) cEl.addEventListener('change', onEdit);
+    renderPhaseUI();
+  }
+
+  function renderPhaseUI() {
+    const bEl = document.getElementById('phase-b');
+    const cEl = document.getElementById('phase-c');
+    const sum = document.getElementById('phase-summary');
+    if (!bEl || !cEl || !sum) return;
+
+    const b = state.phases.b, c = state.phases.c;
+    bEl.value = b == null ? '' : b;
+    cEl.value = c == null ? '' : c;
+    cEl.disabled = (b == null);
+
+    let text;
+    if (b == null) {
+      text = '整局只有 <b>A</b> 阶段（第 1 回合起）。填 B 的开场回合即可开启第二阶段。';
+    } else if (c == null) {
+      text = '<b>A</b> 第 1–' + (b - 1) + ' 回合 · <b>B</b> 第 ' + b + ' 回合起。';
+    } else {
+      text = '<b>A</b> 第 1–' + (b - 1) + ' 回合 · <b>B</b> 第 ' + b + '–' + (c - 1) +
+        ' 回合 · <b>C</b> 第 ' + c + ' 回合起。';
+    }
+    sum.innerHTML = text;
+  }
+
+  function applyPhasesFromInputs() {
+    const bEl = document.getElementById('phase-b');
+    const cEl = document.getElementById('phase-c');
+    if (!bEl || !cEl) return;
+
+    const rawB = bEl.value === '' ? null : Number(bEl.value);
+    const rawC = cEl.value === '' ? null : Number(cEl.value);
+    // 没有 B 就不存在 C：清空 B 时 C 一并清掉
+    const next = (rawB == null)
+      ? { a: 1, b: null, c: null }
+      : MAPIO.normalizePhases({ b: rawB, c: rawC });
+
+    const changed = next.b !== state.phases.b || next.c !== state.phases.c;
+    if (changed) {
+      beginAction();
+      state.phases = next;
+      commitAction();
+    }
+    renderPhaseUI();
+
+    if (rawB != null && next.b == null) flash('B 阶段起始回合要在 2–99 之间');
+    else if (rawB != null && rawC != null && next.c == null) flash('C 阶段要晚于 B（且 ≤ 99）');
+  }
+
+  /* 第 n 回合属于哪个阶段 —— 供后续对战逻辑使用 */
+  function phaseAt(round) {
+    return MAPIO.phaseOfRound(state.phases, round);
+  }
+
   function updateCounts() {
     const counts = new Array(TERRAINS.length).fill(0);
     for (let i = 0; i < state.cells.length; i++) counts[state.cells[i]]++;
@@ -1274,6 +1385,7 @@
       cells: state.cells,
       mode: state.mode,
       deploy: state.deploy,
+      phases: state.phases,
     }, TERRAINS);
   }
 
@@ -1285,6 +1397,7 @@
     state.cells = r.cells;
     state.mode = r.mode || 'attack';
     state.deploy = r.deploy || MK.createDeploy();
+    state.phases = MAPIO.normalizePhases(r.phases);
     state.undo.length = 0;
     state.redo.length = 0;
     syncSizeInputs();
@@ -1293,6 +1406,7 @@
     syncModeUI();
     updateCounts();
     updateButtons();
+    renderPhaseUI();
     needRender = true;
     scheduleSave();
     if (r.warnings.length) {
@@ -1404,6 +1518,7 @@
     state.rows = rows;
     state.cells = makeCells(cols, rows, PLAIN);
     state.deploy = MK.createDeploy();
+    state.phases = { a: 1, b: null, c: null };
     state.undo.length = 0;
     state.redo.length = 0;
     state.hover = -1;
@@ -1414,6 +1529,7 @@
     syncModeUI();
     updateCounts();
     updateButtons();
+    renderPhaseUI();
     needRender = true;
     scheduleSave();
     flash('已新建 ' + cols + ' × ' + rows + ' 空白地图（全部平原）');
@@ -1491,6 +1607,7 @@
     syncModeUI();
     setToolTab('terrain');
     renderLegend();
+    buildPhaseUI();
     updateCounts();
     updateButtons();
 
@@ -1526,6 +1643,8 @@
       setToolTab: setToolTab,
       setViewMode: setViewMode,
       cellAttrs: cellAttrs,
+      phaseAt: phaseAt,
+      renderPhaseUI: renderPhaseUI,
       renderLegend: renderLegend,
       render: render,
       renderer: renderer,
