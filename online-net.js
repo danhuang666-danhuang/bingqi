@@ -227,6 +227,7 @@
           v: PROTO, role: 'host', id: selfId, name: name, online: online,
           phase: 'lobby', mode: null, side: null, faction: null,
           factionReady: false, deckReady: false, prep: null,
+          decks: null, deploy: null,
           map: null, teams: null, factions: null,
           maxPlayers: MAX_PLAYERS, ts: now, joinedAt: now,
         };
@@ -234,6 +235,7 @@
       return {
         v: PROTO, role: 'guest', id: selfId, name: name, online: online,
         side: null, faction: null, factionReady: false, deckReady: false, prep: null,
+        deploy: null,
         ready: false, ts: now, joinedAt: now,
       };
     }

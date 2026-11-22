@@ -11,13 +11,27 @@
  *     "cells": [0, 0, 3, ...],              // 行优先，数字是 terrains 里的下标
  *     "rules": { "city": { move, moveMech, protect, blocksSight, urban, riverReset, chaos } },
  *     "grid":  { "move": [...], "moveMech": [...], "protect": [...] },  // 逐格属性，与 cells 同序
- *     "deploy": { "spawn": [c,r], "hqA": [c,r], "hqD": [c,r], "zone": [[c,r], ...] },
- *     "phases": { "a": 1, "b": 4, "c": 9 }   // 阶段开始的大回合；b/c 为 null 表示没有该阶段
+ *     "deploy": {
+ *       "spawn": [c,r], "hqA": [c,r], "hqD": [c,r], "zone": [[c,r], ...],
+ *       "airA": [[c,r], ...], "airD": [[c,r], ...],     // 双方飞机进场点（只能在地图边缘）
+ *       "buildings": [[c,r,"hqA"], ...]                 // 建筑（可破坏），一格一个；hqA/hqD 同时写进老字段
+ *     },
+ *     "phases": { "a": 1, "b": 4, "c": 9 },  // 阶段开始的大回合；b/c 为 null 表示没有该阶段
+ *     "facing": 0,                            // 默认朝向 0–5（东/东北/西北/西/西南/东南）
+ *     "holes": [37, 38]                       // 不存在的格子下标（行优先）；没有挖空时不写这个字段
  *   }
+ *
+ * 形状规则：地图永远是 cols×rows 的矩形网格，`holes` 里的下标表示"这一格不存在"，
+ *   用来做非矩形（L 形、斜角、挖洞）地图。读取方应把 holes 当成空格：
+ *   不能放单位、不算地形、不能作为移动/视线的通路。没有 holes 字段就是完整矩形。
  *
  * 阶段规则：第 1 大回合固定是 A 阶段；B、C 的开始回合由每张地图单独设置。
  *   b 必须 ≥ 2，c 必须 > b；不合法会被纠正（见 normalizePhases）。
  *   这是可选字段，老地图没有 phases 时按「只有 A 阶段」处理。
+ *
+ * 朝向规则：单位放上地图后的初始朝向，0–5 依次是 东、东北、西北、西、西南、东南，
+ *   与 HexGrid 的 DIRS 下标一致（按默认视角「列向右、行向上」看到的方位）。
+ *   可选字段，缺省为 0（东）。
  *
  * 坐标约定（地图编辑器、小程序、线上对战都必须一致）：
  *   [列, 行] 都从 0 开始；列 0 在最左，行 0 在最下 —— 也就是**左下角为原点**，
@@ -85,11 +99,23 @@
       pts.sort(function (a, b) { return a[1] - b[1] || a[0] - b[0]; });
       out.zone = pts;
     }
+    // 飞机进场点（双方各自可以多个）
+    if (d.airA && d.airA.length) out.airA = d.airA.map(function (p) { return [p.c, p.r]; });
+    if (d.airD && d.airD.length) out.airD = d.airD.map(function (p) { return [p.c, p.r]; });
+    // 建筑：攻略上建筑才是权威，但老字段 hqA/hqD 还要写，线上对战那边在读
+    if (d.buildings && d.buildings.length) {
+      out.buildings = d.buildings.map(function (b) { return [b.c, b.r, b.t]; });
+      ['hqA', 'hqD'].forEach(function (t) {
+        const b = d.buildings.filter(function (x) { return x.t === t; })[0];
+        if (b) out[t] = [b.c, b.r];
+        else if (out[t]) out[t] = null;      // 建筑里没有就别再保留旧的
+      });
+    }
     return out;
   }
 
   function parseDeploy(raw, cols, rows, warnings) {
-    const d = { spawn: null, hqA: null, hqD: null, zone: new Set() };
+    const d = { spawn: null, hqA: null, hqD: null, zone: new Set(), airA: [], airD: [], buildings: [] };
     if (!raw || typeof raw !== 'object') return d;
 
     d.spawn = point(raw.spawn, cols, rows);
@@ -104,6 +130,51 @@
       });
     }
     if (dropped) warnings.push('部署区有 ' + dropped + ' 格超出地图范围，已忽略');
+
+    let airDropped = 0;
+    ['airA', 'airD'].forEach(function (key) {
+      if (!Array.isArray(raw[key])) return;
+      const seen = {};
+      raw[key].forEach(function (v) {
+        const p = point(v, cols, rows);
+        if (!p) { airDropped++; return; }
+        const k = p.r * cols + p.c;
+        if (seen[k]) return;
+        seen[k] = 1;
+        d[key].push(p);
+      });
+    });
+    if (airDropped) warnings.push('飞机进场点有 ' + airDropped + ' 个超出地图范围，已忽略');
+
+    /* 建筑：[[c,r,type], ...] */
+    let bDropped = 0;
+    if (Array.isArray(raw.buildings)) {
+      const seen = {};
+      raw.buildings.forEach(function (v) {
+        if (!Array.isArray(v) || v.length < 3) { bDropped++; return; }
+        const p = point([v[0], v[1]], cols, rows);
+        const t = String(v[2] || '');
+        if (!p || !t) { bDropped++; return; }
+        const k = p.r * cols + p.c;
+        const exist = d.buildings.filter(function (b) { return b.c === p.c && b.r === p.r; })[0];
+        if (exist) { exist.t = t; return; }        // 同一格后来的覆盖前面的
+        d.buildings.push({ c: p.c, r: p.r, t: t });
+      });
+    }
+    if (bDropped) warnings.push('建筑有 ' + bDropped + ' 条格式不对，已忽略');
+
+    /* 老地图：指挥部写在 deploy.hqA / hqD 里，迁移成建筑 */
+    if (!d.buildings.length) {
+      if (d.hqA) d.buildings.push({ c: d.hqA.c, r: d.hqA.r, t: 'hqA' });
+      if (d.hqD) d.buildings.push({ c: d.hqD.c, r: d.hqD.r, t: 'hqD' });
+    }
+    // 保持一致：老字段跟着建筑走
+    ['hqA', 'hqD'].forEach(function (t) {
+      const b = d.buildings.filter(function (x) { return x.t === t; })[0];
+      d[t] = b ? { c: b.c, r: b.r } : null;
+    });
+    const dupCell = {};
+    d.buildings.forEach(function (b) { dupCell[b.r * cols + b.c] = 1; });
     return d;
   }
 
@@ -172,6 +243,68 @@
     return n;
   }
 
+  /* ---------- 默认朝向 ----------
+   * 单位放上地图后的初始朝向，0–5 对应六条边，和 HexGrid 的 DIRS 下标一致：
+   *   0 东 · 1 东北 · 2 西北 · 3 西 · 4 西南 · 5 东南   （按画面上看到的方位，
+   *   因为地图默认视角列向右、行向上，和 DIRS 的下标正好一一对应）
+   * 这是可选字段，老地图没有 facing 时为 0。 */
+
+  const DEFAULT_FACING = 0;
+  const FACING_NAMES = ['东', '东北', '西北', '西', '西南', '东南'];
+
+  function normalizeFacing(v) {
+    const n = Math.floor(Number(v));
+    if (!isFinite(n)) return DEFAULT_FACING;
+    return ((n % 6) + 6) % 6;
+  }
+
+  function facingName(v) {
+    return FACING_NAMES[normalizeFacing(v)];
+  }
+
+  /* ---------- 地图形状（挖空 / 补格）----------
+   * 地图永远是 cols×rows 的矩形网格，能被删掉的格子记在可选字段 `holes` 里（下标数组，行优先）。
+   * 好处：cols/rows/cells/下标算法全都不用变，老程序和别的模块读到的仍是一张完整矩形图，
+   * 只是某些下标"不存在"。运行时用 absent 掩码（Uint8Array，1 = 不存在）方便 O(1) 判断。 */
+
+  function absentToHoles(absent) {
+    if (!absent) return [];
+    const out = [];
+    for (let i = 0; i < absent.length; i++) if (absent[i]) out.push(i);
+    return out;
+  }
+
+  function holesToAbsent(holes, cols, rows, warnings) {
+    const n = cols * rows;
+    const absent = new Uint8Array(n);
+    if (!Array.isArray(holes) || !holes.length) return absent;
+    let bad = 0, dup = 0;
+    holes.forEach(function (v) {
+      const i = Math.floor(Number(v));
+      if (!isFinite(i) || i < 0 || i >= n) { bad++; return; }
+      if (absent[i]) { dup++; return; }
+      absent[i] = 1;
+    });
+    if (bad) warnings.push('有 ' + bad + ' 个挖空下标超出地图范围，已忽略');
+    if (dup) warnings.push('有 ' + dup + ' 个重复的挖空下标，已去重');
+    return absent;
+  }
+
+  /* 矩形地图的"边界格"：至少有一个相邻格是不存在的或出界 */
+  function isEdgeCell(absent, cols, rows, c, r, neighbors) {
+    if (!neighbors) return c === 0 || r === 0 || c === cols - 1 || r === rows - 1;
+    const nb = neighbors(c, r);
+    for (let i = 0; i < nb.length; i++) {
+      // HexGrid.neighbors 返回的是 [c, r] 数组，这里两种形状都兼容
+      const n = nb[i];
+      const nc = Array.isArray(n) ? n[0] : n.c;
+      const nr = Array.isArray(n) ? n[1] : n.r;
+      if (nc < 0 || nr < 0 || nc >= cols || nr >= rows) return true;
+      if (absent && absent[nr * cols + nc]) return true;
+    }
+    return false;
+  }
+
   /* 规整成合法配置：A 恒为 1；B ≥ 2；C ≥ B+1；C 存在时 B 必须存在 */
   function normalizePhases(p) {
     const out = { a: 1, b: null, c: null };
@@ -222,11 +355,13 @@
       rules: ruleTable(terrains),
       grid: cellGrid(map.cells, terrains),
       phases: serializePhases(map.phases),
+      facing: normalizeFacing(map.facing),
     };
-    if (mode === 'attack') {
-      const dep = serializeDeploy(map.deploy, map.cols);
-      if (dep) out.deploy = dep;
-    }
+    const holes = absentToHoles(map.absent);
+    if (holes.length) out.holes = holes;
+    // 标记（出生点 / 指挥部 / 部署区 / 飞机进场点）两种模式都写：飞机进场点与模式无关
+    const dep = serializeDeploy(map.deploy, map.cols);
+    if (dep) out.deploy = dep;
     return out;
   }
 
@@ -328,9 +463,13 @@
       warnings.push('文件里的格子属性与地形对不上，已按地形重新计算');
     }
 
+    /* 地图形状：holes 里的下标表示"这格不存在"，其余都是正常格 */
+    const absent = holesToAbsent(raw.holes, cols, rows, warnings);
+
     return {
       cols: cols, rows: rows, cells: cells, mode: mode, deploy: deploy,
-      phases: phases,
+      phases: phases, facing: normalizeFacing(raw.facing),
+      absent: absent,
       grid: grid, rules: ruleTable(terrains), warnings: warnings,
     };
   }
@@ -370,6 +509,13 @@
     DEFAULT_PHASES: DEFAULT_PHASES,
     normalizePhases: normalizePhases,
     phaseOfRound: phaseOfRound,
+    DEFAULT_FACING: DEFAULT_FACING,
+    FACING_NAMES: FACING_NAMES,
+    normalizeFacing: normalizeFacing,
+    facingName: facingName,
+    absentToHoles: absentToHoles,
+    holesToAbsent: holesToAbsent,
+    isEdgeCell: isEdgeCell,
     ruleTable: ruleTable,
     cellGrid: cellGrid,
     ruleOf: ruleOf,
