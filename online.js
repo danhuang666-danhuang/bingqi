@@ -4344,6 +4344,50 @@
     return battleAirHasOwnVision(air, target);
   }
 
+  function battleIsReconPlane(unit) {
+    return !!(unit && unit.alive && battleIsAir(unit) && battleIsRecon(unit));
+  }
+
+  function battleReconAvailable(unit) {
+    if (!battleIsReconPlane(unit) || !state.battle) return false;
+    return !(unit.reconUsedRound && Number(unit.reconUsedRound) >= Number(state.battle.round || 0));
+  }
+
+  function battleSetReconMission(unit, c, r) {
+    unit.c = c;
+    unit.r = r;
+    unit.airBase = false;
+    unit.reconActiveRound = Number(state.battle.round) || 1;
+    unit.reconUsedRound = Number(state.battle.round) || 1;
+    unit.reconCell = { c: c, r: r };
+    state.battle.selectedId = unit.id;
+    state.battle.log.push(unit.name + ' 侦察 ' + c + ',' + r + '（持续到本回合结束）');
+    battleRefresh();
+  }
+
+  function battleBeginReconIntercept(unit, c, r) {
+    const b = state.battle;
+    const defender = otherSide(unit.side);
+    const opts = battleAirInterceptOptions(defender);
+    if (!b || !opts.length) return false;
+    b.airIntercept = {
+      kind: 'recon',
+      key: 're-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 6),
+      attackerSide: unit.side,
+      defenderSide: defender,
+      attackerIds: [unit.id],
+      targetName: '侦察格 ' + c + ',' + r,
+      reconC: c,
+      reconR: r,
+      attackerCount: 1,
+      role: 'recon',
+    };
+    b.selectedId = null;
+    b.log.push(unit.name + ' 前往 ' + c + ',' + r + ' 侦察，等待' + sideName(defender) + '选择拦截飞机');
+    battleRefresh();
+    return true;
+  }
+
   function battleBeginAirIntercept(unit, target, attackerIds, role) {
     const b = state.battle;
     const opts = battleAirInterceptOptions(target.side);
@@ -4364,10 +4408,69 @@
     return true;
   }
 
+  function battleResolveReconIntercept(ids) {
+    const b = state.battle;
+    const ai = b && b.airIntercept;
+    if (!b || !ai || ai.kind !== 'recon') return;
+    const recon = battleUnitById((ai.attackerIds || [])[0]);
+    const c = Number(ai.reconC), r = Number(ai.reconR);
+    if (!recon || !recon.alive) {
+      b.airIntercept = null;
+      battleRefresh();
+      return;
+    }
+    if (battleIsNight()) {
+      b.airIntercept = null;
+      b.log.push('夜间侦察机返航，侦察任务取消');
+      battleRefresh();
+      return;
+    }
+    const opts = battleAirInterceptOptions(ai.defenderSide);
+    const interceptors = (ids || []).map(battleUnitById).filter(function (u) {
+      return u && u.alive && opts.some(function (o) { return o.id === u.id; });
+    }).slice(0, 2);
+    interceptors.forEach(function (it, i) {
+      it.interceptUsedRound = Number(b.round) || 1;
+      b3StartAirFlight(it, { c: c, r: r }, null, i * 0.22);
+    });
+    interceptors.forEach(function (it) {
+      if (!it.alive || !recon.alive) return;
+      let dmg = battleAirIntercept(it);
+      if (battleHighAltitude(recon) && !battleHighAltitude(it)) dmg *= 0.2;
+      if (dmg <= 0) return;
+      battleDamageUnit(recon, dmg);
+      b3AddDamageFloat(recon, dmg, '#ffb36b');
+      b.log.push(it.name + ' 拦截侦察机 ' + recon.name + '：' + battleFmt(dmg) +
+        (recon.alive ? '，侦察机继续任务' : '，侦察机被击落'));
+    });
+    // 武装侦察机可以同时还击参与拦截的战斗机。
+    if (recon.alive && battleAirIntercept(recon) > 0) {
+      const targetFighter = interceptors.filter(function (it) { return it.alive; })[0];
+      if (targetFighter) {
+        const back = battleAirIntercept(recon);
+        battleDamageUnit(targetFighter, back);
+        b3AddDamageFloat(targetFighter, back, '#ff6b57');
+        b.log.push(recon.name + ' 还击 ' + targetFighter.name + '：' + battleFmt(back));
+      }
+    }
+    b.airIntercept = null;
+    if (recon.alive) {
+      battleSetReconMission(recon, c, r);
+    } else {
+      b.selectedId = null;
+      battleRefresh();
+    }
+    battleCheckAutoEnd();
+  }
+
   function battleResolveAirIntercept(ids) {
     const b = state.battle;
     const ai = b && b.airIntercept;
     if (!ai) return;
+    if (ai.kind === 'recon') {
+      battleResolveReconIntercept(ids);
+      return;
+    }
     const target = battleUnitById(ai.targetId);
     const attackers = ai.attackerIds.map(battleUnitById).filter(function (u) { return u && u.alive; });
     const opts = battleAirInterceptOptions(ai.defenderSide);
@@ -5341,6 +5444,36 @@
       battleCheckAutoEnd();
       return;
     }
+    if (action.type === 'airRecon') {
+      if (!battleIsReconPlane(unit) || !battleReconAvailable(unit)) return;
+      if (battleIsNight()) { toast('夜间飞机不能起飞'); return; }
+      const c = Number(action.c), r = Number(action.r);
+      if (!state.map || !isFinite(c) || !isFinite(r)) return;
+      if (c < 0 || r < 0 || c >= state.map.cols || r >= state.map.rows) return;
+      if (unit.mp < 1) return;
+      unit.reconUsedRound = Number(b.round) || 1;
+      const aaHit = battleAirPathIntercept(unit, { c: c, r: r });
+      if (aaHit) {
+        battleDamageUnit(unit, aaHit.spec.damage);
+        b3AddDamageFloat(unit, aaHit.spec.damage, '#ffb36b');
+        b.log.push(aaHit.aa.name + ' 拦截侦察机 ' + unit.name + '：' + aaHit.spec.damage +
+          (unit.alive ? '，侦察任务中止' : '，侦察机被击落'));
+        unit.mp = Math.max(0, unit.mp - 1);
+        b.selectedId = null;
+        battleRefresh();
+        battleCheckAutoEnd();
+        return;
+      }
+      if (battleAirInterceptOptions(otherSide(unit.side)).length) {
+        unit.mp = Math.max(0, unit.mp - 1);
+        battleBeginReconIntercept(unit, c, r);
+        return;
+      }
+      unit.mp = Math.max(0, unit.mp - 1);
+      battleSetReconMission(unit, c, r);
+      battleCheckAutoEnd();
+      return;
+    }
     if (action.type === 'airAttack') {
       const target = battleUnitById(action.targetId);
       if (!battleIsAir(unit) || !target || !target.alive || target.side === unit.side) return;
@@ -5810,6 +5943,17 @@
   function battleNextTurn() {
     const b = state.battle;
     if (!b || b.counter || b.reinforce || b.facingChoice) return;
+    const leavingSide = b.activeSide;
+    const slots = airPadCells(leavingSide, 8);
+    let slotIndex = 0;
+    b.units.forEach(function (u) {
+      if (u.side !== leavingSide || !u.alive || !u.reconActiveRound) return;
+      const slot = slots[slotIndex++] || airPadCells(leavingSide, 1)[0];
+      u.reconActiveRound = 0;
+      u.reconCell = null;
+      u.airBase = true;
+      if (slot) { u.c = slot.c; u.r = slot.r; }
+    });
     battleClearTransient();
     b.units.forEach(function (u) { u.lockedBy = []; u.lockCosts = {}; });
     if (b.activeSide === 'attacker') {
@@ -6126,6 +6270,12 @@
       return;
     }
     if (battleIsAir(selected)) {
+      if (battleIsReconPlane(selected)) {
+        if (battleIsNight()) { toast('夜间飞机不能起飞'); return; }
+        if (!battleReconAvailable(selected)) { toast('该侦察机本回合已经侦察过'); return; }
+        battleOpenReconChoice(selected, c, r);
+        return;
+      }
       if (clicked && clicked.side !== selected.side) {
         if (battleIsNight()) { toast('夜间飞机不能起飞'); return; }
         if (!battleIsAir(clicked) && !battleAirCanTarget(selected, clicked)) {
@@ -6305,6 +6455,33 @@
       box.style.left = Math.max(10, Math.min(vp.width - 216, B3.lastPointer.x - vp.left + 10)) + 'px';
       box.style.top = Math.max(10, Math.min(vp.height - 190, B3.lastPointer.y - vp.top + 10)) + 'px';
     }
+  }
+
+  function battleOpenReconChoice(air, c, r) {
+    const box = el('battle-choice');
+    if (!box) return;
+    const available = battleReconAvailable(air);
+    box.innerHTML = '<h4>' + battleReinforceEsc(air.name) + ' → ' + c + ',' + r + '</h4>' +
+      '<div class="battle-choice-hint">侦察机飞抵该格后提供视野，持续到本回合结束；每回合只能侦察一次。会被防空拦截，也会触发敌方战斗机拦截。</div>';
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'btn small';
+    b.textContent = available ? '侦察此格 · 1 行动力' : '本回合已侦察';
+    b.disabled = !available;
+    b.setAttribute('data-battle-action', 'airRecon');
+    box.appendChild(b);
+    const cancel = document.createElement('button');
+    cancel.type = 'button';
+    cancel.className = 'btn small';
+    cancel.textContent = '取消';
+    cancel.setAttribute('data-battle-action', 'cancel');
+    box.appendChild(cancel);
+    box.classList.remove('hidden');
+    box.setAttribute('data-attacker', air.id);
+    box.setAttribute('data-defender', '');
+    box.setAttribute('data-recon-c', String(c));
+    box.setAttribute('data-recon-r', String(r));
+    state.battle.choice = { attackerId: air.id, defenderId: '' };
   }
 
   function battleOpenAirChoice(air, target, roleOverride) {
@@ -6949,7 +7126,13 @@
     });
     const wasReady = !!state.deploy.ready[side];
     state.deploy.units = other.concat(built);
-    state.deploy.ready[side] = !!(g.deploy && g.deploy.ready && built.length === deck.length);
+    // 空军不参与部署；客机只提交地面单位后，由房主补机场待命单位。
+    autoDeployAircraft();
+    const groundDeckCount = deck.filter(function (name) { return !battleIsAirUnit(name, side); }).length;
+    const groundPlaced = state.deploy.units.filter(function (u) {
+      return u.side === side && !u.airBase;
+    }).length;
+    state.deploy.ready[side] = !!(g.deploy && g.deploy.ready && groundPlaced === groundDeckCount);
     if (state.net && state.role === 'host') {
       state.net.setHostState({ deploy: state.deploy });
     }
@@ -9273,8 +9456,8 @@
 
       const us = ['工兵营', '潘兴重坦营', '宪兵连', '医疗连', '侦察营', 'M15自行防空炮营', '运输车', '步兵营'];
       const de = ['鼠式超重坦营', '工兵营', '侦察营', '20防空炮营', '人民冲锋队'];
-      const usAir = ['B25轰炸机', 'B29轰炸机'];
-      const deAir = ['Bf109战斗机', 'Me262战斗机'];
+      const usAir = ['B25轰炸机', 'B29轰炸机', 'F5侦察机', 'F6战斗侦察机'];
+      const deAir = ['Bf109战斗机', 'Me262战斗机', 'Fw189侦察机'];
       // 工程/宪兵/医疗/侦察/防空/重轰/高空/碎心/运输测试。
       const atkPos = [[12, 11], [11, 10], [9, 10], [11, 9], [12, 10], [10, 10], [8, 10], [8, 11]];
       const defPos = [[14, 11], [16, 12], [15, 10], [15, 12], [14, 12]];
@@ -9322,7 +9505,7 @@
       }
       state.battleSeenAction = '';
       ensureDeployModels();
-      pushLog('测试战斗已生成：运输车已载步兵，重轰/高空/碎心/中重坦警戒均可测');
+      pushLog('测试战斗已生成：运输车已载步兵，重轰/高空/侦察机/碎心/中重坦警戒均可测');
       toast('测试战斗已开始 · 点名字切换玩家');
       renderRoom();
       window.dispatchEvent(new Event('resize'));
@@ -11176,12 +11359,19 @@
       const role = box ? box.getAttribute('data-air-selected-role') : '';
       const dirRaw = box ? box.getAttribute('data-air-dir') : '';
       const airDir = dirRaw === '' || dirRaw == null ? undefined : Number(dirRaw);
+      const reconC = box ? box.getAttribute('data-recon-c') : '';
+      const reconR = box ? box.getAttribute('data-recon-r') : '';
       const focus = !!(choiceBtn.getAttribute('data-air-focus') === '1');
       box.classList.add('hidden');
       if (state.battle) state.battle.choice = null;
       state.b3BombHint = null;
       refreshBattle3DBombHint();
-      if (type !== 'cancel' && attackerId && defenderId) {
+      if (type === 'airRecon' && attackerId && reconC !== '' && reconR !== '') {
+        battleRequest({
+          type: 'airRecon', side: state.battle ? state.battle.activeSide : null,
+          unitId: attackerId, c: Number(reconC), r: Number(reconR),
+        });
+      } else if (type !== 'cancel' && attackerId && defenderId) {
         battleRequest({
           type: type, side: state.battle ? state.battle.activeSide : null,
           unitId: attackerId, targetId: defenderId,
