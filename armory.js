@@ -393,7 +393,7 @@
   const PITCH_HOME = 0.14;
 
   /* 阵营模型颜色：用户指定美军纯蓝、德军灰，其它国家先留中性灰 */
-  const MODEL_COLOR = { us: 0x0000ff, de: 0x50565e };
+  const MODEL_COLOR = { us: 0x1f3d73, de: 0x50565e };
 
   /* 模型正面朝向的修正角：用户把美军 / 德军模型都统一成「正面朝 +X」，
    * 转到正对相机要多转 -90°。 */
@@ -440,7 +440,7 @@
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     if (THREE.sRGBEncoding !== undefined) renderer.outputEncoding = THREE.sRGBEncoding;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.05;
+    renderer.toneMappingExposure = 0.95;
 
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(30, 1, 0.01, 100);
@@ -449,23 +449,23 @@
 
     // 打光思路：环境光托底 + 跟相机的一盏补光，保证转到哪一面都不会黑成一片；
     // 再用一盏主光和一点轮廓光把体积感提出来。不开阴影贴图，不会有投影。
-    scene.add(new THREE.AmbientLight(0xffffff, 0.38));
+    scene.add(new THREE.AmbientLight(0xffffff, 0.2));
 
-    scene.add(new THREE.HemisphereLight(0xdfe8f5, 0x2b313a, 0.5));
+    scene.add(new THREE.HemisphereLight(0xdfe8f5, 0x2b313a, 0.3));
 
-    const key = new THREE.DirectionalLight(0xffffff, 1.0);
+    const key = new THREE.DirectionalLight(0xffffff, 1.7);
     key.position.set(2.2, 3.2, 2.6);
     scene.add(key);
 
     // 跟着相机方向的补光：模型转到背面也能看清
-    const head = new THREE.DirectionalLight(0xffffff, 0.5);
+    const head = new THREE.DirectionalLight(0xffffff, 0.35);
     head.position.set(0, 1.25, 3.4);
     head.target.position.set(0, 0, 0);
     scene.add(head);
     scene.add(head.target);
 
     // 左侧补光：主光的背光面不至于黑成洞
-    const fill = new THREE.DirectionalLight(0xdfe8f5, 0.45);
+    const fill = new THREE.DirectionalLight(0xdfe8f5, 0.3);
     fill.position.set(-2.8, 1.6, 1.4);
     scene.add(fill);
 

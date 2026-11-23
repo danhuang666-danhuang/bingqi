@@ -3356,6 +3356,13 @@
     return candidates[0] || null;
   }
 
+  function battleCorpsUsed(side, name) {
+    if (!state.battle || !state.battle.units) return 0;
+    return state.battle.units.filter(function (u) {
+      return u.side === side && u.name === name;
+    }).length;
+  }
+
   function battleReinforceEntries(side, phase) {
     phase = String(phase || '').toLowerCase();
     const data = prepFaction(side);
@@ -3374,9 +3381,11 @@
     const corps = prepCorps(data, prep);
     if (corps && corps.units) {
       corps.units.forEach(function (u) {
+        const left = Math.max(0, Number(u.max) - battleCorpsUsed(side, u.name));
+        if (left <= 0) return;
         const old = out.filter(function (x) { return x.name === u.name; })[0];
-        if (old) old.max = Math.max(old.max, u.max);
-        else out.push({ name: u.name, max: u.max, info: prepUnitInfo(data, u.name) });
+        if (old) old.max = Math.max(old.max, left);
+        else out.push({ name: u.name, max: left, info: prepUnitInfo(data, u.name) });
       });
     }
     return out;
@@ -5378,7 +5387,7 @@
     if (unit.actionLocked && action.type !== 'unlock') return;
     if (battleConfusedBlocksAction(unit, action.type)) return;
     if (unit.pushLocked) return;
-    if (unit.guardStop && action.type !== 'attack' && action.type !== 'focus') return;
+    if (unit.guardStop && ['attack', 'focus', 'lock', 'unlock'].indexOf(action.type) === -1) return;
     if (action.type === 'move') {
       if (unit.guardStop) return;
       let cost = 0;
@@ -5400,8 +5409,8 @@
         b.log.push(unit.name + ' 上河，行动力清零');
       }
       if (guard) {
-        b.log.push(unit.name + ' 进入警戒格，必须停止移动；本回合只能攻击警戒单位');
-        toast('进入警戒格，必须停止；只能攻击警戒单位');
+        b.log.push(unit.name + ' 进入警戒格，必须停止移动；本回合仍可攻击/集火/锁定');
+        toast('进入警戒格，必须停止；仍可攻击/集火/锁定');
       }
       b.ghost = null;
       b.selectedId = unit.id;
@@ -6710,7 +6719,7 @@
       const focus = battleAttackRaw(attacker, defender, focusParts, chosenFacing);
       add('集火 · 总伤害 -' + battleFmt(battleAttackTotal(focus)) + ' · ' + atkCost + ' 行动力（' + (otherLocked.length + 1) + ' 个单位）', 'focus', availMp < atkCost || needFacing);
     }
-    if (!guardMode && !ownLocked) {
+    if (!ownLocked) {
       add((otherLocked.length ? '继续锁定' : '锁定') + ' · 消耗 ' + lockCost + ' 行动力', 'lock', attacker.mp < lockCost);
     }
     if (ownLocked) {
@@ -6720,7 +6729,7 @@
     const hint = document.createElement('div');
     hint.className = 'battle-choice-hint';
     hint.textContent = guardMode
-      ? '进入警戒格后必须停止移动；本回合仍可攻击/集火任意目标，但不能再移动/换位/推进/锁定。'
+      ? '进入警戒格后必须停止移动；本回合仍可攻击/集火/锁定任意目标，但不能再移动/换位/推进。'
       : (ownLocked
         ? '你已锁定该目标；目标被锁定后只能集火，也可点“取消锁定”返还 ' + ownLockRefund + ' 行动力。'
         : (targetLocked
@@ -8993,6 +9002,10 @@
       wrap.appendChild(prepDivisionCards(data, prep, canEdit));
       return wrap;
     }
+    html += '<div class="br-actions">' +
+      '<button type="button" class="btn small" data-prep-change-division="1"' + (editable ? '' : ' disabled') + '>更换师</button>' +
+      '<button type="button" class="btn small" data-prep-change-corps="1"' + (editable ? '' : ' disabled') + '>更换军</button>' +
+      '</div>';
     html += '<div class="br-budget">经费 <b>' + stats.cost + '</b> / ' + stats.funds +
       ' · 主战 ' + stats.main + '/' + stats.mainLimit +
       ' · 辅助 ' + stats.support + '/' + stats.supportLimit +
