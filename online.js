@@ -4318,12 +4318,14 @@
 
   let battleAirSupCache = null;
 
-  function battleAirSuperiority(side) {
-    if (!battleAirSupCache) battleAirSupCache = {};
-    if (battleAirSupCache[side] != null) return !!battleAirSupCache[side];
-    const value = battleSideHasAir(side) && !battleSideHasAir(otherSide(side)) && !battleSideHasAA(otherSide(side));
-    battleAirSupCache[side] = value;
-    return value;
+  function battleAirSuperiorityFor(air, target) {
+    if (!air || !battleIsAir(air) || !target) return false;
+    // 只有本次出击的飞机才谈制空；目标方有可拦截飞机或防空支援时不成立。
+    if (battleAntiAirCover(target.side, target).length) return false;
+    const enemyAir = battleAliveUnits().some(function (u) {
+      return u.side === target.side && battleIsAir(u) && battleAirIntercept(u) > 0;
+    });
+    return !enemyAir;
   }
 
   function battleAirHasOwnVision(air, target) {
@@ -4548,7 +4550,7 @@
           const stats = battleAirGroundStats(a);
           const info = battleInfoFor(tgt);
           raw += (battleIsTransportTarget(tgt) ? stats.soft : (battleHasArmor(info) ? stats.hard : stats.soft)) *
-            (battleAirSuperiority(a.side) ? 1.5 : 1) * (1 - battleProtectAt(tgt.c, tgt.r));
+            (battleAirSuperiorityFor(a, tgt) ? 1.5 : 1) * (1 - battleProtectAt(tgt.c, tgt.r));
         });
         const dmg = battleRollDamage(raw);
         battleDamageUnit(tgt, dmg);
@@ -4783,15 +4785,10 @@
     const pen = penOverride != null ? penOverride : battlePenMod(ap, av);
     const protect = battleProtectAt(target.c, target.r);
     const night = battleIsNight() ? 0.5 : 1;
-    let airMod = 1;
-    if (!battleIsAir(attacker) && !battleIsAir(target)) {
-      if (battleAirSuperiority(attacker.side)) airMod *= 1.5;
-      if (battleAirSuperiority(target.side)) airMod *= 0.5;
-    }
     return {
-      raw: base * pen * (1 - protect) * night * airMod,
+      raw: base * pen * (1 - protect) * night,
       base: base, ap: ap, av: av, pen: pen, zone: zone,
-      protect: protect, night: night, key: key, airMod: airMod,
+      protect: protect, night: night, key: key, airMod: 1,
     };
   }
 
@@ -5561,7 +5558,7 @@
             const info = battleInfoFor(tgt);
             const base = battleIsTransportTarget(tgt) ? stats.soft :
               (battleHasArmor(info) ? stats.hard : stats.soft);
-            const mod = battleAirSuperiority(p.side) ? 1.5 : 1;
+            const mod = battleAirSuperiorityFor(p, tgt) ? 1.5 : 1;
             raw += base * mod * (1 - battleProtectAt(tgt.c, tgt.r));
           } else {
             raw += battleAttackRawOne(p, tgt, battleDistanceKey(p, tgt), null, facing).raw;
