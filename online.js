@@ -3711,6 +3711,13 @@
     return state.battle.activeSide === side;
   }
 
+  function battleCanCounter(side) {
+    const mine = battleMySide();
+    const s = normalizeSide(side);
+    return !!(mine && s && mine === s && state.battle &&
+      state.battle.counter && state.battle.counter.chooserSide === s);
+  }
+
   function battleResetMp(battle, side) {
     if (!battle) return;
     const round = Number(battle.round) || 1;
@@ -6278,7 +6285,7 @@
     if (button === 'left') {
       if (b.counter) {
         if (clicked && b.counter.targetIds.indexOf(clicked.id) !== -1 &&
-            battleCanControl(b.counter.chooserSide)) {
+            battleCanCounter(b.counter.chooserSide)) {
           battleRequest({ type: 'counter', side: b.counter.chooserSide, counterId: clicked.id });
         }
         return;
@@ -7090,7 +7097,7 @@
     panel.appendChild(h);
     panel.appendChild(p);
     panel.appendChild(skip);
-    panel.classList.toggle('hidden', !battleCanControl(b.counter.chooserSide));
+    panel.classList.toggle('hidden', !battleCanCounter(b.counter.chooserSide));
   }
 
   function battleShowTip(clientX, clientY, text) {
@@ -11429,7 +11436,7 @@
       return;
     }
     if (e.target.closest && e.target.closest('[data-battle-counter-skip]')) {
-      if (state.battle && state.battle.counter && battleCanControl(state.battle.counter.chooserSide)) {
+      if (state.battle && state.battle.counter && battleCanCounter(state.battle.counter.chooserSide)) {
         battleRequest({ type: 'counterSkip', side: state.battle.counter.chooserSide });
       }
       return;
