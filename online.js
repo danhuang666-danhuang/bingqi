@@ -1053,7 +1053,8 @@
 
     try {
       const renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
-      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+      // 2 倍屏上 1.5 已经够清晰，渲染像素少 44%，核显差别很大
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
       if (THREE.ColorManagement) {
         if ('enabled' in THREE.ColorManagement) THREE.ColorManagement.enabled = true;
         if ('legacyMode' in THREE.ColorManagement) THREE.ColorManagement.legacyMode = false;
@@ -1062,7 +1063,11 @@
       renderer.toneMapping = THREE.ACESFilmicToneMapping;
       renderer.toneMappingExposure = 1.05;
       renderer.shadowMap.enabled = true;
-      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      // PCF 比 PCFSoft 便宜很多，阴影边缘略硬，但地图上看不出来
+      renderer.shadowMap.type = THREE.PCFShadowMap;
+      // 场景是静态的：只有单位/建筑变化时才重算阴影贴图，转视角/平移不再重算
+      renderer.shadowMap.autoUpdate = false;
+      renderer.shadowMap.needsUpdate = true;   // 第一帧先算一次
 
       const scene = new THREE.Scene();
       scene.background = new THREE.Color(0x171b21);
@@ -1073,7 +1078,7 @@
       const key = new THREE.DirectionalLight(0xfff3e2, 0.95);
       key.position.set(120, 150, 90);
       key.castShadow = true;
-      key.shadow.mapSize.set(1024, 1024);
+      key.shadow.mapSize.set(512, 512);
       key.shadow.bias = -0.0008;
       key.shadow.normalBias = 0.5;
       scene.add(key);
@@ -1178,6 +1183,8 @@
         hexPlateGeo: null,
         drag: null,
         spaceDown: false,
+        keys: { w: false, a: false, s: false, d: false },
+        lastFrame: 0,
         raf: 0,
       };
 
@@ -1192,10 +1199,20 @@
       window.addEventListener('resize', resizeBattle3D);
       const loop = function () {
         if (!B3) return;
+        const now = performance.now();
+        const dt = B3.lastFrame ? Math.min(0.06, (now - B3.lastFrame) / 1000) : 0;
+        B3.lastFrame = now;
+        if (dt && B3.keys && (B3.keys.w || B3.keys.a || B3.keys.s || B3.keys.d)) {
+          b3KeyboardPan(dt);
+        }
         if (B3.floats && B3.floats.length) b3UpdateFloats(performance.now());
         if (B3.flights && B3.flights.length) b3UpdateAirFlights(performance.now());
         if (B3.need) {
           B3.need = false;
+          if (B3.shadowDirty) {
+            B3.shadowDirty = false;
+            B3.renderer.shadowMap.needsUpdate = true;
+          }
           try { B3.renderer.render(B3.scene, B3.camera); } catch (e) { /* ignore */ }
         }
         B3.raf = requestAnimationFrame(loop);
@@ -1295,7 +1312,8 @@
       });
       mat._b3Dispose = true;
       const mesh = new THREE.InstancedMesh(geo, mat, maxCount);
-      mesh.castShadow = true;
+      // 地图块不投阴影：它们本身几乎贴地，影子看不出来，但阴影 pass 要重画上百万面
+      mesh.castShadow = false;
       mesh.receiveShadow = true;
       mesh.frustumCulled = false;
       mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
@@ -1585,6 +1603,38 @@
     window.addEventListener('keyup', function (e) {
       if (e.code === 'Space' && B3) B3.spaceDown = false;
     });
+    const moveCode = { KeyW: 'w', KeyA: 'a', KeyS: 's', KeyD: 'd' };
+    window.addEventListener('keydown', function (e) {
+      if (!B3 || state.phase !== 'battle') return;
+      if (/INPUT|TEXTAREA|SELECT/.test((e.target && e.target.tagName) || '')) return;
+      const k = moveCode[e.code];
+      if (!k) return;
+      B3.keys[k] = true;
+      e.preventDefault();
+    }, true);
+    window.addEventListener('keyup', function (e) {
+      if (!B3) return;
+      const k = moveCode[e.code];
+      if (!k) return;
+      B3.keys[k] = false;
+    }, true);
+    window.addEventListener('blur', function () {
+      if (!B3 || !B3.keys) return;
+      B3.keys.w = B3.keys.a = B3.keys.s = B3.keys.d = false;
+    });
+  }
+
+  function b3KeyboardPan(dt) {
+    if (!B3 || !B3.cam || !B3.keys) return;
+    const c = B3.cam;
+    const forward = (B3.keys.w ? 1 : 0) - (B3.keys.s ? 1 : 0);
+    const strafe = (B3.keys.d ? 1 : 0) - (B3.keys.a ? 1 : 0);
+    if (!forward && !strafe) return;
+    const s = c.dist * 1.15 * Math.max(0, Math.min(0.06, dt));
+    c.tx += (-Math.sin(c.yaw) * forward + Math.cos(c.yaw) * strafe) * s;
+    c.tz += (-Math.cos(c.yaw) * forward - Math.sin(c.yaw) * strafe) * s;
+    updateBattle3DCamera();
+    B3.need = true;
   }
 
   function b3Pan(dx, dy) {
@@ -2085,6 +2135,7 @@
   }
 
   function refreshBattle3DUnits() {
+    if (B3) B3.shadowDirty = true;   // 单位/建筑变了，下一帧重算阴影
     if (!B3 || !state.map) return;
     b3ApplyDayNight();
     if (B3.zoneGroup) B3.zoneGroup.visible = state.phase === 'deploy';
@@ -2244,6 +2295,7 @@
   }
 
   function refreshBattle3DBuildings() {
+    if (B3) B3.shadowDirty = true;   // 单位/建筑变了，下一帧重算阴影
     if (!B3 || !B3.buildingGroup || !state.map) return;
     B3.hoveredBuilding = null;
     b3ClearGroup(B3.buildingGroup);
@@ -2876,6 +2928,7 @@
     const out = [];
     deck.forEach(function (name) {
       if (seen[name]) return;
+      if (battleIsAirUnit(name, side)) return;
       seen[name] = true;
       out.push({ name: name, total: counts[name], placed: placed[name] || 0, remaining: Math.max(0, counts[name] - (placed[name] || 0)) });
     });
@@ -4895,10 +4948,14 @@
 
   function battleCounterTargets(counterUnit, ids) {
     if (!counterUnit) return [];
-    return (ids || []).map(battleUnitById).filter(function (u) {
+    const lethal = !counterUnit.alive;
+    const units = (ids || []).map(battleUnitById).filter(Boolean);
+    // 有隐蔽单位参与时，非隐蔽参与者已经暴露，不能再因为视野判定被一起排除。
+    const hasHidden = units.some(function (u) { return battleTrait(u, 'hidden'); });
+    return units.filter(function (u) {
       return u && u.alive && u.side !== counterUnit.side &&
         !battleTrait(u, 'hidden') &&
-        battleUnitCanSee(counterUnit, u);
+        (lethal || hasHidden || battleUnitCanSee(counterUnit, u));
     });
   }
 
@@ -4982,8 +5039,16 @@
       battleApply(action);
       battlePublish();
     } else if (state.role === 'guest') {
+      // 客人的动作要绕一圈到房主再回来，体感很慢。
+      // 移动 / 换位是纯确定性的（不含随机伤害），本地先算一遍，房主状态回来后再校正。
+      const optimistic = action.type === 'move' || action.type === 'swap';
+      if (optimistic) {
+        state.optimistic = true;
+        try { battleApply(action); } finally { state.optimistic = false; }
+        scheduleDraw();
+      }
       if (state.net) state.net.setGuestState({ battleAction: action });
-      toast('已提交，等待房主结算');
+      toast(optimistic ? '已移动，等待房主确认' : '已提交，等待房主结算');
     }
   }
 
@@ -5913,6 +5978,8 @@
 
   function battleCheckAutoEnd() {
     const b = state.battle;
+    // 客人做乐观更新时不本地推进回合，等房主的状态回来
+    if (state.optimistic) return;
     if (!b || b.counter || b.reinforce || b.airIntercept || b.facingChoice) return;
     if (battleHasPendingLock()) return;
     const active = battleUnitsFor(b.activeSide);
@@ -10111,7 +10178,7 @@
         '<div id="battle-reinforce" class="battle-reinforce hidden"></div>' +
         '<button id="battle-reinforce-peek" type="button" class="btn small battle-reinforce-peek hidden">查看战场</button>' +
         '<div id="battle-tip" class="battle-tip hidden"></div>' +
-        '<div class="online-battle-hint">右键拖动旋转 · 右键点击移动/攻击 · 中键 / 空格拖动平移 · 滚轮缩放 · 左键选中 / 取消虚影</div>' +
+        '<div class="online-battle-hint">右键拖动旋转 · 右键点击移动/攻击 · 中键 / 空格拖动平移 · WASD 移动镜头 · 滚轮缩放 · 左键选中 / 取消虚影</div>' +
         '<div id="online-battle-loading" class="online-battle-loading hidden">模型加载中…</div>';
       const grid = room.querySelector('.online-room-grid');
       if (grid && grid.parentNode === room) room.insertBefore(view, grid);
@@ -10436,6 +10503,7 @@
       state.hostTeams = nextPhase === 'battle' && Array.isArray(h.teams) ? h.teams : null;
       state.hostFactions = nextPhase !== 'lobby' && h.factions ? h.factions : null;
       state.decks = nextPhase === 'deploy' || nextPhase === 'battle' ? (h.decks || null) : null;
+      if (state.decks) ensureDeployModels();
       state.deploy = nextPhase === 'deploy' || nextPhase === 'battle' ? (h.deploy || null) : null;
       const prevBattleSel = state.battle && state.battle.selectedId;
       state.battle = nextPhase === 'battle' ? (h.battle || null) : null;
