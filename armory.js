@@ -743,6 +743,11 @@
             '<h1 class="ar-title">选择国家</h1>' +
             '<p class="ar-lead">军械库按国家归档：先选国家，再按年代、兵种查单位的数值与模型。<br>' +
               '目前录好了 美国 40s 的步兵，其它兵种会陆续补上。</p>' +
+            '<div class="ar-deck-entry">' +
+              '<button type="button" class="ar-deck-btn" data-dk-open>' +
+                '<span>创建卡组</span><em>按师预览卡池 · 导出 / 导入配置</em>' +
+              '</button>' +
+            '</div>' +
           '</section>' +
           '<nav class="ar-nations" aria-label="国家">' + cardsHTML + '</nav>' +
           '<p class="menu-note">' +
@@ -754,6 +759,545 @@
         '</div>' +
         foot() +
       '</div>';
+  }
+
+  /* =============================================================
+   * 创建卡组（读线上对战的 online-prep-data.js，规则与那边一致）
+   *
+   * 数据只读：window.PREP_DATA 由 online.js / 本模块按需动态加载。
+   * 规则（对齐 online.js）：
+   *   占格：飞机单独占飞机格；HP>=4 主战、HP=3 辅助作战（都占主战格）；HP<3 纯辅助。
+   *   预算：A 阶段 attack.A / defense.A；B 阶段 attack.B / defense.B；C 阶段 fundsC。
+   *   卡池：A 用 pool.A；B 用 pool.A + pool.B（同名合并上限）；C 用 pool.C。
+   *   军直属单位计入格子和经费。
+   * ============================================================= */
+  const DECK_FACTIONS = [
+    { id: 'us', name: '美国', code: 'US' },
+    { id: 'de', name: '德国', code: 'DE' },
+  ];
+
+  const deck = {
+    faction: 'us',
+    side: 'attacker',
+    phase: 'A',
+    corpsId: '',
+    divisionId: '',
+    units: {},          // key -> count
+  };
+
+  let prepLoading = null;
+  let prepError = '';
+
+  function prepData() {
+    return (window.PREP_DATA && window.PREP_DATA.factions) ? window.PREP_DATA : null;
+  }
+
+  function loadPrep() {
+    if (prepData()) return Promise.resolve(prepData());
+    if (prepLoading) return prepLoading;
+    prepError = '';
+    prepLoading = new Promise(function (resolve, reject) {
+      const s = document.createElement('script');
+      s.src = 'online-prep-data.js';
+      s.onload = function () {
+        if (prepData()) resolve(prepData());
+        else { prepError = 'online-prep-data.js 没有定义 window.PREP_DATA'; reject(new Error(prepError)); }
+      };
+      s.onerror = function () {
+        prepError = '没有找到 online-prep-data.js';
+        reject(new Error(prepError));
+      };
+      document.head.appendChild(s);
+    });
+    return prepLoading;
+  }
+
+  function deckFactionData() {
+    const d = prepData();
+    return (d && d.factions[deck.faction]) || null;
+  }
+
+  function deckCorps() {
+    const f = deckFactionData();
+    if (!f) return null;
+    const list = f.corps || [];
+    return list.filter(function (c) { return c.id === deck.corpsId; })[0] || list[0] || null;
+  }
+
+  function deckDivision() {
+    const f = deckFactionData();
+    if (!f) return null;
+    const list = f.divisions || [];
+    return list.filter(function (d) { return d.id === deck.divisionId; })[0] || list[0] || null;
+  }
+
+  function deckUnitInfo(name) {
+    const f = deckFactionData();
+    const u = f && f.units ? f.units[name] : null;
+    return u || { price: 0, hp: 0, cat: 'support', missing: true };
+  }
+
+  function deckUnitClass(info) {
+    if (!info) return 'support';
+    if (info.cat === 'air') return 'air';
+    const hp = Number(info.hp);
+    if (isFinite(hp) && hp > 0) {
+      if (hp >= 4) return 'main';
+      if (hp === 3) return 'aux';
+      return 'support';
+    }
+    if (info.cat === 'main' || info.cat === 'aux' || info.cat === 'support') return info.cat;
+    return 'support';
+  }
+
+  function deckSlotClass(info) {
+    const cls = deckUnitClass(info);
+    if (cls === 'air') return 'air';
+    if (cls === 'support') return 'support';
+    return 'main';
+  }
+
+  function deckEntries() {
+    const div = deckDivision();
+    const corps = deckCorps();
+    const out = [];
+    const push = function (key, name, max, source) {
+      const old = out.filter(function (x) { return x.key === key; })[0];
+      if (old) { old.max += Number(max) || 0; return; }
+      out.push({ key: key, name: name, max: Number(max) || 0, source: source, info: deckUnitInfo(name) });
+    };
+    if (div) {
+      const pool = div.pool || {};
+      const lists = deck.phase === 'C' ? [pool.C]
+        : deck.phase === 'B' ? [pool.A, pool.B] : [pool.A];
+      lists.forEach(function (arr) {
+        (arr || []).forEach(function (u) { push('div|' + u.name, u.name, u.max, 'division'); });
+      });
+    }
+    if (corps) {
+      (corps.units || []).forEach(function (u) { push('corps|' + u.name, u.name, u.max, 'corps'); });
+    }
+    return out;
+  }
+
+  function deckFunds(div) {
+    if (!div) return 0;
+    if (deck.phase === 'C') return Number(div.fundsC) || 0;
+    const bag = deck.side === 'defender' ? div.defense : div.attack;
+    return Number(bag && bag[deck.phase]) || 0;
+  }
+
+  function deckStats() {
+    const div = deckDivision();
+    const entries = deckEntries();
+    const byKey = {};
+    entries.forEach(function (e) { byKey[e.key] = e; });
+    let main = 0, support = 0, air = 0, cost = 0, total = 0;
+    Object.keys(deck.units).forEach(function (k) {
+      const e = byKey[k];
+      const n = Number(deck.units[k]) || 0;
+      if (!e || n <= 0) return;
+      total += n;
+      cost += n * (e.info.price || 0);
+      const slot = deckSlotClass(e.info);
+      if (slot === 'air') air += n;
+      else if (slot === 'main') main += n;
+      else support += n;
+    });
+    return {
+      main: main, support: support, air: air, cost: cost, total: total,
+      mainLimit: div ? div.slots.main : 0,
+      supportLimit: div ? div.slots.support : 0,
+      planeLimit: div ? (div.planes == null ? Infinity : div.planes) : 0,
+      funds: deckFunds(div), entries: entries, byKey: byKey, division: div,
+    };
+  }
+
+  /* 加一个单位为什么不行的原因（能加就返回空串） */
+  function deckBlockReason(entry, stats) {
+    if (!entry) return '没有这个单位';
+    const n = Number(deck.units[entry.key]) || 0;
+    if (n >= entry.max) return '已到上限 ' + entry.max;
+    if (stats.cost + (entry.info.price || 0) > stats.funds) return '经费不够';
+    const slot = deckSlotClass(entry.info);
+    if (slot === 'air' && stats.air + 1 > stats.planeLimit) return '飞机格已满';
+    if (slot === 'main' && stats.main + 1 > stats.mainLimit) return '主战格已满';
+    if (slot === 'support' && stats.support + 1 > stats.supportLimit) return '辅助格已满';
+    return '';
+  }
+
+  function deckAdjust(key, delta) {
+    const stats = deckStats();
+    const entry = stats.byKey[key];
+    if (!entry) return;
+    const cur = Number(deck.units[key]) || 0;
+    if (delta > 0) {
+      if (deckBlockReason(entry, stats)) return;
+      deck.units[key] = Math.min(entry.max, cur + 1);
+    } else {
+      const next = cur - 1;
+      if (next <= 0) delete deck.units[key];
+      else deck.units[key] = next;
+    }
+    renderDeck();
+  }
+
+  function deckPrune() {
+    const stats = deckStats();
+    Object.keys(deck.units).forEach(function (k) {
+      if (!stats.byKey[k]) delete deck.units[k];
+    });
+  }
+
+  function deckPickDivision(id) {
+    const f = deckFactionData();
+    const div = (f ? f.divisions : []).filter(function (d) { return d.id === id; })[0];
+    if (!div) return;
+    if (deck.divisionId !== id) deck.units = {};   // 换师 = 新卡组，避免上一套的单位残留
+    deck.divisionId = id;
+    if (div.phase === 'C') deck.phase = 'C';
+    else if (deck.phase === 'C') deck.phase = 'A';
+    deckPrune();
+    renderDeck();
+  }
+
+  function deckPickCorps(id) {
+    deck.corpsId = id;
+    deckPrune();
+    renderDeck();
+  }
+
+  function deckPickPhase(p) {
+    const div = deckDivision();
+    if (!div) return;
+    const allowed = div.phase === 'C' ? ['C'] : ['A', 'B'];
+    if (allowed.indexOf(p) < 0) return;
+    deck.phase = p;
+    deckPrune();
+    renderDeck();
+  }
+
+  function deckPickFaction(id) {
+    if (deck.faction === id) return;
+    deck.faction = id;
+    deck.corpsId = '';
+    deck.divisionId = '';
+    deck.units = {};
+    deck.phase = 'A';
+    renderDeck();
+  }
+
+  function deckClear() {
+    deck.units = {};
+    renderDeck();
+  }
+
+  function deckExport() {
+    const div = deckDivision();
+    const corps = deckCorps();
+    if (!div || !corps) return;
+    const units = Object.keys(deck.units).filter(function (k) { return deck.units[k] > 0; }).map(function (k) {
+      const parts = k.split('|');
+      return { name: parts.slice(1).join('|'), source: parts[0] === 'corps' ? 'corps' : 'division', count: deck.units[k] };
+    });
+    const payload = {
+      format: 'bingqi-division-deck',
+      version: 1,
+      faction: deck.faction,
+      corps: corps.id,
+      division: div.id,
+      phase: deck.phase,
+      side: deck.side,
+      units: units,
+    };
+    const text = JSON.stringify(payload, null, 2);
+    try {
+      const blob = new Blob([text], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = deck.faction + '-' + div.id + '-' + deck.phase + '.json';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(function () { URL.revokeObjectURL(url); }, 1500);
+    } catch (e) {
+      try { navigator.clipboard.writeText(text); } catch (err) { /* ignore */ }
+    }
+  }
+
+  function deckImportText(text) {
+    let payload;
+    try { payload = JSON.parse(text); } catch (e) { return '不是有效的 JSON 文件'; }
+    if (!payload || payload.format !== 'bingqi-division-deck' || payload.version !== 1) {
+      return '不是「bingqi-division-deck」配置';
+    }
+    const fac = payload.faction;
+    if (!fac || !prepData() || !prepData().factions[fac]) return '配置里的阵营不存在';
+    const f = prepData().factions[fac];
+    const div = (f.divisions || []).filter(function (d) { return d.id === payload.division; })[0];
+    const corps = (f.corps || []).filter(function (c) { return c.id === payload.corps; })[0];
+    if (!div) return '配置里的师不存在';
+    if (!corps) return '配置里的军不存在';
+    const phase = payload.phase === 'B' || payload.phase === 'C' ? payload.phase : 'A';
+    if (div.phase === 'C' && phase !== 'C') return '装甲师只能在 C 阶段配卡';
+    if (div.phase !== 'C' && phase === 'C') return '这个师不参加 C 阶段';
+
+    deck.faction = fac;
+    deck.corpsId = corps.id;
+    deck.divisionId = div.id;
+    deck.phase = phase;
+    deck.side = payload.side === 'defender' ? 'defender' : 'attacker';
+    deck.units = {};
+
+    const entries = deckEntries();
+    const errors = [];
+    (payload.units || []).forEach(function (u) {
+      if (!u || !u.name) return;
+      const source = u.source === 'corps' ? 'corps' : 'division';
+      const key = (source === 'corps' ? 'corps' : 'div') + '|' + u.name;
+      const entry = entries.filter(function (e) { return e.key === key; })[0];
+      if (!entry) { errors.push('卡池里没有：' + u.name); return; }
+      const n = Math.max(0, Math.min(entry.max, Number(u.count) || 0));
+      if (n > 0) deck.units[key] = n;
+    });
+
+    const stats = deckStats();
+    if (stats.cost > stats.funds) errors.push('经费超出 ' + stats.cost + ' / ' + stats.funds);
+    if (stats.main > stats.mainLimit) errors.push('主战格超出 ' + stats.main + ' / ' + stats.mainLimit);
+    if (stats.support > stats.supportLimit) errors.push('辅助格超出 ' + stats.support + ' / ' + stats.supportLimit);
+    if (stats.air > stats.planeLimit) errors.push('飞机格超出 ' + stats.air + ' / ' + stats.planeLimit);
+
+    renderDeck();
+    return errors.length ? errors.slice(0, 3).join('；') : '';
+  }
+
+  function deckImportFile(file) {
+    if (!file) return;
+    if (file.size > 1024 * 1024) { deckToast('配置文件太大'); return; }
+    const reader = new FileReader();
+    reader.onload = function () {
+      const err = deckImportText(String(reader.result || ''));
+      deckToast(err ? '导入失败：' + err : '配置已导入');
+    };
+    reader.readAsText(file);
+  }
+
+  let deckToastTimer = 0;
+  function deckToast(msg) {
+    const el = mount.querySelector('#dk-toast');
+    if (!el) return;
+    el.textContent = msg;
+    el.classList.add('is-on');
+    clearTimeout(deckToastTimer);
+    deckToastTimer = setTimeout(function () { el.classList.remove('is-on'); }, 2600);
+  }
+
+  /* ---------------- 卡组界面 ---------------- */
+  function deckTopbar() {
+    const f = deckFactionData();
+    const right = '<div class="dk-tabs">' + DECK_FACTIONS.map(function (x) {
+      const on = x.id === deck.faction;
+      return '<button type="button" class="dk-tab' + (on ? ' is-on' : '') + '" data-dk="faction" data-v="' + x.id + '">' +
+        x.name + '<em>' + x.code + '</em></button>';
+    }).join('') + '</div>';
+    return topbar('全部国家', right);
+  }
+
+  function deckHintText() {
+    if (prepError) return prepError;
+    if (!prepData()) return '正在读取 online-prep-data.js …';
+    return '';
+  }
+
+  function deckHTML() {
+    const err = deckHintText();
+    if (err) {
+      return deckTopbar() +
+        '<div class="ar-body"><div class="dk-body dk-error">' +
+          '<p>' + esc(err) + '</p>' +
+          '<p class="muted">卡组数据来自线上对战的 <code>online-prep-data.js</code>，确认这个文件在 线上版/ 目录下。</p>' +
+        '</div></div>';
+    }
+
+    const f = deckFactionData();
+    const corps = deckCorps();
+    const div = deckDivision();
+    const stats = deckStats();
+    if (!f) return deckTopbar() + '<div class="ar-body"></div>';
+    if (!corps) deck.corpsId = (f.corps && f.corps[0] && f.corps[0].id) || '';
+    if (!div) deck.divisionId = (f.divisions && f.divisions[0] && f.divisions[0].id) || '';
+
+    const corpsHTML = (f.corps || []).map(function (c) {
+      const on = c.id === deck.corpsId;
+      const total = (c.units || []).reduce(function (s, u) { return s + (Number(u.max) || 0); }, 0);
+      return '<button type="button" class="dk-corps' + (on ? ' is-on' : '') + '" data-dk="corps" data-v="' + c.id + '">' +
+        '<b>' + esc(c.name) + '</b><em>' + (c.units || []).length + ' 种 · 共 ' + total + '</em>' +
+      '</button>';
+    }).join('');
+
+    const divsHTML = (f.divisions || []).map(function (d) {
+      const on = d.id === deck.divisionId;
+      const ph = d.phase === 'C' ? 'C' : 'A/B';
+      return '<button type="button" class="dk-div' + (on ? ' is-on' : '') + '" data-dk="division" data-v="' + d.id + '">' +
+        '<b>' + esc(d.name) + '</b>' +
+        '<em>' + esc(typeLabel(d.type)) + ' · ' + ph + ' 阶段</em>' +
+      '</button>';
+    }).join('');
+
+    const phaseChips = div ? (div.phase === 'C'
+      ? '<button type="button" class="dk-chip is-on" data-dk="phase" data-v="C">C 阶段 · 增援</button>'
+      : ['A', 'B'].map(function (p) {
+          return '<button type="button" class="dk-chip' + (deck.phase === p ? ' is-on' : '') + '" data-dk="phase" data-v="' + p + '">' +
+            p + ' 阶段' + (p === 'B' ? ' · 增援' : '') + '</button>';
+        }).join('')) : '';
+
+    const sideChips = div && div.phase !== 'C'
+      ? ['attacker', 'defender'].map(function (s) {
+          return '<button type="button" class="dk-chip' + (deck.side === s ? ' is-on' : '') + '" data-dk="side" data-v="' + s + '">' +
+            (s === 'attacker' ? '进攻' : '防守') + '</button>';
+        }).join('')
+      : '';
+
+    const bar = function (label, cur, lim) {
+      const limTxt = lim === Infinity ? '不限' : String(lim);
+      const pct = lim === Infinity || !lim ? 0 : Math.min(100, Math.round(cur / lim * 100));
+      const full = lim !== Infinity && cur >= lim;
+      return '<div class="dk-bar' + (full ? ' is-full' : '') + '">' +
+        '<span class="dk-bar-l">' + label + '</span>' +
+        '<span class="dk-bar-n">' + cur + ' / ' + limTxt + '</span>' +
+        '<i style="width:' + pct + '%"></i>' +
+      '</div>';
+    };
+
+    const groups = [
+      { id: 'main', name: '主战', hint: 'HP ≥ 4，占主战格' },
+      { id: 'aux', name: '辅助作战', hint: 'HP = 3，也占主战格' },
+      { id: 'support', name: '纯辅助', hint: 'HP < 3，占辅助格' },
+      { id: 'air', name: '飞机', hint: '占飞机格' },
+    ];
+
+    const unitCard = function (e) {
+      const n = Number(deck.units[e.key]) || 0;
+      const cls = deckSlotClass(e.info);
+      const reason = deckBlockReason(e, stats);
+      const info = e.info;
+      const meta = [];
+      if (info.price) meta.push(info.price + ' 经费');
+      if (info.hp) meta.push('血 ' + info.hp);
+      if (e.source === 'corps') meta.push('军直属');
+      const maxTxt = '×' + n + ' / ' + e.max;
+      return '<div class="dk-unit' + (n ? ' is-picked' : '') + (cls ? ' is-' + cls : '') + '">' +
+        '<div class="dk-unit-main">' +
+          '<b>' + esc(e.name) + '</b>' +
+          '<em>' + esc(meta.join(' · ')) + '</em>' +
+        '</div>' +
+        '<div class="dk-unit-ops">' +
+          '<button type="button" class="dk-ghost" data-dk="minus" data-k="' + esc(e.key) + '"' + (n ? '' : ' disabled') + '>−</button>' +
+          '<span class="dk-count">' + esc(maxTxt) + '</span>' +
+          '<button type="button" class="dk-ghost" data-dk="plus" data-k="' + esc(e.key) + '"' +
+            (reason ? ' disabled title="' + esc(reason) + '"' : '') + '>＋</button>' +
+        '</div>' +
+      '</div>';
+    };
+
+    let unitsHTML = '';
+    groups.forEach(function (g) {
+      const list = stats.entries.filter(function (e) { return deckUnitClass(e.info) === g.id; });
+      if (!list.length) return;
+      unitsHTML += '<section class="dk-group">' +
+        '<h3>' + g.name + '<em>' + g.hint + '</em></h3>' +
+        '<div class="dk-grid">' + list.map(unitCard).join('') + '</div>' +
+      '</section>';
+    });
+    if (!unitsHTML) unitsHTML = '<p class="dk-empty">这个师在这个阶段没有可用单位。</p>';
+
+    const picked = stats.entries.filter(function (e) { return (Number(deck.units[e.key]) || 0) > 0; });
+    const pickedHTML = picked.length ? picked.map(function (e) {
+      const n = Number(deck.units[e.key]) || 0;
+      return '<li><span>' + esc(e.name) + '</span><em>×' + n + ' · ' + ((e.info.price || 0) * n) + '</em></li>';
+    }).join('') : '<li class="is-none">还没有选单位</li>';
+
+    return deckTopbar() +
+      '<div class="ar-body dk-body">' +
+        '<aside class="dk-left">' +
+          '<div class="dk-sec"><span>军</span><em>军直属单位计入格子和经费</em></div>' +
+          '<div class="dk-corps-list">' + corpsHTML + '</div>' +
+          '<div class="dk-sec"><span>师</span><em>步兵 / 空降 / 山地走 A、B 阶段；装甲师走 C 阶段</em></div>' +
+          '<div class="dk-div-list">' + divsHTML + '</div>' +
+        '</aside>' +
+        '<section class="dk-mid">' +
+          '<header class="dk-head">' +
+            '<div class="dk-head-main">' +
+              '<h2>' + esc(div ? div.name : '未选师') + '</h2>' +
+              '<p>' + esc(f.name) + ' · ' + esc(div ? typeLabel(div.type) : '') +
+                ' · 主战 ' + (div ? div.slots.main : 0) + ' 格 / 辅助 ' + (div ? div.slots.support : 0) +
+                ' 格 / 飞机 ' + (div && div.planes != null ? div.planes : '不限') + ' 格</p>' +
+            '</div>' +
+            '<div class="dk-head-ctl">' +
+              (phaseChips ? '<div class="dk-chips">' + phaseChips + '</div>' : '') +
+              (sideChips ? '<div class="dk-chips">' + sideChips + '</div>' : '') +
+            '</div>' +
+          '</header>' +
+          '<div class="dk-bars">' +
+            bar('经费', stats.cost, stats.funds) +
+            bar('主战', stats.main, stats.mainLimit) +
+            bar('辅助', stats.support, stats.supportLimit) +
+            bar('飞机', stats.air, stats.planeLimit) +
+          '</div>' +
+          '<div class="dk-scroll">' + unitsHTML + '</div>' +
+        '</section>' +
+        '<aside class="dk-right">' +
+          '<div class="dk-right-head"><h3>卡组</h3><span>' + stats.total + ' 个单位</span></div>' +
+          '<ul class="dk-picked">' + pickedHTML + '</ul>' +
+          '<div class="dk-actions">' +
+            '<button type="button" class="dk-btn is-primary" data-dk="export">导出 JSON</button>' +
+            '<button type="button" class="dk-btn" data-dk="import">导入</button>' +
+            '<button type="button" class="dk-btn is-ghost" data-dk="clear">清空</button>' +
+          '</div>' +
+          '<input type="file" id="dk-file" accept=".json,application/json" hidden>' +
+          '<p class="dk-note">导出格式和线上对战一致（<code>bingqi-division-deck</code> v1），' +
+            '可以互相导入。A/B 阶段按你选的模式导出。</p>' +
+          '<div class="dk-toast" id="dk-toast"></div>' +
+        '</aside>' +
+      '</div>';
+  }
+
+  function typeLabel(type) {
+    if (type === 'infantry') return '步兵师';
+    if (type === 'airborne') return '空降师';
+    if (type === 'mountain') return '山地师';
+    if (type === 'armored') return '装甲师';
+    return type || '';
+  }
+
+  function bindDeckFile() {
+    const input = mount.querySelector('#dk-file');
+    if (!input) return;
+    input.addEventListener('change', function () {
+      const file = input.files && input.files[0];
+      deckImportFile(file);
+      input.value = '';
+    });
+  }
+
+  function renderDeck() {
+    mount.classList.remove('is-bench');
+    mount.innerHTML = deckHTML();
+    mount.scrollTop = 0;
+    bindDeckFile();
+  }
+
+  function openDeck() {
+    state.view = 'deck';
+    state.country = null;
+    disposeViewer();
+    renderDeck();
+    loadPrep().then(function () {
+      if (state.open && state.view === 'deck') renderDeck();
+    }).catch(function () {
+      if (state.open && state.view === 'deck') renderDeck();
+    });
   }
 
   /* ---------------- 国家工作台 ---------------- */
@@ -893,6 +1437,12 @@
     const c = state.country ? BY_ID[state.country] : null;
     mount.classList.toggle('is-bench', !!(state.view === 'country' && c));
     mount.setAttribute('aria-label', c ? c.name + ' · 军械库' : '军械库');
+    if (state.view === 'deck') {
+      mount.classList.remove('is-bench');
+      mount.innerHTML = deckHTML();
+      bindDeckFile();
+      return;
+    }
     mount.innerHTML = (state.view === 'country' && c) ? workbenchHTML(c) : listHTML();
     mount.scrollTop = 0;
 
@@ -1000,6 +1550,11 @@
   }
 
   function goBack() {
+    if (state.view === 'deck') {
+      state.view = 'list';
+      render();
+      return;
+    }
     if (state.view === 'country') {
       const prev = state.country;
       state.view = 'list';
@@ -1074,9 +1629,29 @@
   /* ---------------- 鼠标 ---------------- */
   mount.addEventListener('click', function (e) {
     const t = e.target && e.target.closest
-      ? e.target.closest('[data-act], [data-country], [data-era], [data-cat], [data-unit], .ar-desc-export')
+      ? e.target.closest('[data-act], [data-country], [data-era], [data-cat], [data-unit], [data-dk], [data-dk-open], .ar-desc-export')
       : null;
     if (!t || !mount.contains(t)) return;
+
+    // 卡组界面：所有按钮都走 data-dk
+    const dk = e.target.closest ? e.target.closest('[data-dk]') : null;
+    if (dk && mount.contains(dk)) {
+      const act = dk.getAttribute('data-dk');
+      const v = dk.getAttribute('data-v');
+      if (act === 'faction') deckPickFaction(v);
+      else if (act === 'corps') deckPickCorps(v);
+      else if (act === 'division') deckPickDivision(v);
+      else if (act === 'phase') deckPickPhase(v);
+      else if (act === 'side') { deck.side = v; renderDeck(); }
+      else if (act === 'plus') deckAdjust(dk.getAttribute('data-k'), 1);
+      else if (act === 'minus') deckAdjust(dk.getAttribute('data-k'), -1);
+      else if (act === 'clear') deckClear();
+      else if (act === 'export') deckExport();
+      else if (act === 'import') { const inp = mount.querySelector('#dk-file'); if (inp) inp.click(); }
+      return;
+    }
+
+    if (e.target.closest && e.target.closest('[data-dk-open]')) { openDeck(); return; }
 
     if (t.getAttribute('data-act') === 'back') { goBack(); return; }
 
