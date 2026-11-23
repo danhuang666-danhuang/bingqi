@@ -262,7 +262,9 @@
     if (window.BUILDING_MODELS) { buildingModelsReady = true; return; }
     if (buildingModelError) return;
     const s = document.createElement('script');
-    s.src = 'building-models.js';
+    // 打包时 index.html 注入 window.__BUILD__，带上它避免缓存导致模型不更新
+    const v = window.__BUILD__;
+    s.src = 'building-models.js' + (v ? ('?v=' + encodeURIComponent(v)) : '');
     s.onload = function () {
       buildingModelsReady = !!window.BUILDING_MODELS;
       rebuildDeploy();

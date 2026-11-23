@@ -634,6 +634,14 @@
     return bag ? bag[info.key] : null;
   }
 
+  /* 缓存戳：打包时 index.html 会注入 window.__BUILD__，动态加载的脚本也带上，
+   * 否则 GitHub Pages 的 max-age=600 会让改完的模型/代码在别人那儿还是旧的。 */
+  function withBuild(url) {
+    const v = window.__BUILD__;
+    if (!v) return url;
+    return url + (url.indexOf('?') >= 0 ? '&' : '?') + 'v=' + encodeURIComponent(v);
+  }
+
   /* 单位索引（单位 key → 单个模型文件）。第一次要模型时才加载，只要几 KB。 */
   let unitIndexState = '';
   let unitIndexWaiters = [];
@@ -650,7 +658,7 @@
       q.forEach(function (fn) { try { if (fn) fn(); } catch (e) { /* ignore */ } });
     };
     const el = document.createElement('script');
-    el.src = 'armory-models/unit-index.js';
+    el.src = withBuild('armory-models/unit-index.js');
     el.async = true;
     el.onload = function () { unitIndexState = window.ARMORY_UNIT_FILES ? 'ready' : 'error'; flush(); };
     el.onerror = function () { unitIndexState = 'error'; flush(); };
@@ -673,7 +681,7 @@
       const idx = window.ARMORY_UNIT_FILES;
       const src = idx && idx[info.key] ? idx[info.key] : ('armory-models/' + info.file);
       const s = document.createElement('script');
-      s.src = src;
+      s.src = withBuild(src);
       s.async = true;
       s.onload = function () {
         UNIT_MODEL_STATE[stateKey] = 'ready';
