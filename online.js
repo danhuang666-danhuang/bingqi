@@ -1157,6 +1157,7 @@
       const rangeGroup = new THREE.Group();
       const moveRangeGroup = new THREE.Group();
       const bombHintGroup = new THREE.Group();
+      const counterBatteryGroup = new THREE.Group();
       scene.add(boardGroup);
       scene.add(zoneGroup);
       scene.add(flagGroup);
@@ -1175,6 +1176,7 @@
       scene.add(rangeGroup);
       scene.add(moveRangeGroup);
       scene.add(bombHintGroup);
+      scene.add(counterBatteryGroup);
 
       B3 = {
         canvas: canvas,
@@ -1202,6 +1204,7 @@
         rangeGroup: rangeGroup,
         moveRangeGroup: moveRangeGroup,
         bombHintGroup: bombHintGroup,
+        counterBatteryGroup: counterBatteryGroup,
         floats: [],
         flights: [],
         tileMeshes: [],
@@ -2198,6 +2201,7 @@
     refreshBattle3DRangeHint();
     refreshBattle3DMoveRange();
     refreshBattle3DBombHint();
+    refreshBattleCounterBatteryMarks();
     B3.need = true;
   }
 
@@ -3623,6 +3627,7 @@
       activeSide: 'attacker',
       units: units,
       buildings: [],
+      counterBatteryMarks: [],
       selectedId: null,
       ghost: null,
       counter: null,
@@ -3812,6 +3817,49 @@
   }
 
   // 两个同阵营主战单位相隔恰好 1 个空格时，中间格是警戒格。
+  function battleCounterBatteryKind(unit) {
+    if (!unit) return '';
+    if (battleTrait(unit, 'counterBatteryRadar')) return 'radar';
+    if (battleTrait(unit, 'acousticCounterBattery') || battleTrait(unit, 'counterBattery')) return 'acoustic';
+    return '';
+  }
+
+  function battleCounterBatteryRecord(firingUnit) {
+    const b = state.battle;
+    if (!b || !firingUnit || !battleArtillerySpec(firingUnit)) return;
+    const listenerSide = otherSide(firingUnit.side);
+    const units = battleAliveUnits().filter(function (u) {
+      return u.side === listenerSide && battleCounterBatteryKind(u) &&
+        battleHexDistance(u.c, u.r, firingUnit.c, firingUnit.r) <= 3;
+    });
+    const radar = units.some(function (u) { return battleCounterBatteryKind(u) === 'radar'; });
+    const acoustic = units.filter(function (u) { return battleCounterBatteryKind(u) === 'acoustic'; }).length;
+    if (!radar && acoustic < 2) return;
+    b.counterBatteryMarks = b.counterBatteryMarks || [];
+    if (b.counterBatteryMarks.some(function (m) {
+      return m.c === firingUnit.c && m.r === firingUnit.r && m.forSide === listenerSide && m.round === b.round;
+    })) return;
+    b.counterBatteryMarks.push({
+      c: firingUnit.c, r: firingUnit.r, forSide: listenerSide, round: b.round,
+      source: radar ? 'radar' : 'acoustic',
+    });
+    b.log.push(sideName(listenerSide) + (radar ? ' 反炮兵雷达' : ' 声学反炮兵') +
+      ' 记录炮位：' + firingUnit.c + ',' + firingUnit.r + '（下回合可直接攻击）');
+  }
+
+  function battleCounterBatteryMarkAt(side, c, r) {
+    return ((state.battle && state.battle.counterBatteryMarks) || []).filter(function (m) {
+      return m.forSide === side && m.c === c && m.r === r;
+    })[0] || null;
+  }
+
+  function battleClearCounterBatteryMark(side, c, r) {
+    if (!state.battle || !state.battle.counterBatteryMarks) return;
+    state.battle.counterBatteryMarks = state.battle.counterBatteryMarks.filter(function (m) {
+      return !(m.forSide === side && m.c === c && m.r === r);
+    });
+  }
+
   function battleGuardCells(side) {
     const map = {};
     const mains = battleAliveUnits().filter(function (u) {
@@ -3994,6 +4042,46 @@
       const m = new THREE.Mesh(plate, mat);
       m.position.set(w[0], L.TOP + 0.09, w[1]);
       B3.moveRangeGroup.add(m);
+    });
+    B3.need = true;
+  }
+
+  function refreshBattleCounterBatteryMarks() {
+    if (!B3 || !B3.counterBatteryGroup || !state.map || !state.battle) return;
+    const THREE = window.THREE;
+    const L = b3Layout();
+    if (!THREE || !L) return;
+    b3ClearGroup(B3.counterBatteryGroup);
+    const side = battleMySide();
+    if (!side) return;
+    (state.battle.counterBatteryMarks || []).forEach(function (m) {
+      if (m.forSide !== side) return;
+      const w = L.cell(m.c, m.r);
+      const r = L.HEXR * 0.52;
+      const y = L.TOP + 0.24;
+      const pts = [];
+      for (let i = 0; i <= 20; i++) {
+        const a = i / 20 * Math.PI * 2;
+        pts.push(new THREE.Vector3(w[0] + Math.cos(a) * r, y, w[1] + Math.sin(a) * r));
+      }
+      const ring = new THREE.LineLoop(
+        new THREE.BufferGeometry().setFromPoints(pts),
+        new THREE.LineBasicMaterial({ color: 0xff3030, transparent: true, opacity: 0.95, depthTest: false })
+      );
+      ring.material._b3Dispose = true;
+      B3.counterBatteryGroup.add(ring);
+      [0, Math.PI / 2].forEach(function (a) {
+        const dx = Math.cos(a) * r, dz = Math.sin(a) * r;
+        const line = new THREE.Line(
+          new THREE.BufferGeometry().setFromPoints([
+            new THREE.Vector3(w[0] - dx, y, w[1] - dz),
+            new THREE.Vector3(w[0] + dx, y, w[1] + dz),
+          ]),
+          new THREE.LineBasicMaterial({ color: 0xff2020, transparent: true, opacity: 0.95, depthTest: false })
+        );
+        line.material._b3Dispose = true;
+        B3.counterBatteryGroup.add(line);
+      });
     });
     B3.need = true;
   }
@@ -4317,12 +4405,14 @@
     hooks: {},
   });
 
-  ['hidden', 'engineer', 'medical', 'militaryPolice', 'counterBattery', 'transport',
+  ['hidden', 'engineer', 'medical', 'militaryPolice', 'counterBattery', 'acousticCounterBattery',
+    'counterBatteryRadar', 'transport',
     'mountain', 'political', 'airborne', 'demolition', 'heartbreak', 'heavyTank', 'mediumTank',
     'highAltitude', 'nuke', 'guerrilla'].forEach(function (id) {
     const labels = {
       hidden: '隐蔽', engineer: '工程', medical: '医疗', militaryPolice: '宪兵',
-      counterBattery: '反炮兵', transport: '地面运输', mountain: '山地作战',
+      counterBattery: '反炮兵', acousticCounterBattery: '声学反炮兵', counterBatteryRadar: '反炮兵雷达',
+      transport: '地面运输', mountain: '山地作战',
       political: '政治军队', airborne: '空降', demolition: '爆破', heartbreak: '碎心',
       heavyTank: '重坦', mediumTank: '中坦', highAltitude: '高空', nuke: '核弹', guerrilla: '游击队',
     };
@@ -4777,6 +4867,7 @@
 
   function battleArtilleryCanTarget(attacker, target) {
     if (!battleArtilleryIsIndirect(attacker, target)) return false;
+    if (battleCounterBatteryMarkAt(attacker.side, target.c, target.r)) return true;
     if (battleLockedBySide(target, attacker.side)) return true;
     return battleArtilleryHasOwnVision(attacker, target);
   }
@@ -5099,6 +5190,7 @@
   function battleUnitCanSee(viewer, target) {
     if (!viewer || !target || !target.alive) return false;
     if (target.side === viewer.side) return true;
+    if (battleCounterBatteryMarkAt(viewer.side, target.c, target.r)) return true;
     if (battleLockedBySide(target, viewer.side)) return true;
     return battleUnitHasOwnVision(viewer, target);
   }
@@ -5499,6 +5591,20 @@
       b.selectedId = unit.id;
       b.log.push(unit.name + ' 与 ' + other.name + ' 互换位置（' +
         battleFmt(unitCost) + ' + ' + battleFmt(otherCost) + ' 行动力）');
+      battleRefresh();
+      battleCheckAutoEnd();
+      return;
+    }
+    if (action.type === 'counterBatteryStrike') {
+      const spec = battleArtillerySpec(unit);
+      const c = Number(action.c), r = Number(action.r);
+      if (!spec || !battleCounterBatteryMarkAt(unit.side, c, r)) return;
+      if (battleHexDistance(unit.c, unit.r, c, r) > spec.range || unit.mp < 1) return;
+      unit.mp -= 1;
+      unit.artyShots = Number(unit.artyShots || 0) + 1;
+      battleClearCounterBatteryMark(unit.side, c, r);
+      b.selectedId = unit.id;
+      b.log.push(unit.name + ' 炮击反炮兵标记格 ' + c + ',' + r + '（1 行动力）');
       battleRefresh();
       battleCheckAutoEnd();
       return;
@@ -5905,6 +6011,8 @@
         unit.mp -= cost;
         unit.artyShots = Number(unit.artyShots || 0) + 1;
         if (spec.rocket) unit.rocketReloadRound = b.round + 1;
+        battleCounterBatteryRecord(unit);
+        battleClearCounterBatteryMark(unit.side, target.c, target.r);
         if (action.type === 'focus') {
           target.lockedBy = [];
           target.lockCosts = {};
@@ -5976,6 +6084,7 @@
       const dmg = resolved.dmg;
       battleDamageUnit(target, dmg);
       b3AddDamageFloat(target, dmg, '#ff6b57');
+      battleClearCounterBatteryMark(unit.side, target.c, target.r);
       if (action.type === 'focus') {
         target.lockedBy = [];
         target.lockCosts = {};
@@ -6031,6 +6140,9 @@
       u.reconCell = null;
       u.airBase = true;
       if (slot) { u.c = slot.c; u.r = slot.r; }
+    });
+    b.counterBatteryMarks = (b.counterBatteryMarks || []).filter(function (m) {
+      return m.forSide !== leavingSide;
     });
     battleClearTransient();
     b.units.forEach(function (u) { u.lockedBy = []; u.lockCosts = {}; });
@@ -6447,6 +6559,13 @@
       renderBattleTransportPanel();
       battleRequest({ type: 'transportUnload', side: selected.side, unitId: selected.id, c: c, r: r });
       return;
+    }
+    if (!clicked && selected && battleCounterBatteryMarkAt(selected.side, c, r)) {
+      const spec = battleArtillerySpec(selected);
+      if (spec && battleHexDistance(selected.c, selected.r, c, r) <= spec.range) {
+        battleRequest({ type: 'counterBatteryStrike', side: selected.side, unitId: selected.id, c: c, r: r });
+        return;
+      }
     }
     battleSetGhost(selected, c, r);
   }
