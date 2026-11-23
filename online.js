@@ -625,10 +625,42 @@
     return window.ARMORY_MODELS && window.ARMORY_MODELS[bag] ? window.ARMORY_MODELS[bag] : null;
   }
 
+  /* 取某个单位的模型记录：优先“按单位分包”的数据，其次老的整体兵种包 */
+  function unitModelRecord(info) {
+    if (!info) return null;
+    const per = window.ARMORY_UNIT_MODELS && window.ARMORY_UNIT_MODELS[info.key];
+    if (per) return per;
+    const bag = unitModelBag(info.bag);
+    return bag ? bag[info.key] : null;
+  }
+
+  /* 单位索引（单位 key → 单个模型文件）。第一次要模型时才加载，只要几 KB。 */
+  let unitIndexState = '';
+  let unitIndexWaiters = [];
+
+  function ensureUnitIndex(cb) {
+    if (window.ARMORY_UNIT_FILES) { if (cb) cb(); return; }
+    if (unitIndexState === 'loading') { unitIndexWaiters.push(cb); return; }
+    if (unitIndexState === 'error') { if (cb) cb(); return; }
+    unitIndexState = 'loading';
+    unitIndexWaiters = [cb];
+    const flush = function () {
+      const q = unitIndexWaiters;
+      unitIndexWaiters = [];
+      q.forEach(function (fn) { try { if (fn) fn(); } catch (e) { /* ignore */ } });
+    };
+    const el = document.createElement('script');
+    el.src = 'armory-models/unit-index.js';
+    el.async = true;
+    el.onload = function () { unitIndexState = window.ARMORY_UNIT_FILES ? 'ready' : 'error'; flush(); };
+    el.onerror = function () { unitIndexState = 'error'; flush(); };
+    document.head.appendChild(el);
+  }
+
   function loadUnitModelBag(info, cb) {
     if (!info) { if (cb) cb(); return; }
-    if (unitModelBag(info.bag)) { if (cb) cb(); return; }
-    const stateKey = info.bag;
+    if (unitModelRecord(info)) { if (cb) cb(); return; }
+    const stateKey = info.key;
     if (UNIT_MODEL_STATE[stateKey] === 'loading') {
       (UNIT_MODEL_WAITERS[stateKey] = UNIT_MODEL_WAITERS[stateKey] || []).push(cb);
       return;
@@ -636,25 +668,30 @@
     if (UNIT_MODEL_STATE[stateKey] === 'error') { if (cb) cb(); return; }
     UNIT_MODEL_STATE[stateKey] = 'loading';
     UNIT_MODEL_WAITERS[stateKey] = [cb];
-    const s = document.createElement('script');
-    s.src = 'armory-models/' + info.file;
-    s.async = true;
-    s.onload = function () {
-      UNIT_MODEL_STATE[stateKey] = 'ready';
-      const q = UNIT_MODEL_WAITERS[stateKey] || [];
-      UNIT_MODEL_WAITERS[stateKey] = null;
-      q.forEach(function (fn) { try { if (fn) fn(); } catch (e) { /* ignore */ } });
-      if (B3) scheduleUnitModelRefresh();
-      scheduleDraw();
-    };
-    s.onerror = function () {
-      UNIT_MODEL_STATE[stateKey] = 'error';
-      const q = UNIT_MODEL_WAITERS[stateKey] || [];
-      UNIT_MODEL_WAITERS[stateKey] = null;
-      q.forEach(function (fn) { try { if (fn) fn(); } catch (e) { /* ignore */ } });
-      scheduleDraw();
-    };
-    document.head.appendChild(s);
+    // 先保证索引到了，再按单位拿单个文件（拿不到就退回整包，保证不会缺模型）
+    ensureUnitIndex(function () {
+      const idx = window.ARMORY_UNIT_FILES;
+      const src = idx && idx[info.key] ? idx[info.key] : ('armory-models/' + info.file);
+      const s = document.createElement('script');
+      s.src = src;
+      s.async = true;
+      s.onload = function () {
+        UNIT_MODEL_STATE[stateKey] = 'ready';
+        const q = UNIT_MODEL_WAITERS[stateKey] || [];
+        UNIT_MODEL_WAITERS[stateKey] = null;
+        q.forEach(function (fn) { try { if (fn) fn(); } catch (e) { /* ignore */ } });
+        if (B3) scheduleUnitModelRefresh();
+        scheduleDraw();
+      };
+      s.onerror = function () {
+        UNIT_MODEL_STATE[stateKey] = 'error';
+        const q = UNIT_MODEL_WAITERS[stateKey] || [];
+        UNIT_MODEL_WAITERS[stateKey] = null;
+        q.forEach(function (fn) { try { if (fn) fn(); } catch (e) { /* ignore */ } });
+        scheduleDraw();
+      };
+      document.head.appendChild(s);
+    });
   }
 
   function ensureDeployModels() {
@@ -876,13 +913,11 @@
   function unitModelSprite(name, faction) {
     const info = unitModelInfo(name, faction);
     if (!info) return null;
-    const bag = unitModelBag(info.bag);
-    if (!bag) {
+    const rec = unitModelRecord(info);
+    if (!rec) {
       loadUnitModelBag(info, function () { scheduleDraw(); });
       return null;
     }
-    const rec = bag[info.key];
-    if (!rec) return null;
     const facing = unitMapFacing();
     const cacheKey = info.key + '|' + facing.toFixed(3);
     if (UNIT_SPRITE_CACHE[cacheKey]) return UNIT_SPRITE_CACHE[cacheKey];
@@ -1653,15 +1688,13 @@
     if (!b) return null;
     const info = unitModelInfo(name, faction);
     if (!info) return null;
-    const bag = unitModelBag(info.bag);
-    if (!bag) {
+    const rec = unitModelRecord(info);
+    if (!rec) {
       loadUnitModelBag(info, function () {
         if (B3) scheduleUnitModelRefresh();
       });
       return null;
     }
-    const rec = bag[info.key];
-    if (!rec) return null;
     const THREE = window.THREE;
     let geo = b.unitGeoCache[info.key];
     if (!geo) {
@@ -7758,10 +7791,6 @@
       toast('先选一张攻防战地图，再选国家阵营');
       return;
     }
-    if (!bothSidesHavePlayers()) {
-      toast('先让双方都选好攻守，再选国家阵营');
-      return;
-    }
     if (!state.side) {
       toast('先选择你的攻守');
       return;
@@ -7901,9 +7930,9 @@
     const confirmed = myFactionReady();
     const both = bothSidesHavePlayers();
     btn.textContent = locked ? '已锁定' : (confirmed ? '阵营已确认' : (ready ? '更换阵营' : '选择阵营'));
-    btn.disabled = locked || confirmed || !both || !state.map || state.map.mode !== 'attack' || !state.side;
+    btn.disabled = locked || confirmed || !state.map || state.map.mode !== 'attack' || !state.side;
     btn.title = btn.disabled
-      ? (locked ? '对局已开始，阵营已锁定' : (confirmed ? '本阵营已确认，等待对方' : '双方选好攻守后开放'))
+      ? (locked ? '对局已开始，阵营已锁定' : (confirmed ? '本阵营已确认，等待对方' : '先选一张攻防战地图，并选定你的攻守'))
       : '打开国家阵营界面';
     head.appendChild(btn);
     box.appendChild(head);
@@ -7932,7 +7961,7 @@
     if (locked) {
       note.textContent = '对局已开始，双方阵营已锁定。';
     } else if (!both) {
-      note.textContent = '双方都选好攻守后，会进入国家阵营界面。';
+      note.textContent = '对方还没选攻守；你可以先选国家阵营，双方阵营不能相同。';
     } else if (factionsConflict()) {
       note.textContent = '双方阵营不能相同，点「更换阵营」调整。';
     } else if (!ready) {
