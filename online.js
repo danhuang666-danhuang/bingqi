@@ -5872,6 +5872,25 @@
           } else if (target.lastConfusionRoll) {
             b.log.push('混乱判定 ' + Math.round(target.lastConfusionRoll.chance * 100) + '%：未触发');
           }
+          // 曲射本身不触发反击，但参与集火的直射单位仍然可以成为反击目标。
+          const directParts = parts.filter(function (p) {
+            return p && !battleArtilleryIsIndirect(p, target);
+          });
+          const cannotCounter = !!target.confused;
+          const counterTargets = cannotCounter ? [] : battleCounterTargets(target, directParts.map(function (p) { return p.id; }));
+          if (cannotCounter) {
+            b.counter = null;
+            b.log.push(target.name + ' 处于混乱，无法反击');
+          } else if (counterTargets.length) {
+            b.counter = {
+              counterUnitId: target.id,
+              chooserSide: target.side,
+              targetIds: counterTargets.map(function (u) { return u.id; }),
+              lethal: !target.alive,
+            };
+          } else {
+            b.counter = null;
+          }
           hits.push(target.name + ' -' + dmg);
         } else {
           const targets = spec.rocket ? battleRocketArea(target) : [target];
