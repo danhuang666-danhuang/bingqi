@@ -5109,10 +5109,15 @@
     const units = (ids || []).map(battleUnitById).filter(Boolean);
     // 有隐蔽单位参与时，非隐蔽参与者已经暴露，不能再因为视野判定被一起排除。
     const hasHidden = units.some(function (u) { return battleTrait(u, 'hidden'); });
-    return units.filter(function (u) {
+    const valid = units.filter(function (u) {
       return u && u.alive && u.side !== counterUnit.side &&
         !battleTrait(u, 'hidden') &&
         (lethal || hasHidden || battleUnitCanSee(counterUnit, u));
+    });
+    if (valid.length) return valid;
+    // 联机时若目标阵营数据异常，仍保留非隐蔽参与者作为反击目标，避免整次攻击被跳过。
+    return units.filter(function (u) {
+      return u && u.alive && !battleTrait(u, 'hidden');
     });
   }
 
