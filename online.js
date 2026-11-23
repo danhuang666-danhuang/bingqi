@@ -12,7 +12,7 @@
  *   - 所有在线玩家都选了阵营并准备后，房主才能开始。
  *
  * 通信交给 online-net.js：
- *   - 房间码 8 位，地图和房间状态用房间码派生的 AES-GCM 密钥加密；
+ *   - 房间码 4 位数字，地图和房间状态用房间码派生的 AES-GCM 密钥加密；
  *   - 走公共 MQTT 中继（默认 EMQX，可在「高级」里换）；
  *   - 不经过我们自己的服务器，网页仍然是静态文件。
  *
@@ -9623,9 +9623,9 @@
         ? '正在连接中继并创建加密房间…'
         : '正在连接中继并寻找房间…';
     } else if (create) {
-      hint.textContent = '创建后会生成 8 位房间码。房间最多 4 人：攻方 2 人、守方 2 人（房主算一位）。';
+      hint.textContent = '创建后会生成 4 位数字房间码。房间最多 4 人：攻方 2 人、守方 2 人（房主算一位）。';
     } else {
-      hint.textContent = '输入房主发来的 8 位房间码。房主和你要使用同一个中继。';
+      hint.textContent = '输入房主发来的 4 位数字房间码。房主和你要使用同一个中继。';
     }
   }
 
@@ -10597,6 +10597,7 @@
       });
       if (gen !== state.gen) { net.disconnect(); return; }
       state.joined = true;
+      state.codeRetry = 0;
       setView('room');
       pushLog('房间已创建，等待玩家加入');
       // 房主不改地址栏：刷新后应该回主菜单，而不是拿自己的房间码当客人加入。
@@ -10646,7 +10647,7 @@
     if (state.connecting) return;
     const code = NET.normalizeCode(rawCode);
     if (!NET.isValidCode(code)) {
-      showAlert('房间码不对', '房间码是 8 位字母数字，例如 ABCD-EFGH。请向房主确认。');
+      showAlert('房间码不对', '房间码是 4 位数字，例如 4821。请向房主确认。');
       const input = el('online-code');
       if (input) { input.focus(); input.select(); }
       return;
@@ -10720,7 +10721,21 @@
     if (!h || h.role !== 'host') return;
     state.host = h;
     state.hostSeen = Date.now();
-    if (state.role === 'host') return;
+    if (state.role === 'host') {
+      // 4 位数字只有 1 万种，公共中继上会撞码：撞了就自动换一个
+      if (h.id && h.id !== state.selfId && state.joined) {
+        const tries = state.codeRetry || 0;
+        if (tries < 3) {
+          state.codeRetry = tries + 1;
+          pushLog('房间码 ' + NET.formatCode(state.roomCode) + ' 已被占用，正在换一个');
+          toast('房间码撞车了，自动换一个');
+          setTimeout(function () { startHost(); }, 350);
+        } else {
+          toast('连续撞到同一个房间码，请再点一次建房');
+        }
+      }
+      return;
+    }
 
     if (h.online === false) {
       if (state.joined && !state.hostGoneAlerted) {
@@ -10793,6 +10808,20 @@
     }
     if (state.view === 'room') refreshRoom();
     if (state.role === 'host') {
+      // 新玩家加入时补发当前地图和房主快照；否则晚加入的客机没有地图，攻守按钮会一直是禁用态。
+      if ((!prev || !prev.presence || !prev.presence.online) && state.mapWrapper && state.net) {
+        state.net.publishMap(state.mapWrapper);
+        state.net.setHostState({
+          phase: state.phase,
+          mode: state.map ? state.map.mode : null,
+          map: state.map ? mapMeta(state.map, state.mapWrapper.title) : null,
+          decks: state.decks,
+          deploy: state.deploy,
+          battle: state.battle,
+          factions: state.hostFactions,
+          teams: state.hostTeams,
+        });
+      }
       if (state.phase === 'lobby') maybePrepare();
       else if (state.phase === 'prepare') maybeEnterDeploy();
       else if (state.phase === 'deploy' && g.deploy) mergeGuestDeploy(g);
@@ -11137,9 +11166,35 @@
     sel.value = state.brokerId;
   }
 
+  /* 房间码输入框改成 4 位数字（index.html 归 UI，这里运行时设置） */
+  function setupCodeInput() {
+    const input = el('online-code');
+    if (input && !input.dataset.codeFixed) {
+      input.dataset.codeFixed = '1';
+      input.setAttribute('maxlength', '4');
+      input.setAttribute('inputmode', 'numeric');
+      input.setAttribute('placeholder', '4 位数字');
+      input.addEventListener('input', function () {
+        const v = String(input.value || '').replace(/[^0-9]/g, '').slice(0, 4);
+        if (input.value !== v) input.value = v;
+      });
+    }
+    const display = el('online-code-display');
+    if (display && !display.dataset.codeFixed) {
+      display.dataset.codeFixed = '1';
+      display.textContent = '----';
+    }
+    const box = el('online-code-box');
+    if (box && !box.dataset.codeFixed) {
+      box.dataset.codeFixed = '1';
+      box.textContent = '----';
+    }
+  }
+
   function open(opts) {
     if (state.open) return;
     state.open = true;
+    setupCodeInput();
     state.savedTitle = document.title;
     state.lastFocus = document.activeElement;
     resetRoom();

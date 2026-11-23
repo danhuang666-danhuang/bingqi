@@ -25,8 +25,9 @@
   const PREFIX = 'bingqi/v2/';
   const MAX_PLAYERS = 4;      // 2v2：攻方 2 + 守方 2，房主算其中一人
   const MAX_PER_SIDE = 2;
-  const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ0123456789'; // 去掉 I / O，避免和 1 / 0 混淆
-  const CODE_LEN = 8;
+  // 房间码改成 4 位数字：好念好输入；撞码由 online.js 那边自动重开房间兜底
+  const CODE_ALPHABET = '0123456789';
+  const CODE_LEN = 4;
   const KDF_ITERATIONS = 120000;
   const KDF_SALT = 'bingqi-online-v2';
   const HEARTBEAT_MS = 25000;
@@ -38,10 +39,8 @@
   /* ---------------- 房间码 ---------------- */
 
   function normalizeCode(raw) {
-    let s = String(raw == null ? '' : raw).toUpperCase();
-    s = s.replace(/[^A-Z0-9]/g, '');
-    s = s.replace(/O/g, '0').replace(/I/g, '1');
-    return s;
+    // 只留数字：4 位纯数字，粘贴带空格/横杠也能认
+    return String(raw == null ? '' : raw).replace(/[^0-9]/g, '');
   }
 
   function isValidCode(code) {
@@ -53,8 +52,7 @@
   }
 
   function formatCode(code) {
-    const s = normalizeCode(code);
-    return s.length === CODE_LEN ? s.slice(0, 4) + '-' + s.slice(4) : s;
+    return normalizeCode(code);
   }
 
   function randomCode() {
@@ -64,9 +62,10 @@
     let out = '';
     let i = 0;
     while (out.length < CODE_LEN) {
-      // 拒绝采样，避免 256 % 34 的偏差
+      // 拒绝采样，避免 256 不能被字符数整除的偏差
       const v = bytes[i++ % bytes.length];
-      if (v >= 238) continue; // 34 * 7
+      const limit = 256 - (256 % CODE_ALPHABET.length);
+      if (v >= limit) continue;
       out += CODE_ALPHABET[v % CODE_ALPHABET.length];
     }
     return out;
