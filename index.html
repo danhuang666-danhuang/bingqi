@@ -1,15 +1,15 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-<script>window.__BUILD__="20261124151006";</script>
+<script>window.__BUILD__="20261124152329";</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>兵棋 · 线上战术桌</title>
 <meta name="description" content="兵棋线上战术桌：3D 打印六角图块地图编辑器与对局工具。">
-<link rel="stylesheet" href="style.css?v=20261124151006">
-<link rel="stylesheet" href="armory.css?v=20261124151006">
-<link rel="stylesheet" href="codex.css?v=20261124151006">
-<link rel="stylesheet" href="online.css?v=20261124151006">
+<link rel="stylesheet" href="style.css?v=20261124152329">
+<link rel="stylesheet" href="armory.css?v=20261124152329">
+<link rel="stylesheet" href="codex.css?v=20261124152329">
+<link rel="stylesheet" href="online.css?v=20261124152329">
 </head>
 <body class="view3d menu-open">
 
@@ -18,43 +18,36 @@
   <div class="menu-shell">
     <div class="menu-top">
       <span class="menu-brand"><span class="logo">⬢</span><b>兵棋</b><em>HEX WARGAME</em></span>
-      <span class="menu-meta"><i class="dot"></i>本地运行 · 无需联网</span>
+      <span class="menu-meta"><i class="dot"></i>本地优先 · 可联机</span>
     </div>
 
     <div class="menu-body">
       <section class="menu-main">
         <p class="menu-kicker">TACTICAL TABLE <span>/</span> 3D PRINTED EDITION</p>
         <h1 class="menu-title">兵棋<span>线上战术桌</span></h1>
-        <p class="menu-lead">把 3D 打印的六角战场搬进浏览器。<br>先选一个区块开始。</p>
 
         <nav class="menu-list" aria-label="功能区块">
-          <button type="button" class="menu-item is-ready" data-module="online" data-name="线上对战">
+          <button type="button" class="menu-item" data-module="online" data-name="线上对战">
             <span class="mi-no">01</span>
             <span class="mi-text">
               <span class="mi-title">线上对战<em>ONLINE BATTLE</em></span>
-              <span class="mi-desc">创建房间，把地图和作战模式同步给外地同学。</span>
             </span>
-            <span class="mi-tag live">可用</span>
             <span class="mi-arrow" aria-hidden="true">→</span>
           </button>
 
-          <button type="button" class="menu-item is-ready" data-module="armory" data-name="军械库">
+          <button type="button" class="menu-item" data-module="armory" data-name="军械库">
             <span class="mi-no">02</span>
             <span class="mi-text">
               <span class="mi-title">军械库<em>ARMORY</em></span>
-              <span class="mi-desc">单位数值、武器与编制，一页查完。</span>
             </span>
-            <span class="mi-tag live">可用</span>
             <span class="mi-arrow" aria-hidden="true">→</span>
           </button>
 
-          <button type="button" class="menu-item is-ready" data-module="codex" data-name="百科">
+          <button type="button" class="menu-item" data-module="codex" data-name="百科">
             <span class="mi-no">03</span>
             <span class="mi-text">
               <span class="mi-title">百科<em>CODEX</em></span>
-              <span class="mi-desc">规则、地形与术语，随时速查。</span>
             </span>
-            <span class="mi-tag live">可用</span>
             <span class="mi-arrow" aria-hidden="true">→</span>
           </button>
 
@@ -62,15 +55,13 @@
             <span class="mi-no">04</span>
             <span class="mi-text">
               <span class="mi-title">地图编辑器<em>MAP EDITOR</em></span>
-              <span class="mi-desc">用实物图块拼战场，保存 JSON / 导出 PNG。</span>
             </span>
-            <span class="mi-tag live">可用</span>
             <span class="mi-arrow" aria-hidden="true">→</span>
           </button>
         </nav>
 
         <p class="menu-note">
-          <kbd>↑</kbd><kbd>↓</kbd> 选择 <span>·</span> <kbd>Enter</kbd> 进入 <span>·</span> <kbd>1</kbd>–<kbd>4</kbd> 直达 <span>·</span> 编辑器内 <kbd>Esc</kbd> 返回
+          <kbd>↑</kbd><kbd>↓</kbd> 选择 <span>·</span> <kbd>Enter</kbd> 进入 <span>·</span> <kbd>1</kbd>–<kbd>4</kbd> 直达
         </p>
       </section>
 
@@ -78,23 +69,13 @@
         <figure class="menu-art">
           <div class="menu-art-box">
             <img src="menu-board.png" width="980" height="505" alt="3D 打印六角图块拼成的示例战场">
-            <span class="menu-art-tag">MAP EDITOR · 3D</span>
+            <span class="menu-art-tag">3D PRINTED HEX</span>
           </div>
-          <figcaption>
-            <span>实体图块 1:1 还原</span>
-            <span class="mono">1cm 六角 · 10 种地形</span>
-          </figcaption>
         </figure>
-        <dl class="menu-facts">
-          <div><dt>列距</dt><dd>17.16<small>mm</small></dd></div>
-          <div><dt>行距</dt><dd>14.86<small>mm</small></dd></div>
-          <div><dt>存档</dt><dd>本机</dd></div>
-        </dl>
       </aside>
     </div>
 
     <div class="menu-foot">
-      <span>地图模型只读载入，未改动任何 .3mf / .blend 文件。</span>
       <span id="menu-local" class="mono">本地草稿：—</span>
     </div>
   </div>
@@ -386,18 +367,18 @@
 
 <input type="file" id="file" accept=".json,application/json" hidden>
 
-<script src="lib/three.min.js?v=20261124151006"></script>
-<script src="terrain.js?v=20261124151006"></script>
-<script src="hexgrid.js?v=20261124151006"></script>
-<script src="mapio.js?v=20261124151006"></script>
-<script src="markers.js?v=20261124151006"></script>
-<script src="models3d.js?v=20261124151006"></script>
-<script src="lib/mqtt.min.js?v=20261124151006"></script>
-<script src="home.js?v=20261124151006"></script>
-<script src="online-net.js?v=20261124151006"></script>
-<script src="online.js?v=20261124151006"></script>
-<script src="armory.js?v=20261124151006"></script>
-<script src="codex.js?v=20261124151006"></script>
-<script src="app3d.js?v=20261124151006"></script>
+<script src="lib/three.min.js?v=20261124152329"></script>
+<script src="terrain.js?v=20261124152329"></script>
+<script src="hexgrid.js?v=20261124152329"></script>
+<script src="mapio.js?v=20261124152329"></script>
+<script src="markers.js?v=20261124152329"></script>
+<script src="models3d.js?v=20261124152329"></script>
+<script src="lib/mqtt.min.js?v=20261124152329"></script>
+<script src="home.js?v=20261124152329"></script>
+<script src="online-net.js?v=20261124152329"></script>
+<script src="online.js?v=20261124152329"></script>
+<script src="armory.js?v=20261124152329"></script>
+<script src="codex.js?v=20261124152329"></script>
+<script src="app3d.js?v=20261124152329"></script>
 </body>
 </html>
