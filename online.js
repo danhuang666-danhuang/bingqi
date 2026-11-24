@@ -5912,7 +5912,8 @@
       if (group.length !== attackerIds.length) return;
       if (battleIsNight()) { toast('夜间飞机不能起飞'); return; }
       const role = action.role || (battleIsAir(target) ? 'intercept' : 'bomb');
-      const heavyDir = (battleHeavyBomber(unit) && !battleIsAir(target))
+      const heavyUnit = group.filter(function (u) { return battleHeavyBomber(u); })[0];
+      const heavyDir = (heavyUnit && !battleIsAir(target))
         ? (Number.isFinite(Number(action.dir)) ? Math.max(0, Math.min(5, Number(action.dir))) : 0)
         : null;
       const airCost = battleAirActionCost(unit, target, role);
@@ -7032,6 +7033,29 @@
         mismatch || air.mp < 1 || !canNormalAir);
     }
     if (escortOnly) {
+      const heavyLock = (target.lockedBy || []).map(battleUnitById).filter(function (u) {
+        return u && u.alive && u.side === air.side && battleHeavyBomber(u);
+      })[0];
+      if (heavyLock) {
+        const dirHint = document.createElement('div');
+        dirHint.className = 'battle-choice-hint';
+        dirHint.textContent = heavyLock.name + ' 重轰：选择轰炸延伸方向，目标格前后各一格都会受到伤害。';
+        box.appendChild(dirHint);
+        const wrap = document.createElement('div');
+        wrap.className = 'battle-choice-roles';
+        [['0', '东西'], ['1', '东北—西南'], ['2', '西北—东南']].forEach(function (item) {
+          const b = document.createElement('button');
+          b.type = 'button';
+          b.className = 'btn small' + (item[0] === '0' ? ' is-on' : '');
+          b.setAttribute('data-air-dir', item[0]);
+          b.textContent = item[1];
+          wrap.appendChild(b);
+        });
+        box.appendChild(wrap);
+        box.setAttribute('data-air-dir', '0');
+        state.b3BombHint = { targetId: target.id, dir: 0 };
+        refreshBattle3DBombHint();
+      }
       add('护航 · 随轰炸机出击 · ' + airCost + ' 行动力', 'airAttack', true,
         mismatch || air.mp < airCost || !canNormalAir);
       if (battleIsReconPlane(air) && battleReconAvailable(air)) {
