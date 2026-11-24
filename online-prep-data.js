@@ -4270,7 +4270,7 @@ window.PREP_DATA.factions.ussr = {
       "price": 52,
       "hp": 6,
       "cat": "main",
-      "move": 7,
+      "move": 6,
       "ap": {
         "urban": 20,
         "r1": 9,
