@@ -12874,11 +12874,39 @@
       '</div>';
   }
 
+  function ensureTutorialGuideToggle() {
+    let btn = el('tutorial-guide-open');
+    if (btn) return btn;
+    btn = document.createElement('button');
+    btn.id = 'tutorial-guide-open';
+    btn.type = 'button';
+    btn.className = 'tutorial-guide-open hidden';
+    btn.textContent = '教程提示';
+    btn.addEventListener('click', function () {
+      if (!state.tutorial) return;
+      state.tutorialGuideCollapsed = false;
+      renderTutorialGuide();
+    });
+    document.body.appendChild(btn);
+    return btn;
+  }
+
+  function syncTutorialGuideToggle() {
+    const btn = ensureTutorialGuideToggle();
+    const show = !!(state.tutorial && state.tutorialGuideCollapsed);
+    btn.classList.toggle('hidden', !show);
+  }
+
   function renderTutorialGuide() {
     const panel = el('tutorial-guide');
-    if (!panel || !state.tutorial) return;
+    if (!panel || !state.tutorial) {
+      hideEl('tutorial-guide', true);
+      syncTutorialGuideToggle();
+      return;
+    }
     panel.innerHTML = tutorialGuideHtml(state.tutorial.level, state.tutorial.step || 0);
-    panel.classList.remove('hidden');
+    panel.classList.toggle('hidden', !!state.tutorialGuideCollapsed);
+    syncTutorialGuideToggle();
   }
 
   function tutorialGuideClick(e) {
@@ -12913,7 +12941,9 @@
       return;
     }
     if (e.target.closest && e.target.closest('[data-tutorial-guide-close]')) {
+      state.tutorialGuideCollapsed = true;
       hideEl('tutorial-guide', true);
+      syncTutorialGuideToggle();
     }
   }
 
@@ -13028,6 +13058,9 @@
       tutorialAdvance();
       return;
     }
+    if (state.tutorial.level && state.tutorial.level.id === 't03' && action.type === 'focus') {
+      tutorial3RestoreAttackers();
+    }
     if (!step.allow) return;
     if (action.type === step.allow.type &&
         (!step.allow.unitId || action.unitId === step.allow.unitId) &&
@@ -13040,8 +13073,18 @@
     }
   }
 
-  function tutorial3Stage(stage) {
-    if (!state.tutorial || !state.battle || !state.map) return;
+  function tutorial3RestoreAttackers() {
+    if (!state.battle) return;
+    ['tutorial3-us-1', 'tutorial3-us-2'].forEach(function (id) {
+      const u = battleUnitById(id);
+      if (!u || !u.alive) return;
+      u.actionLocked = false;
+      u.pushLocked = false;
+      u.mp = battleMaxMp(u);
+    });
+  }
+
+  function tutorial3Stage(stage) {    if (!state.tutorial || !state.battle || !state.map) return;
     const b = state.battle;
     const target = battleUnitById('tutorial3-target');
     let us1 = battleUnitById('tutorial3-us-1');
@@ -13175,7 +13218,9 @@
         }
         state.battle.buildings = [];
         state.battle.history = [];
-        state.tutorial = { level: level, step: 0, enemyDone: false };
+        state.tutorial = { level: level, step: 0, enemyDone: false, tutorialGuideCollapsed: false };
+        state.tutorialGuideCollapsed = false;
+        ensureTutorialGuideToggle();
         state.battleSeenAction = '';
         ensureDeployModels();
         setView('room');
