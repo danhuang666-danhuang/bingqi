@@ -643,10 +643,13 @@
 }
 
 .ar-desc-block {
+  position: relative;
+  z-index: 2;
   flex: 0 0 auto;
   padding: 9px 16px 12px;
   border-top: 1px solid #1e252e;
-  background: rgba(12, 16, 22, 0.92);
+  /* 不透明：词条多的时候上面的滚动区会顶到这块下面，半透明会透出字 */
+  background: #0c1016;
 }
 
 .ar-desc-block h3 {
