@@ -3,7 +3,7 @@
  *
  * 流程：
  *   主菜单 → 线上对战 → 创建 / 加入房间 → 选地图 → 定模式 → 选阵营 → 准备开局
- *   也可以走「本地测试」：不连中继，一台电脑热座操控 1v1 / 2v1 / 2v2。
+ *   也可以走「沙盒模式」：不连中继，一台电脑热座操控 1v1 / 2v1 / 2v2。
  *
  * 2v2 大厅：
  *   - 房间最多 4 人（攻方 2 + 守方 2），房主算在编制里；
@@ -119,7 +119,8 @@
     factionView: false,     // 是否正在“选国家阵营”大界面
     factionPrompted: false, // 攻守双方就位后是否已经自动跳过界面
     hostTeams: null,        // 开局时房主发布的编制快照
-    test: false,            // 本地测试模式：不连中继，一台电脑热座操控
+    test: false,            // 沙盒模式模式：不连中继，一台电脑热座操控
+    sandbox: { faction: 'us', unit: '', place: false, del: false },
     testSeats: [],          // { id, name, side, ready }，第一个是房主
     testSeq: 0,
     activeSeat: '',         // 当前操控的本机玩家 id
@@ -1017,7 +1018,7 @@
 
   function drawUnitModel(ctx, p, scale, unit, selected) {
     drawUnitBase(ctx, p, scale, unit.side, selected);
-    const spr = unitModelSprite(unit.name, sideFaction(unit.side));
+    const spr = unitModelSprite(unit.name, battleUnitFaction(unit));
     if (spr) {
       const maxH = scale * 1.92;
       const maxW = scale * 1.72;
@@ -1837,7 +1838,7 @@
     const L = b3Layout();
     if (!L) return null;
     const THREE = window.THREE;
-    const faction = sideFaction(unit.side);
+    const faction = battleUnitFaction(unit);
     const g = new THREE.Group();
     const w = unit.airBase ? airPadWorld(unit.side, unit.c, unit.r) : L.cell(unit.c, unit.r);
     let unitLift = 0;
@@ -2757,7 +2758,7 @@
       total.position.z += dest[1];
       B3.ghostGroup.add(total);
     }
-    const model = b3UnitMesh(unit.name, sideFaction(unit.side), unit.hp);
+    const model = b3UnitMesh(unit.name, battleUnitFaction(unit), unit.hp);
     if (model) {
       model.position.y += L.TOP - 0.18;
       model.traverse(function (obj) {
@@ -3012,6 +3013,7 @@
       loading.classList.toggle('hidden', !unitModelsLoading());
     }
     view.classList.toggle('is-battle', !deploy);
+    renderSandboxPanel();
   }
 
   function myDeploySide() {
@@ -3728,10 +3730,10 @@
 
   function initBattleState() {
     const units = deployUnits().map(function (u) {
-      const faction = sideFaction(u.side);
+      const faction = normalizeFaction(u.faction) || sideFaction(u.side);
       const hp = prepUnitHp(u.name, faction);
       return {
-        id: u.id, side: u.side, name: u.name, c: u.c, r: u.r,
+        id: u.id, side: u.side, name: u.name, c: u.c, r: u.r, faction: faction,
         hp: hp, maxHp: hp, mp: 0, maxMp: prepUnitMove(u.name, faction),
         alive: true, lockedBy: [], airBase: !!u.airBase,
       };
@@ -4374,9 +4376,13 @@
     B3.need = true;
   }
 
+  function battleUnitFaction(unit) {
+    return (unit && normalizeFaction(unit.faction)) || sideFaction(unit ? unit.side : null);
+  }
+
   function battleInfoFor(unit) {
     if (!unit) return null;
-    const f = state.prepData && state.prepData.factions ? state.prepData.factions[sideFaction(unit.side)] : null;
+    const f = state.prepData && state.prepData.factions ? state.prepData.factions[battleUnitFaction(unit)] : null;
     return f && f.units ? (f.units[unit.name] || null) : null;
   }
 
@@ -6737,7 +6743,7 @@
 
   function loadGameFile() {
     if (state.role === 'guest' && !state.test) {
-      toast('只有房主或本地测试可以载入战局');
+      toast('只有房主或沙盒模式可以载入战局');
       return;
     }
     const input = el('online-save-file');
@@ -6752,9 +6758,9 @@
       if (data.phase !== 'battle' && data.phase !== 'deploy') throw new Error('存档阶段不支持');
       if (!data.map) throw new Error('存档缺少地图');
       const isTestSave = data.mode === 'test';
-      if (state.role === 'guest' && !state.test) throw new Error('只有房主或本地测试可以载入战局');
+      if (state.role === 'guest' && !state.test) throw new Error('只有房主或沙盒模式可以载入战局');
       if (state.test && !isTestSave) throw new Error('这是联机存档，请在房主房间里载入');
-      if (!state.test && state.role === 'host' && isTestSave) throw new Error('这是本地测试存档，请在本地测试里载入');
+      if (!state.test && state.role === 'host' && isTestSave) throw new Error('这是沙盒模式存档，请在沙盒模式里载入');
       if (!state.test && state.role !== 'host') throw new Error('当前不在可载入的房间中');
       const parsed = parseMap(data.map);
       loadPrepData().then(function () {
@@ -6896,6 +6902,10 @@
   function battleClickAt(c, r, button) {
     const b = state.battle;
     if (!b) return;
+    if (state.test && state.sandbox && (state.sandbox.place || state.sandbox.del)) {
+      sandboxClick(b, c, r);
+      return;
+    }
     if (b.airIntercept || b.facingChoice) return;
     if (state.buildMode) {
       const unit = b.selectedId ? battleUnitById(b.selectedId) : null;
@@ -8196,7 +8206,7 @@
       closed: '已断开',
       offline: '离线',
       error: '连接异常',
-      local: '本地测试',
+      local: '沙盒模式',
     };
     setText('online-status-text', labels[s] || '未连接');
     if (state.view === 'room') {
@@ -10057,7 +10067,7 @@
   }
 
   /* =============================================================
-   * 本地测试模式：不连中继，一台电脑热座操控多名本机玩家
+   * 沙盒模式模式：不连中继，一台电脑热座操控多名本机玩家
    * ============================================================= */
 
   function refreshRoom() {
@@ -10368,6 +10378,177 @@
     });
   }
 
+  function sandboxFaction() {
+    return normalizeFaction(state.sandbox && state.sandbox.faction) || 'us';
+  }
+
+  function sandboxSide() {
+    return normalizeSide(state.side) || (state.battle && state.battle.activeSide) || 'attacker';
+  }
+
+  function sandboxClick(b, c, r) {
+    const at = battleUnitAt(c, r);
+    if (state.sandbox.del) {
+      if (!at) return;
+      b.units = b.units.filter(function (u) { return u.id !== at.id; });
+      if (state.deploy && state.deploy.units) {
+        state.deploy.units = state.deploy.units.filter(function (u) { return u.id !== at.id; });
+      }
+      battleRefresh();
+      return;
+    }
+    if (at) { toast('该格已有单位'); return; }
+    const name = state.sandbox.unit;
+    if (!name) { toast('先选择一个单位'); return; }
+    const side = sandboxSide();
+    const faction = sandboxFaction();
+    const hp = prepUnitHp(name, faction);
+    const id = 'sandbox-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 5);
+    const unit = {
+      id: id, side: side, name: name, c: c, r: r, faction: faction,
+      hp: hp, maxHp: hp, mp: prepUnitMove(name, faction),
+      maxMp: prepUnitMove(name, faction), alive: true, lockedBy: [], airBase: false,
+    };
+    b.units.push(unit);
+    if (state.deploy) {
+      state.deploy.units = state.deploy.units || [];
+      state.deploy.units.push({ id: id, side: side, name: name, c: c, r: r, faction: faction });
+    }
+    b.selectedId = id;
+    battleRefresh();
+  }
+
+  function renderSandboxPanel() {
+    if (!state.test || state.phase !== 'battle') {
+      hideEl('sandbox-panel', true);
+      hideEl('sandbox-toggle', true);
+      return;
+    }
+    const panel = el('sandbox-panel');
+    const toggle = el('sandbox-toggle');
+    if (!panel || !toggle) return;
+    const units = state.prepData && state.prepData.factions && state.prepData.factions[sandboxFaction()]
+      ? state.prepData.factions[sandboxFaction()].units : {};
+    const names = Object.keys(units).sort();
+    const unitSel = el('sandbox-unit');
+    if (unitSel) {
+      const cur = state.sandbox.unit;
+      unitSel.innerHTML = '<option value="">选择单位</option>' + names.map(function (n) {
+        return '<option value="' + n + '"' + (n === cur ? ' selected' : '') + '>' + n + '</option>';
+      }).join('');
+      if (!names.some(function (n) { return n === cur; })) state.sandbox.unit = '';
+    }
+    const fab = el('sandbox-faction');
+    if (fab) fab.value = sandboxFaction();
+    const side = el('sandbox-side');
+    if (side) side.textContent = sandboxSide() === 'attacker' ? '攻方' : '守方';
+    const place = el('sandbox-place');
+    if (place) place.classList.toggle('is-on', !!state.sandbox.place);
+    const del = el('sandbox-delete');
+    if (del) del.classList.toggle('is-on', !!state.sandbox.del);
+    toggle.classList.remove('hidden');
+  }
+
+  function ensureSandboxPanel() {
+    if (!el('sandbox-toggle')) {
+      const toggle = document.createElement('button');
+      toggle.id = 'sandbox-toggle';
+      toggle.type = 'button';
+      toggle.className = 'sandbox-toggle';
+      toggle.textContent = '沙盒';
+      toggle.addEventListener('click', function () {
+        const p = el('sandbox-panel');
+        if (p) p.classList.toggle('hidden');
+        renderSandboxPanel();
+      });
+      document.body.appendChild(toggle);
+    }
+    if (el('sandbox-panel')) return;
+    const panel = document.createElement('section');
+    panel.id = 'sandbox-panel';
+    panel.className = 'sandbox-panel hidden';
+    panel.innerHTML =
+      '<div class="sandbox-head"><b>沙盒模式</b><button type="button" data-sandbox-close="1">×</button></div>' +
+      '<div class="sandbox-current">当前方：<b id="sandbox-side">攻方</b>（点顶部座位切换）</div>' +
+      '<label>国家<select id="sandbox-faction"><option value="us">美国</option><option value="de">德国</option><option value="ussr">苏联</option></select></label>' +
+      '<label>单位<select id="sandbox-unit"></select></label>' +
+      '<div class="sandbox-actions">' +
+        '<button id="sandbox-place" type="button">放置模式</button>' +
+        '<button id="sandbox-delete" type="button">删除模式</button>' +
+        '<button id="sandbox-clear" type="button">清空单位</button>' +
+        '<button id="sandbox-import" type="button">导入地图</button>' +
+      '</div>' +
+      '<input id="sandbox-map-file" type="file" accept=".json,application/json" hidden>' +
+      '<p class="sandbox-hint">选单位后点「放置模式」，再点地图格放置；删除模式点单位删除。座位按钮切换攻守。</p>';
+    document.body.appendChild(panel);
+    panel.addEventListener('change', function (e) {
+      if (e.target.id === 'sandbox-faction') {
+        state.sandbox.faction = e.target.value;
+        state.sandbox.unit = '';
+        renderSandboxPanel();
+      }
+      if (e.target.id === 'sandbox-unit') state.sandbox.unit = e.target.value;
+    });
+    panel.addEventListener('click', function (e) {
+      if (e.target.closest('[data-sandbox-close]')) { panel.classList.add('hidden'); return; }
+      if (e.target.closest('#sandbox-place')) {
+        state.sandbox.place = !state.sandbox.place;
+        state.sandbox.del = false;
+        if (state.sandbox.place) toast('沙盒：点地图格放置单位');
+        renderSandboxPanel();
+        return;
+      }
+      if (e.target.closest('#sandbox-delete')) {
+        state.sandbox.del = !state.sandbox.del;
+        state.sandbox.place = false;
+        if (state.sandbox.del) toast('沙盒：点地图上的单位删除');
+        renderSandboxPanel();
+        return;
+      }
+      if (e.target.closest('#sandbox-clear')) {
+        if (!state.battle) return;
+        state.battle.units = [];
+        if (state.deploy) state.deploy.units = [];
+        state.sandbox.place = state.sandbox.del = false;
+        battleRefresh();
+        return;
+      }
+      if (e.target.closest('#sandbox-import')) {
+        const f = el('sandbox-map-file');
+        if (f) f.click();
+        return;
+      }
+    });
+    const file = el('sandbox-map-file');
+    if (file) file.addEventListener('change', function () {
+      const f = this.files && this.files[0];
+      this.value = '';
+      if (!f) return;
+      const reader = new FileReader();
+      reader.onload = function () {
+        try {
+          const parsed = parseMap(JSON.parse(String(reader.result || '')));
+          if (!parsed) throw new Error('地图解析失败');
+          state.map = parsed.parsed;
+          state.mapWrapper = { title: f.name.replace(/\.json$/i, ''), map: parsed.map };
+          state.deploy = { units: [], ready: { attacker: true, defender: true } };
+          state.phase = 'battle';
+          state.battle = initBattleState();
+          state.battle.activeSide = 'attacker';
+          const seat = state.testSeats.filter(function (s) { return s.side === 'attacker'; })[0];
+          if (seat) { state.activeSeat = seat.id; syncActiveSeat(); }
+          battleResetMp(state.battle, 'attacker');
+          battleRefresh();
+          renderRoom();
+          toast('沙盒地图已导入');
+        } catch (err) {
+          toast('导入失败：' + (err && err.message ? err.message : '地图格式错误'));
+        }
+      };
+      reader.readAsText(f, 'utf-8');
+    });
+  }
+
   function startTest() {
     if (state.connecting) return;
     const name = readName();
@@ -10379,6 +10560,7 @@
     closeMapDialog(true);
     hideAlert();
     state.test = true;
+    state.sandbox = { faction: 'us', unit: '', place: false, del: false };
     state.role = 'host';
     state.name = name;
     state.roomCode = 'TEST';
@@ -10389,8 +10571,9 @@
     ensureTestSeats(2);
     setStatus('local');
     setView('room');
-    pushLog('本地测试已启动 · 直接生成测试战场');
-    toast('本地测试：正在生成测试战场…');
+    pushLog('沙盒模式已启动 · 自由布置双方单位');
+    toast('沙盒模式：正在生成战场…');
+    ensureSandboxPanel();
     renderRoom();
     beginTestBattle();
     mount.focus({ preventScroll: true });
@@ -10939,10 +11122,10 @@
     let cls = '';
     if (state.test) {
       text = state.phase === 'deploy'
-        ? '本地测试 · A 阶段部署 · ' + compositionText()
+        ? '沙盒模式 · A 阶段部署 · ' + compositionText()
         : (state.phase === 'battle'
-          ? '本地测试 · A 阶段第 1 回合 · ' + compositionText()
-          : '本地测试模式 · 不连接任何中继 · 你同时操控 ' + state.testSeats.length + ' 名本机玩家');
+          ? '沙盒模式 · A 阶段第 1 回合 · ' + compositionText()
+          : '沙盒模式模式 · 不连接任何中继 · 你同时操控 ' + state.testSeats.length + ' 名本机玩家');
       cls = (state.phase === 'deploy' || state.phase === 'battle') ? 'is-live' : 'is-test';
     } else if (state.role === 'guest' && state.host && state.host.online === false) {
       text = '房主已离开，房间已关闭';
@@ -10994,14 +11177,14 @@
       back.setAttribute('aria-label', '离开房间');
     }
     setText('online-role-label', state.test
-      ? '本地测试 · 不联网'
+      ? '沙盒模式 · 不联网'
       : (isHost ? '房主 · 创建者' : '玩家 · 已加入'));
     const fmt = state.test ? 'TEST' : NET.formatCode(state.roomCode);
     setText('online-code-display', fmt);
     setText('online-code-box', fmt);
     const relayShort = (broker().name || '').split(' · ')[0];
     setText('online-code-note', state.test
-      ? '本地测试不连接中继；刷新页面即退出。'
+      ? '沙盒模式不连接中继；刷新页面即退出。'
       : (isFileProtocol()
         ? '中继 ' + relayShort + ' · 本地文件打开：发房间码，并让对方拿到同一份网页。'
         : '中继 ' + relayShort + ' · 发给同学，输入同一串代码即可加入。'));
@@ -11022,7 +11205,7 @@
     if (state.phase === 'prepare') renderPrep();
     if (state.phase === 'prepare' || state.phase === 'deploy' || state.phase === 'battle') syncBattle3DView();
 
-    document.title = state.test ? ('本地测试 · 兵棋') : (fmt ? ('房间 ' + fmt + ' · 兵棋') : TITLE);
+    document.title = state.test ? ('沙盒模式 · 兵棋') : (fmt ? ('房间 ' + fmt + ' · 兵棋') : TITLE);
   }
 
   /* 房间里的流程条 / 阵营选择是 online.js 运行时搭的：
@@ -11073,10 +11256,10 @@
       const bar = document.createElement('section');
       bar.id = 'online-test';
       bar.className = 'online-test hidden';
-      bar.setAttribute('aria-label', '本地测试');
+      bar.setAttribute('aria-label', '沙盒模式');
       bar.innerHTML =
         '<div class="online-test-head">' +
-          '<span class="online-test-title"><b>本地测试</b><em>TEST</em></span>' +
+          '<span class="online-test-title"><b>沙盒模式</b><em>SANDBOX</em></span>' +
           '<span id="online-test-note" class="online-test-note">不连中继</span>' +
           '<span id="online-test-count" class="online-test-count">0 名本机玩家</span>' +
         '</div>' +
@@ -11259,9 +11442,9 @@
       const entry = document.createElement('div');
       entry.className = 'online-test-entry';
       entry.innerHTML =
-        '<span class="online-test-entry-label"><b>本地测试</b><em>TEST</em></span>' +
-        '<span class="online-test-entry-note">不连接中继，直接生成双方各 5 个单位的测试战场。</span>' +
-        '<button id="online-test-start" type="button" class="btn">进入</button>';
+        '<span class="online-test-entry-label"><b>沙盒模式</b><em>SANDBOX</em></span>' +
+        '<span class="online-test-entry-note">不连接中继：自由切换双方、放置各国单位、导入地图。</span>' +
+        '<button id="online-test-start" type="button" class="btn">进入沙盒</button>';
       card.appendChild(entry);
     }
   }
@@ -12754,7 +12937,7 @@
       open({ code: c });
     }
   } else {
-    // 开发 / 验收用：index.html?test=1 直接进本地测试房，不连中继。
+    // 开发 / 验收用：index.html?test=1 直接进沙盒模式房，不连中继。
     const testParam = queryParam('test');
     if (testParam === '1' || testParam === 'local') {
       open();
