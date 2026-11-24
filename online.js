@@ -4634,6 +4634,19 @@
     battleRefresh();
   }
 
+  function battleReconAfterSortie(air, target) {
+    if (!air || !air.alive || !target || !battleIsReconPlane(air)) return;
+    const b = state.battle;
+    if (!b) return;
+    air.c = target.c;
+    air.r = target.r;
+    air.airBase = false;
+    air.reconActiveRound = Number(b.round) || 1;
+    air.reconUsedRound = Number(b.round) || 1;
+    air.reconCell = { c: target.c, r: target.r };
+    b.log.push(air.name + ' 轰炸后留在 ' + target.c + ',' + target.r + ' 侦察');
+  }
+
   function battleBeginReconIntercept(unit, c, r) {
     const b = state.battle;
     const defender = otherSide(unit.side);
@@ -4863,6 +4876,7 @@
       a.mp = Math.max(0, a.mp - battleAirActionCost(a, target, 'bomb'));
     });
     survivors.forEach(function (a, i) { b3StartAirFlight(a, target, null, i * 0.28); });
+    attackers.forEach(function (a) { battleReconAfterSortie(a, target); });
     if (b.airIntercept) {
       target.lockedBy = [];
       target.lockCosts = {};
@@ -5856,7 +5870,7 @@
         return u && u.alive && battleIsAir(u);
       }).length;
       if (airLocks >= 2) return;
-      const cost = battleAirActionCost(unit, target, 'bomb');
+      const cost = 1;
       if (unit.mp < cost) return;
       target.lockedBy = (target.lockedBy || []).concat(unit.id);
       target.lockCosts = target.lockCosts || {};
@@ -5993,6 +6007,7 @@
       b.log.push(unit.name + (heavyDir != null ? ' 重轰覆盖 ' : ' 空中压制 ') + target.name + '：' +
         hitLogs.join('；') +
         (participants.length > 1 ? ('（' + participants.length + ' 个单位集火）') : ''));
+      group.forEach(function (a) { battleReconAfterSortie(a, target); });
       battleRefresh();
       battleCheckAutoEnd();
       return;
@@ -7008,12 +7023,17 @@
     const escortOnly = !canBomb && bomberLock && !battleIsAir(target);
     if (!battleIsAir(target) && battleAirCanLock(air) &&
         (target.lockedBy || []).indexOf(air.id) === -1) {
-      add('锁定 · ' + airCost + ' 行动力', 'airLock', false,
-        mismatch || air.mp < airCost || !canNormalAir);
+      add('锁定 · 1 行动力', 'airLock', false,
+        mismatch || air.mp < 1 || !canNormalAir);
     }
     if (escortOnly) {
       add('护航 · 随轰炸机出击 · ' + airCost + ' 行动力', 'airAttack', true,
         mismatch || air.mp < airCost || !canNormalAir);
+      if (battleIsReconPlane(air) && battleReconAvailable(air)) {
+        box.setAttribute('data-recon-c', String(target.c));
+        box.setAttribute('data-recon-r', String(target.r));
+        add('侦察此格 · 1 行动力', 'airRecon', false, air.mp < 1);
+      }
     } else {
       add((role === 'intercept' ? '攻击 · 空战' : '攻击 · 对地轰炸') + ' · ' + airCost + ' 行动力',
         'airAttack', false, mismatch || air.mp < airCost || !canNormalAir || fighterNeedsLock);
