@@ -377,8 +377,13 @@ window.TUTORIAL_LEVELS = [
         }
       },
       {
-        "text": "回合交给德军。德军步兵移动到了 F3 河格（5,2）。上河会立刻清空该单位剩余行动力。确认后点「下一步」继续。",
-        "auto": "enemyRiver",
+        "text": "点顶部座位切换到「教程敌军」，选中德军步兵，移动到 F3 河格（5,2）。上河会立刻清空它的剩余行动力。",
+        "allow": {
+          "type": "move",
+          "unitId": "tutorial-de-inf",
+          "c": 5,
+          "r": 2
+        },
         "focus": {
           "c": 5,
           "r": 2,
@@ -386,18 +391,11 @@ window.TUTORIAL_LEVELS = [
         }
       },
       {
-        "text": "回到你的回合。现在隔着 E3 房屋看 F3 德军：房屋会阻挡视线，不能直接攻击。",
-        "blocked": true,
-        "blockedText": "房屋阻挡了视线：需要先移动到能看到目标的位置。",
-        "allow": {
-          "type": "attack",
-          "unitId": "tutorial-us-inf",
-          "targetId": "tutorial-de-inf"
-        },
+        "text": "德军已经上河，行动力清零。现在点顶部座位切回「教程玩家」，再点「下一步」继续。",
         "focus": {
           "c": 5,
           "r": 2,
-          "label": "E3房区后的德军"
+          "label": "F3 · 行动力清零"
         }
       },
       {
