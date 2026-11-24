@@ -1213,6 +1213,7 @@
       const moveRangeGroup = new THREE.Group();
       const bombHintGroup = new THREE.Group();
       const counterBatteryGroup = new THREE.Group();
+      const counterFocusGroup = new THREE.Group();
       scene.add(boardGroup);
       scene.add(zoneGroup);
       scene.add(flagGroup);
@@ -1232,6 +1233,7 @@
       scene.add(moveRangeGroup);
       scene.add(bombHintGroup);
       scene.add(counterBatteryGroup);
+      scene.add(counterFocusGroup);
 
       B3 = {
         canvas: canvas,
@@ -1260,6 +1262,7 @@
         moveRangeGroup: moveRangeGroup,
         bombHintGroup: bombHintGroup,
         counterBatteryGroup: counterBatteryGroup,
+        counterFocusGroup: counterFocusGroup,
         floats: [],
         flights: [],
         tileMeshes: [],
@@ -2260,6 +2263,7 @@
     refreshBattle3DMoveRange();
     refreshBattle3DBombHint();
     refreshBattleCounterBatteryMarks();
+    refreshBattleCounterFocus();
     B3.need = true;
   }
 
@@ -2991,6 +2995,7 @@
     const choice = el('battle-choice');
     if (choice && (!battle || !battle.choice)) choice.classList.add('hidden');
     battleCounterUI();
+    renderBattleHistory();
     renderBattleReinforce();
     renderBattleAirIntercept();
     renderBattleFacingChoice();
@@ -3745,6 +3750,8 @@
       choice: null,
       lastAction: '',
       log: [],
+      history: [],
+      historySeq: 0,
       zoneOwners: {},
       usedDivisions: battleInitialUsedDivisions(),
     };
@@ -3789,6 +3796,28 @@
     if (!p || !unit || p.side !== unit.side) return;
     b.engineerProject = null;
     b.log.push(unit.name + ' 的碉堡工程中断：' + (reason || '已执行其他行动'));
+  }
+
+  function battleHistoryAdd(entry) {
+    const b = state.battle;
+    if (!b || !entry) return '';
+    if (!b.history) b.history = [];
+    b.historySeq = (Number(b.historySeq) || 0) + 1;
+    const item = Object.assign({
+      id: 'h' + b.historySeq,
+      round: Number(b.round) || 1,
+      side: b.activeSide,
+      counter: null,
+    }, entry);
+    b.history.push(item);
+    return item.id;
+  }
+
+  function battleHistoryCounter(entryId, counter) {
+    const b = state.battle;
+    if (!b || !b.history || !entryId) return;
+    const item = b.history.filter(function (h) { return h.id === entryId; })[0];
+    if (item) item.counter = counter;
   }
 
   function battleBuildAllowed(unit, c, r, type) {
@@ -4175,10 +4204,25 @@
     (state.battle.counterBatteryMarks || []).forEach(function (m) {
       if (m.forSide !== side) return;
       const w = L.cell(m.c, m.r);
-      const y = L.TOP + 0.26;
+      const y = L.TOP + 0.12;
+      const glowMat = new THREE.MeshBasicMaterial({
+        color: 0xff2020, transparent: true, opacity: 0.20,
+        depthTest: true, depthWrite: false, side: THREE.DoubleSide,
+        blending: THREE.AdditiveBlending,
+      });
+      glowMat._b3Dispose = true;
+      const glow = new THREE.Mesh(
+        new THREE.RingGeometry(L.HEXR * 0.78, L.HEXR * 1.02, 40),
+        glowMat
+      );
+      glow.rotation.x = -Math.PI / 2;
+      glow.position.set(w[0], y - 0.02, w[1]);
+      glow.renderOrder = 4;
+      B3.counterBatteryGroup.add(glow);
       const mat = new THREE.MeshBasicMaterial({
-        color: 0xff1414, transparent: true, opacity: 0.95,
-        depthTest: false, depthWrite: false, side: THREE.DoubleSide,
+        color: 0xff3a3a, transparent: true, opacity: 0.48,
+        depthTest: true, depthWrite: false, side: THREE.DoubleSide,
+        blending: THREE.AdditiveBlending,
       });
       mat._b3Dispose = true;
       const ring = new THREE.Mesh(
@@ -4187,35 +4231,69 @@
       );
       ring.rotation.x = -Math.PI / 2;
       ring.position.set(w[0], y, w[1]);
-      ring.renderOrder = 30;
+      ring.renderOrder = 5;
       B3.counterBatteryGroup.add(ring);
       const barMat = new THREE.MeshBasicMaterial({
-        color: 0xff0808, transparent: true, opacity: 0.95,
-        depthTest: false, depthWrite: false,
+        color: 0xff1414, transparent: true, opacity: 0.46,
+        depthTest: true, depthWrite: false,
+        blending: THREE.AdditiveBlending,
       });
       barMat._b3Dispose = true;
       const barX = new THREE.Mesh(
-        new THREE.BoxGeometry(L.HEXR * 1.7, 0.10, L.HEXR * 0.20),
+        new THREE.BoxGeometry(L.HEXR * 1.7, 0.08, L.HEXR * 0.20),
         barMat
       );
       barX.position.set(w[0], y, w[1]);
-      barX.renderOrder = 31;
+      barX.renderOrder = 6;
       B3.counterBatteryGroup.add(barX);
       const barZ = new THREE.Mesh(
-        new THREE.BoxGeometry(L.HEXR * 0.20, 0.10, L.HEXR * 1.7),
+        new THREE.BoxGeometry(L.HEXR * 0.20, 0.08, L.HEXR * 1.7),
         barMat
       );
       barZ.position.set(w[0], y, w[1]);
-      barZ.renderOrder = 31;
+      barZ.renderOrder = 6;
       B3.counterBatteryGroup.add(barZ);
       const dot = new THREE.Mesh(
-        new THREE.CylinderGeometry(L.HEXR * 0.16, L.HEXR * 0.16, 0.14, 16),
+        new THREE.CylinderGeometry(L.HEXR * 0.16, L.HEXR * 0.16, 0.10, 16),
         barMat
       );
-      dot.position.set(w[0], y + 0.06, w[1]);
-      dot.renderOrder = 32;
+      dot.position.set(w[0], y + 0.05, w[1]);
+      dot.renderOrder = 7;
       B3.counterBatteryGroup.add(dot);
     });
+    B3.need = true;
+  }
+
+  function refreshBattleCounterFocus() {
+    if (!B3 || !B3.counterFocusGroup || !state.map || !state.battle) return;
+    const THREE = window.THREE;
+    const L = b3Layout();
+    if (!THREE || !L) return;
+    b3ClearGroup(B3.counterFocusGroup);
+    const b = state.battle;
+    if (!b.counter) { B3.need = true; return; }
+    const cu = battleUnitById(b.counter.counterUnitId);
+    if (!cu) { B3.need = true; return; }
+    const w = L.cell(cu.c, cu.r);
+    const mat = new THREE.MeshBasicMaterial({
+      color: 0xff9a3d, transparent: true, opacity: 0.85,
+      depthTest: false, depthWrite: false, side: THREE.DoubleSide,
+    });
+    mat._b3Dispose = true;
+    const ring = new THREE.Mesh(
+      new THREE.RingGeometry(L.HEXR * 0.72, L.HEXR * 0.94, 40),
+      mat
+    );
+    ring.rotation.x = -Math.PI / 2;
+    ring.position.set(w[0], L.TOP + 0.22, w[1]);
+    ring.renderOrder = 40;
+    B3.counterFocusGroup.add(ring);
+    const label = b3CostSprite('▼ 被攻击单位', { color: '#ffb35c' });
+    if (label) {
+      label.position.set(w[0], L.TOP + L.HEXR * 3.0, w[1]);
+      label.renderOrder = 41;
+      B3.counterFocusGroup.add(label);
+    }
     B3.need = true;
   }
 
@@ -4950,6 +5028,11 @@
         const dmg = battleRollDamage(raw);
         battleDamageUnit(tgt, dmg);
         b3AddDamageFloat(tgt, dmg, '#ff6b57');
+        battleHistoryAdd({
+          attackers: attackers.filter(function (a) { return a.alive; }).map(function (a) { return a.name; }),
+          target: tgt.name, targetId: tgt.id, damage: Number(dmg) || 0,
+          cell: { c: tgt.c, r: tgt.r }, side: target.side === 'attacker' ? 'defender' : 'attacker',
+        });
         logs.push(tgt.name + ' -' + battleFmt(dmg) + '（' + battleFmt(raw) + '）');
       });
       b.log.push('空袭命中 ' + target.name + '：' + logs.join('；'));
@@ -5819,6 +5902,9 @@
         battleDamageUnit(au, dmg);
         b3AddDamageFloat(au, dmg, '#ffb36b');
         b.log.push(cu.name + ' 反击 ' + au.name + '：' + battleFmt(calc.raw) + ' → ' + battleFmt(dmg));
+        battleHistoryCounter(b.counter.historyId, {
+          counterBy: cu.name, counterTarget: au.name, damage: Number(dmg) || 0,
+        });
       }
       b.counter = null;
       hideEl('battle-counter', true);
@@ -6090,6 +6176,11 @@
         const dmg = battleRollDamage(raw);
         battleDamageUnit(tgt, dmg);
         b3AddDamageFloat(tgt, dmg, '#ff6b57');
+        battleHistoryAdd({
+          attackers: participants.map(function (p) { return p.name; }),
+          target: tgt.name, targetId: tgt.id, damage: Number(dmg) || 0,
+          cell: { c: tgt.c, r: tgt.r }, side: unit.side,
+        });
         hitLogs.push(tgt.name + ' -' + battleFmt(dmg) + '（' + battleFmt(raw) + '）');
       });
       if (participants.some(function (p) { return p.id !== unit.id; })) {
@@ -6330,6 +6421,11 @@
           const dmg = resolved.dmg;
           battleDamageUnit(target, dmg);
           b3AddDamageFloat(target, dmg, '#ff6b57');
+          const historyId = battleHistoryAdd({
+            attackers: parts.map(function (p) { return p.name; }),
+            target: target.name, targetId: target.id, damage: Number(dmg) || 0,
+            cell: { c: target.c, r: target.r }, side: unit.side,
+          });
           target.lastConfusionRoll = null;
           if (target.alive && calc.pen <= 0.2) {
             b.log.push('全队最高穿透仍无法击穿，不计算混乱');
@@ -6353,6 +6449,7 @@
               chooserSide: target.side,
               targetIds: counterTargets.map(function (u) { return u.id; }),
               lethal: !target.alive,
+              historyId: historyId,
             };
           } else {
             b.counter = null;
@@ -6365,6 +6462,10 @@
             const dmg = battleRollDamage(calc.raw);
             battleDamageUnit(t, dmg);
             b3AddDamageFloat(t, dmg, t.side === unit.side ? '#ffcc66' : '#ff6b57');
+            battleHistoryAdd({
+              attackers: [unit.name], target: t.name, targetId: t.id,
+              damage: Number(dmg) || 0, cell: { c: t.c, r: t.r }, side: unit.side,
+            });
             hits.push(t.name + ' -' + battleFmt(dmg));
           });
         }
@@ -6444,6 +6545,11 @@
       const dmg = resolved.dmg;
       battleDamageUnit(target, dmg);
       b3AddDamageFloat(target, dmg, '#ff6b57');
+      const historyId = battleHistoryAdd({
+        attackers: participantsUnits.map(function (u) { return u.name; }),
+        target: target.name, targetId: target.id, damage: Number(dmg) || 0,
+        cell: { c: target.c, r: target.r }, side: unit.side,
+      });
       battleClearCounterBatteryMark(unit.side, target.c, target.r);
       if (action.type === 'focus') {
         target.lockedBy = [];
@@ -6476,6 +6582,7 @@
           chooserSide: target.side,
           targetIds: counterTargets.map(function (u) { return u.id; }),
           lethal: !target.alive,
+          historyId: historyId,
         };
       } else {
         b.counter = null;
@@ -7639,6 +7746,39 @@
     }
     panel.innerHTML = html;
     panel.classList.remove('hidden');
+  }
+
+  function renderBattleHistory() {
+    const panel = el('battle-history');
+    if (!panel) return;
+    const b = state.battle;
+    if (!b || panel.classList.contains('hidden')) return;
+    const rows = (b.history || []).slice().reverse();
+    let html = '<div class="battle-history-head"><b>对战历史</b>' +
+      '<button type="button" class="btn small" data-battle-history-close="1">关闭</button></div>';
+    if (!rows.length) {
+      html += '<p class="battle-history-empty">还没有攻击记录。</p>';
+    } else {
+      html += '<div class="battle-history-list">';
+      rows.forEach(function (h) {
+        const attackers = (h.attackers || []).join('、') || '未知单位';
+        html += '<article class="battle-history-row">' +
+          '<div class="battle-history-meta">第 ' + (h.round || '?') + ' 回合 · ' +
+          sideName(h.side) + '</div>' +
+          '<div class="battle-history-attack"><b>' + battleReinforceEsc(attackers) + '</b>' +
+          ' → ' + battleReinforceEsc(h.target || '目标') +
+          '<em>伤害 ' + battleFmt(h.damage) + '</em></div>';
+        if (h.counter) {
+          html += '<div class="battle-history-counter">反击：' +
+            battleReinforceEsc(h.counter.counterBy || '') + ' → ' +
+            battleReinforceEsc(h.counter.counterTarget || '') +
+            '<em>伤害 ' + battleFmt(h.counter.damage) + '</em></div>';
+        }
+        html += '</article>';
+      });
+      html += '</div>';
+    }
+    panel.innerHTML = html;
   }
 
   function battleCounterUI() {
@@ -10122,16 +10262,16 @@
       state.factionReady = true;
       state.deckReady = true;
 
-      const us = ['工兵营', '潘兴重坦营', '宪兵连', '医疗连', '侦察营', 'M15自行防空炮营',
+      const us = ['工兵营', '侦察营', 'M15自行防空炮营',
         '105炮兵营', '反炮兵小组', '反炮兵小组'];
-      const de = ['鼠式超重坦营', '工兵营', '侦察营', '20防空炮营', '人民冲锋队',
+      const de = ['工兵营', '侦察营', '20防空炮营', '人民冲锋队',
         '105炮兵营', '反炮兵小组', '反炮兵小组'];
       const usAir = ['B29轰炸机', 'F6战斗侦察机'];
       const deAir = ['Bf109战斗机', 'Me262战斗机'];
-      // 精简测试：核心地面单位 + 双方105炮/反炮兵 + 重轰/高空/武装侦察机。
-      const atkPos = [[12, 11], [11, 10], [9, 10], [11, 9], [12, 10], [10, 10],
+      // 精简测试：核心地面 + 双方105炮/反炮兵 + B29核弹测试。
+      const atkPos = [[12, 11], [12, 10], [10, 10],
         [9, 11], [13, 10], [13, 12]];
-      const defPos = [[14, 11], [16, 12], [15, 10], [15, 12], [14, 12],
+      const defPos = [[16, 12], [15, 10], [15, 12], [14, 12],
         [15, 11], [11, 11], [11, 12]];
       const units = [];
       us.forEach(function (name, i) {
@@ -10163,11 +10303,11 @@
       state.phase = 'battle';
       state.battle = initBattleState();
       state.battle.buildings = [];
-      const testPersh = state.battle.units.find(function (u) { return u.name === '潘兴重坦营'; });
-      if (testPersh) { testPersh.confused = true; testPersh.hp = 5; }
+      state.battle.nukeStock = state.battle.nukeStock || { attacker: 0, defender: 0 };
+      state.battle.nukeStock.attacker = Math.max(1, Number(state.battle.nukeStock.attacker) || 0);
       state.battleSeenAction = '';
       ensureDeployModels();
-      pushLog('测试战斗已精简：双方105炮+2个反炮兵，潘兴初始混乱，含B29/F6/德军战斗机');
+      pushLog('测试战斗已精简：移除混乱测试单位，美军 B29 已携带 1 枚核弹');
       toast('测试战斗已开始 · 点名字切换玩家');
       renderRoom();
       window.dispatchEvent(new Event('resize'));
@@ -11009,6 +11149,7 @@
               '<button id="online-battle-end-turn" type="button" class="btn small primary hidden">结束回合</button>' +
               '<button id="online-save-game" type="button" class="btn small">保存对局</button>' +
               '<button id="online-load-game" type="button" class="btn small">载入对局</button>' +
+              '<button id="battle-history-open" type="button" class="btn small">对战历史</button>' +
               '<button id="online-battle-back" type="button" class="btn small hidden">返回大厅</button>' +
             '</div>' +
             '<input id="online-save-file" type="file" accept=".json,application/json" class="hidden" />' +
@@ -11020,6 +11161,7 @@
         '<div id="battle-build-panel" class="battle-build-panel hidden"></div>' +
         '<div id="battle-transport-panel" class="battle-transport-panel hidden"></div>' +
         '<div id="battle-counter" class="battle-counter hidden"></div>' +
+        '<div id="battle-history" class="battle-history hidden"></div>' +
         '<div id="battle-reinforce" class="battle-reinforce hidden"></div>' +
         '<button id="battle-reinforce-peek" type="button" class="btn small battle-reinforce-peek hidden">查看战场</button>' +
         '<div id="battle-tip" class="battle-tip hidden"></div>' +
@@ -11893,6 +12035,18 @@
     if (e.target.closest && e.target.closest('#online-battle-end-turn')) { battleEndTurn(); return; }
     if (e.target.closest && e.target.closest('#online-save-game')) { saveGameFile(); return; }
     if (e.target.closest && e.target.closest('#online-load-game')) { loadGameFile(); return; }
+    if (e.target.closest && e.target.closest('#battle-history-open')) {
+      const panel = el('battle-history');
+      if (panel) {
+        panel.classList.toggle('hidden');
+        if (!panel.classList.contains('hidden')) renderBattleHistory();
+      }
+      return;
+    }
+    if (e.target.closest && e.target.closest('[data-battle-history-close]')) {
+      hideEl('battle-history', true);
+      return;
+    }
     if (e.target.closest && e.target.closest('#battle-reinforce-peek')) {
       state.reinforcePeek = !state.reinforcePeek;
       renderBattleReinforce();
