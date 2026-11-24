@@ -112,6 +112,9 @@
       recon: ["侦察营", "222装甲侦察营", "美洲狮装甲侦察营"],
       support: ["工兵营", "宪兵连", "医疗连", "摩托化运输队"],
       air: ["Fw189侦察机", "Bf109战斗机", "Me262战斗机", "Fw190战斗轰炸机", "Ju88轰炸机"]
+    },
+    ussr: {
+      inf: ["步兵营", "近卫步兵营", "惩戒营", "伞兵营", "机械化步兵营", "突击工兵营"]
     }
   };
 
@@ -128,14 +131,26 @@
     ap: [null, null, null], armor: [0, 0, 0], move: null, price: null, traits: [],
   };
 
-  /* 从 PREP_DATA 取一个单位的数值（和战斗系统同一份数据） */
+  /* PREP_DATA 里还没有的阵营（苏军目前只有 40s 步兵）先放这张补充表，
+   * 字段和 PREP_DATA 映射后的结构一致；等线上对战把苏军导进去就可以删。 */
+  const EXTRA_UNITS = {
+    ussr: {
+      '步兵营': { atk: [[2.75, 1.25], [2.5, 1.5], [0.75, 0.25]], ref: 1.25, hp: 6, ap: [20, 5, 4], armor: [0, 0, 0], move: 4, price: 28, traits: [] },
+      '近卫步兵营': { atk: [[4, 1.5], [2, 1.75], [0.75, 0.5]], ref: 1.25, hp: 6, ap: [20, 13, 10], armor: [0, 0, 0], move: 5, price: 50, traits: ['山地作战', '政治军队'] },
+      '惩戒营': { atk: [[2, 0.5], [1, 0.5], [0.25, 0.25]], ref: 1.25, hp: 6, ap: [0, 0, 0], armor: [0, 0, 0], move: 4, price: 15, traits: [] },
+      '伞兵营': { atk: [[2.75, 1], [2.25, 1], [0.5, 0.25]], ref: 1.25, hp: 5, ap: [20, 3, 0], armor: [0, 0, 0], move: 5, price: 28, traits: [] },
+      '机械化步兵营': { atk: [[3.75, 2.25], [3.5, 3], [1.5, 1]], ref: 1.2, hp: 6, ap: [20, 13, 10], armor: [3, 2, 2], move: 8, price: 32, traits: [] },
+      '突击工兵营': { atk: [[2.25, 0.75], [1.5, 0.75], [0.25, 0]], ref: 1.25, hp: 4, ap: [20, 5, 0], armor: [0, 0, 0], move: 4, price: 35, traits: ['爆破'] },
+    },
+  };
+
+  /* 从 PREP_DATA 取一个单位的数值（和战斗系统同一份数据）；没有的查补充表 */
   function unitStats(country, name) {
     const d = window.PREP_DATA;
     const f = d && d.factions ? d.factions[country] : null;
     const bag = f && f.units;
-    if (!bag) return null;
-    const u = bag[name] || bag[PREP_ALIAS[name]];
-    if (!u) return null;
+    const u = bag ? (bag[name] || bag[PREP_ALIAS[name]]) : null;
+    if (!u) return (EXTRA_UNITS[country] || {})[name] || null;
     const atk = u.attack || {};
     const ap = u.ap || {};
     const av = u.av || {};
@@ -337,11 +352,11 @@
   const PITCH_HOME = 0.14;
 
   /* 阵营模型颜色：用户指定美军纯蓝、德军灰，其它国家先留中性灰 */
-  const MODEL_COLOR = { us: 0x1f3d73, de: 0x50565e };
+  const MODEL_COLOR = { us: 0x1f3d73, de: 0x50565e, ussr: 0x6f2d29 };
 
   /* 模型正面朝向的修正角：用户把美军 / 德军模型都统一成「正面朝 +X」，
    * 转到正对相机要多转 -90°。 */
-  const MODEL_FACING = { us: -Math.PI / 2, de: -Math.PI / 2 };
+  const MODEL_FACING = { us: -Math.PI / 2, de: -Math.PI / 2, ussr: -Math.PI / 2 };
 
   /* 个别模型正面反了，单独再转 180° */
   const MODEL_YAW = { 'us|40s|air|F6战斗侦察机': Math.PI };

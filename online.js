@@ -3824,13 +3824,20 @@
     return '';
   }
 
+  function battleCounterBatteryRange(unit) {
+    const tr = battleTrait(unit, 'counterBatteryRadar') ||
+      battleTrait(unit, 'acousticCounterBattery') ||
+      battleTrait(unit, 'counterBattery');
+    return tr && isFinite(tr.radius) ? Number(tr.radius) : 3;
+  }
+
   function battleCounterBatteryRecord(firingUnit) {
     const b = state.battle;
     if (!b || !firingUnit || !battleArtillerySpec(firingUnit)) return;
     const listenerSide = otherSide(firingUnit.side);
     const units = battleAliveUnits().filter(function (u) {
       return u.side === listenerSide && battleCounterBatteryKind(u) &&
-        battleHexDistance(u.c, u.r, firingUnit.c, firingUnit.r) <= 3;
+        battleHexDistance(u.c, u.r, firingUnit.c, firingUnit.r) <= battleCounterBatteryRange(u);
     });
     const radar = units.some(function (u) { return battleCounterBatteryKind(u) === 'radar'; });
     const acoustic = units.filter(function (u) { return battleCounterBatteryKind(u) === 'acoustic'; }).length;
@@ -4437,6 +4444,28 @@
       parse: function (text) { return text.indexOf(labels[id]) !== -1 ? {} : null; },
       hooks: {},
     });
+  });
+
+  traitRegister({
+    id: 'acousticCounterBattery',
+    label: '声学反炮兵',
+    parse: function (text) {
+      if (!/声学反炮兵/.test(text)) return null;
+      const m = text.match(/声学反炮兵\s*([0-9]+)/);
+      return { radius: m ? Math.max(1, parseInt(m[1], 10)) : 3 };
+    },
+    hooks: {},
+  });
+
+  traitRegister({
+    id: 'counterBatteryRadar',
+    label: '反炮兵雷达',
+    parse: function (text) {
+      if (!/反炮兵雷达/.test(text)) return null;
+      const m = text.match(/反炮兵雷达\s*([0-9]+)/);
+      return { radius: m ? Math.max(1, parseInt(m[1], 10)) : 3 };
+    },
+    hooks: {},
   });
 
   traitRegister({
@@ -9674,15 +9703,15 @@
       state.factionReady = true;
       state.deckReady = true;
 
-      const us = ['工兵营', '潘兴重坦营', '宪兵连', '医疗连', '侦察营', 'M15自行防空炮营', '运输车', '步兵营',
-        '105炮兵营', '反炮兵小组', '反炮兵小组', '海军陆战队步兵营'];
+      const us = ['工兵营', '潘兴重坦营', '宪兵连', '医疗连', '侦察营', 'M15自行防空炮营',
+        '105炮兵营', '反炮兵小组', '反炮兵小组'];
       const de = ['鼠式超重坦营', '工兵营', '侦察营', '20防空炮营', '人民冲锋队',
         '105炮兵营', '反炮兵小组', '反炮兵小组'];
-      const usAir = ['B25轰炸机', 'B29轰炸机', 'F5侦察机', 'F6战斗侦察机'];
-      const deAir = ['Bf109战斗机', 'Me262战斗机', 'Fw189侦察机'];
-      // 工程/宪兵/医疗/侦察/防空/重轰/高空/碎心/运输/反炮兵测试。
-      const atkPos = [[12, 11], [11, 10], [9, 10], [11, 9], [12, 10], [10, 10], [8, 10], [8, 11],
-        [9, 11], [13, 10], [13, 12], [10, 11]];
+      const usAir = ['B29轰炸机', 'F6战斗侦察机'];
+      const deAir = ['Bf109战斗机', 'Me262战斗机'];
+      // 精简测试：核心地面单位 + 双方105炮/反炮兵 + 重轰/高空/武装侦察机。
+      const atkPos = [[12, 11], [11, 10], [9, 10], [11, 9], [12, 10], [10, 10],
+        [9, 11], [13, 10], [13, 12]];
       const defPos = [[14, 11], [16, 12], [15, 10], [15, 12], [14, 12],
         [15, 11], [11, 11], [11, 12]];
       const units = [];
@@ -9717,19 +9746,9 @@
       state.battle.buildings = [];
       const testPersh = state.battle.units.find(function (u) { return u.name === '潘兴重坦营'; });
       if (testPersh) { testPersh.confused = true; testPersh.hp = 5; }
-      const testTransport = state.battle.units.find(function (u) { return u.name === '运输车' && u.side === 'attacker'; });
-      const testInf = state.battle.units.find(function (u) { return u.name === '步兵营' && u.side === 'attacker'; });
-      if (testTransport && testInf) {
-        testTransport.carryingId = testInf.id;
-        testInf.embarked = true;
-        testInf.transportId = testTransport.id;
-        testInf.c = testTransport.c;
-        testInf.r = testTransport.r;
-        testInf.mp = 0;
-      }
       state.battleSeenAction = '';
       ensureDeployModels();
-      pushLog('测试战斗已生成：含政治军队、105炮、2个反炮兵小组，可测免疫混乱/反炮兵标记');
+      pushLog('测试战斗已精简：双方105炮+2个反炮兵，潘兴初始混乱，含B29/F6/德军战斗机');
       toast('测试战斗已开始 · 点名字切换玩家');
       renderRoom();
       window.dispatchEvent(new Event('resize'));
