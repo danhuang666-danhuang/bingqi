@@ -5103,7 +5103,13 @@
     const b = state.battle;
     if (!b || state.phase !== 'battle') return;
     b.units.forEach(function (u) {
-      if (!u.alive || !u.confused || !battleMilitaryPoliceNear(u)) return;
+      if (!u.alive || !u.confused) return;
+      if (battleTrait(u, 'political')) {
+        u.confused = false;
+        u.lastConfusionRoll = null;
+        return;
+      }
+      if (!battleMilitaryPoliceNear(u)) return;
       u.confused = false;
       b.log.push(u.name + ' 进入友方宪兵半径，混乱解除');
     });
@@ -5117,6 +5123,8 @@
   function battleTryConfusion(target, attackers, facing, canPen) {
     if (canPen === false) return false;
     if (!target || !target.alive || !attackers || attackers.length < 2) return false;
+    // 政治军队永远不会混乱。
+    if (battleTrait(target, 'political')) return false;
     // 友方宪兵半径 1 内免疫混乱。
     if (battleMilitaryPoliceNear(target)) return false;
     const stats = battleFacingStats(target, attackers);
@@ -9667,14 +9675,14 @@
       state.deckReady = true;
 
       const us = ['工兵营', '潘兴重坦营', '宪兵连', '医疗连', '侦察营', 'M15自行防空炮营', '运输车', '步兵营',
-        '105炮兵营', '反炮兵小组', '反炮兵小组'];
+        '105炮兵营', '反炮兵小组', '反炮兵小组', '海军陆战队步兵营'];
       const de = ['鼠式超重坦营', '工兵营', '侦察营', '20防空炮营', '人民冲锋队',
         '105炮兵营', '反炮兵小组', '反炮兵小组'];
       const usAir = ['B25轰炸机', 'B29轰炸机', 'F5侦察机', 'F6战斗侦察机'];
       const deAir = ['Bf109战斗机', 'Me262战斗机', 'Fw189侦察机'];
       // 工程/宪兵/医疗/侦察/防空/重轰/高空/碎心/运输/反炮兵测试。
       const atkPos = [[12, 11], [11, 10], [9, 10], [11, 9], [12, 10], [10, 10], [8, 10], [8, 11],
-        [9, 11], [13, 10], [13, 12]];
+        [9, 11], [13, 10], [13, 12], [10, 11]];
       const defPos = [[14, 11], [16, 12], [15, 10], [15, 12], [14, 12],
         [15, 11], [11, 11], [11, 12]];
       const units = [];
@@ -9721,7 +9729,7 @@
       }
       state.battleSeenAction = '';
       ensureDeployModels();
-      pushLog('测试战斗已生成：双方各 1 门105炮+2个反炮兵小组，可测声学反炮兵/红色准星');
+      pushLog('测试战斗已生成：含政治军队、105炮、2个反炮兵小组，可测免疫混乱/反炮兵标记');
       toast('测试战斗已开始 · 点名字切换玩家');
       renderRoom();
       window.dispatchEvent(new Event('resize'));
