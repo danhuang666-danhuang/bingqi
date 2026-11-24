@@ -10419,7 +10419,7 @@
   }
 
   function renderSandboxPanel() {
-    if (!state.test || state.phase !== 'battle') {
+    if (!state.test || (state.phase !== 'battle' && state.phase !== 'lobby')) {
       hideEl('sandbox-panel', true);
       hideEl('sandbox-toggle', true);
       return;
@@ -10446,6 +10446,11 @@
     if (place) place.classList.toggle('is-on', !!state.sandbox.place);
     const del = el('sandbox-delete');
     if (del) del.classList.toggle('is-on', !!state.sandbox.del);
+    const start = el('sandbox-start');
+    if (start) {
+      start.disabled = !state.map;
+      start.textContent = state.phase === 'battle' ? '重新开始' : '开始沙盒';
+    }
     toggle.classList.remove('hidden');
   }
 
@@ -10475,6 +10480,8 @@
       '<div class="sandbox-actions">' +
         '<button id="sandbox-place" type="button">放置模式</button>' +
         '<button id="sandbox-delete" type="button">删除模式</button>' +
+        '<button id="sandbox-map" type="button">选择地图</button>' +
+        '<button id="sandbox-start" type="button">开始沙盒</button>' +
         '<button id="sandbox-clear" type="button">清空单位</button>' +
         '<button id="sandbox-turn" type="button">切换行动方</button>' +
         '<button id="sandbox-import" type="button">导入地图</button>' +
@@ -10514,9 +10521,18 @@
         battleRefresh();
         return;
       }
+      if (e.target.closest('#sandbox-map')) {
+        const f = el('sandbox-map-file');
+        if (f) f.click();
+        return;
+      }
       if (e.target.closest('#sandbox-import')) {
         const f = el('sandbox-map-file');
         if (f) f.click();
+        return;
+      }
+      if (e.target.closest('#sandbox-start')) {
+        startSandboxBattle();
         return;
       }
       if (e.target.closest('#sandbox-turn')) {
@@ -10546,21 +10562,37 @@
           state.map = parsed.parsed;
           state.mapWrapper = { title: f.name.replace(/\.json$/i, ''), map: parsed.map };
           state.deploy = { units: [], ready: { attacker: true, defender: true } };
-          state.phase = 'battle';
-          state.battle = initBattleState();
-          state.battle.activeSide = 'attacker';
-          const seat = state.testSeats.filter(function (s) { return s.side === 'attacker'; })[0];
-          if (seat) { state.activeSeat = seat.id; syncActiveSeat(); }
-          battleResetMp(state.battle, 'attacker');
-          battleRefresh();
+          state.phase = 'lobby';
+          state.battle = null;
           renderRoom();
-          toast('沙盒地图已导入');
+          renderSandboxPanel();
+          toast('沙盒地图已导入，点「开始沙盒」');
         } catch (err) {
           toast('导入失败：' + (err && err.message ? err.message : '地图格式错误'));
         }
       };
       reader.readAsText(f, 'utf-8');
     });
+  }
+
+  function startSandboxBattle() {
+    if (!state.test) return;
+    if (!state.map) { toast('先选择或导入地图'); return; }
+    state.deploy = { units: [], ready: { attacker: true, defender: true } };
+    state.decks = { attacker: [], defender: [] };
+    state.phase = 'battle';
+    state.battle = initBattleState();
+    state.battle.activeSide = 'attacker';
+    state.battle.selectedId = null;
+    state.battle.counter = null;
+    const seat = state.testSeats.filter(function (s) { return s.side === 'attacker'; })[0];
+    if (seat) { state.activeSeat = seat.id; syncActiveSeat(); }
+    battleResetMp(state.battle, 'attacker');
+    state.sandbox.place = state.sandbox.del = false;
+    ensureDeployModels();
+    renderRoom();
+    renderSandboxPanel();
+    toast('沙盒已开始');
   }
 
   function startTest() {
@@ -10585,11 +10617,13 @@
     ensureTestSeats(2);
     setStatus('local');
     setView('room');
-    pushLog('沙盒模式已启动 · 自由布置双方单位');
-    toast('沙盒模式：正在生成战场…');
+    pushLog('沙盒模式已启动 · 选择或导入地图后开始');
+    toast('沙盒模式：选择地图后开始');
     ensureSandboxPanel();
     renderRoom();
-    beginTestBattle();
+    const sbox = el('sandbox-panel');
+    if (sbox) sbox.classList.remove('hidden');
+    loadPrepData().then(function () { renderSandboxPanel(); }).catch(function () {});
     mount.focus({ preventScroll: true });
   }
 
