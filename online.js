@@ -8662,15 +8662,20 @@
   }
 
   function maybePrepare() {
-    // 沙盒模式没有配卡/师配置，选完国家直接进战场。
-    if (state.test) return;
     if (state.phase !== 'lobby') return;
-    if (!state.map || state.map.mode !== 'attack') return;
     if (!factionsReady() || !bothFactionsConfirmed()) return;
+    // 沙盒模式没有配卡/师配置：双方国家确认后直接生成空战场。
     if (state.test) {
-      enterPrepare();
+      state.factionView = false;
+      if (state.map) {
+        startSandboxBattle();
+      } else {
+        renderRoom();
+        toast('国家已确认，先选择或导入地图');
+      }
       return;
     }
+    if (!state.map || state.map.mode !== 'attack') return;
     if (state.role === 'host') enterPrepare();
   }
 
@@ -10586,6 +10591,11 @@
     if (!state.map) { toast('先选择或导入地图'); return; }
     state.deploy = { units: [], ready: { attacker: true, defender: true } };
     state.decks = { attacker: [], defender: [] };
+    const hf = state.hostFactions || {};
+    state.sandbox.factions = {
+      attacker: normalizeFaction(hf.attacker) || sideFaction('attacker') || 'us',
+      defender: normalizeFaction(hf.defender) || sideFaction('defender') || 'de',
+    };
     state.phase = 'battle';
     state.battle = initBattleState();
     state.battle.activeSide = 'attacker';
