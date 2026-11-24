@@ -6706,7 +6706,8 @@
       return;
     }
     if (battleIsAir(selected)) {
-      if (battleIsReconPlane(selected)) {
+      if (battleIsReconPlane(selected) &&
+          (!clicked || clicked.side === selected.side || !battleAirCanTarget(selected, clicked))) {
         if (battleIsNight()) { toast('夜间飞机不能起飞'); return; }
         if (!battleReconAvailable(selected)) { toast('该侦察机本回合已经侦察过'); return; }
         battleOpenReconChoice(selected, c, r);
