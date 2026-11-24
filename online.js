@@ -4790,6 +4790,18 @@
       b3AddDamageFloat(alive[0], spec.damage, '#ff6b57');
       b.log.push(aa.name + ' 参战支援，防空射击 ' + alive[0].name + '：' + spec.damage);
     });
+    // 护航战斗机先与拦截机交战；轰炸机/攻击机本身不参与空战。
+    attackers.forEach(function (escort) {
+      if (escort.id === ai.attackerIds[0] || !escort.alive || battleAirIntercept(escort) <= 0) return;
+      const enemy = interceptors.filter(function (it) { return it.alive && !aborted[it.id]; })[0];
+      if (!enemy) return;
+      let dmg = battleAirIntercept(escort);
+      if (battleHighAltitude(enemy) && !battleHighAltitude(escort)) dmg *= 0.2;
+      if (dmg <= 0) return;
+      battleDamageUnit(enemy, dmg);
+      b3AddDamageFloat(enemy, dmg, '#ff6b57');
+      b.log.push(escort.name + ' 护航，攻击 ' + enemy.name + '：' + battleFmt(dmg));
+    });
     const maxAttackerSpeed = attackers.reduce(function (m, a) { return Math.max(m, battleAirSpeed(a)); }, 0);
     interceptors.forEach(function (it) {
       if (!it.alive || aborted[it.id]) return;
@@ -5823,13 +5835,20 @@
     if (action.type === 'airAttack') {
       const target = battleUnitById(action.targetId);
       if (!battleIsAir(unit) || !target || !target.alive || target.side === unit.side) return;
+      const attackerIds = [unit.id].concat((Array.isArray(action.attackerIds) ? action.attackerIds : [])
+        .filter(function (id) { return id && id !== unit.id; }));
+      if (attackerIds.length > 2) return;
+      const group = attackerIds.map(battleUnitById).filter(function (u) {
+        return u && u.alive && u.side === unit.side && battleIsAir(u);
+      });
+      if (group.length !== attackerIds.length) return;
       if (battleIsNight()) { toast('夜间飞机不能起飞'); return; }
       const role = action.role || (battleIsAir(target) ? 'intercept' : 'bomb');
       const heavyDir = (battleHeavyBomber(unit) && !battleIsAir(target))
         ? (Number.isFinite(Number(action.dir)) ? Math.max(0, Math.min(5, Number(action.dir))) : 0)
         : null;
       const airCost = battleAirActionCost(unit, target, role);
-      if (unit.mp < airCost) return;
+      if (group.some(function (u) { return u.mp < airCost; })) return;
       if (battleIsAir(target) && role !== 'intercept') return;
       if (!battleIsAir(target) && role !== 'bomb') return;
       const targetLocked = (target.lockedBy || []).some(function (id) {
@@ -5839,7 +5858,7 @@
       if (targetLocked && !action.focus && !battleAirHasOwnVision(unit, target)) return;
       if (!battleIsAir(target) && !battleAirCanTarget(unit, target)) return;
       if (!battleIsAir(target) && battleAirInterceptOptions(target.side).length) {
-        battleBeginAirIntercept(unit, target, [unit.id], role);
+        battleBeginAirIntercept(unit, target, attackerIds, role);
         if (b.airIntercept) b.airIntercept.dir = heavyDir;
         return;
       }
@@ -5850,6 +5869,9 @@
         battleDamageUnit(target, dmg);
         b3AddDamageFloat(target, dmg, '#ff6b57');
         unit.mp -= airCost;
+        group.filter(function (u) { return u.id !== unit.id; }).forEach(function (e) {
+          e.mp = Math.max(0, e.mp - airCost);
+        });
         b.selectedId = null;
         b.log.push(unit.name + ' 空战 ' + target.name + '：' + battleFmt(dmg));
         battleRefresh();
@@ -5924,6 +5946,10 @@
       }
       const airStarts = participants.filter(battleIsAir).slice(0, 2);
       airStarts.forEach(function (a, i) { b3StartAirFlight(a, target, null, i * 0.28); });
+      group.filter(function (u) { return u.id !== unit.id; }).forEach(function (e, i) {
+        e.mp = Math.max(0, e.mp - airCost);
+        b3StartAirFlight(e, target, null, 0.7 + i * 0.2);
+      });
       unit.mp -= airCost;
       b.selectedId = null;
       b.log.push(unit.name + (heavyDir != null ? ' 重轰覆盖 ' : ' 空中压制 ') + target.name + '：' +
@@ -6937,6 +6963,27 @@
       box.setAttribute('data-air-dir', '0');
       state.b3BombHint = { targetId: target.id, dir: 0 };
       refreshBattle3DBombHint();
+    }
+    if (role === 'bomb') {
+      const escorts = battleAliveUnits().filter(function (u) {
+        return u.side === air.side && u.id !== air.id && battleIsAir(u) && battleAirIntercept(u) > 0;
+      });
+      if (escorts.length) {
+        const wrap = document.createElement('div');
+        wrap.className = 'battle-escorts';
+        const title = document.createElement('b');
+        title.textContent = '护航编队 · 最多 2 架';
+        wrap.appendChild(title);
+        escorts.forEach(function (u) {
+          const b = document.createElement('button');
+          b.type = 'button';
+          b.className = 'btn small battle-escort';
+          b.setAttribute('data-air-escort', u.id);
+          b.textContent = u.name + ' · 空战 ' + battleFmt(battleAirIntercept(u));
+          wrap.appendChild(b);
+        });
+        box.appendChild(wrap);
+      }
     }
     add((role === 'intercept' ? '攻击 · 空战' : '攻击 · 对地轰炸') + ' · ' + airCost + ' 行动力',
       'airAttack', false, mismatch || air.mp < airCost || !canNormalAir);
@@ -11843,6 +11890,20 @@
       }
       return;
     }
+    const escortBtn = e.target.closest ? e.target.closest('[data-air-escort]') : null;
+    if (escortBtn) {
+      const box = el('battle-choice');
+      if (box) {
+        if (escortBtn.classList.contains('is-on')) {
+          escortBtn.classList.remove('is-on');
+        } else if (box.querySelectorAll('[data-air-escort].is-on').length >= 1) {
+          toast('每场战斗每方最多派出 2 架飞机（含主机）');
+        } else {
+          escortBtn.classList.add('is-on');
+        }
+      }
+      return;
+    }
     const choiceBtn = e.target.closest ? e.target.closest('[data-battle-action]') : null;
     if (choiceBtn) {
       const box = el('battle-choice');
@@ -11857,6 +11918,9 @@
       const reconC = box ? box.getAttribute('data-recon-c') : '';
       const reconR = box ? box.getAttribute('data-recon-r') : '';
       const focus = !!(choiceBtn.getAttribute('data-air-focus') === '1');
+      const attackerIds = [attackerId].concat(Array.prototype.slice.call(
+        box ? box.querySelectorAll('[data-air-escort].is-on') : []
+      ).map(function (b) { return b.getAttribute('data-air-escort'); }).filter(Boolean));
       box.classList.add('hidden');
       if (state.battle) state.battle.choice = null;
       state.b3BombHint = null;
@@ -11870,6 +11934,7 @@
         battleRequest({
           type: type, side: state.battle ? state.battle.activeSide : null,
           unitId: attackerId, targetId: defenderId,
+          attackerIds: attackerIds,
           facing: facing == null ? undefined : facing,
           role: role || undefined, focus: focus, dir: airDir,
         });

@@ -1222,6 +1222,37 @@ body.online-open { overflow: hidden; }
   min-height: 26px;
 }
 
+.battle-escorts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 0 0 7px;
+  padding: 6px;
+  border: 1px solid #304052;
+  border-radius: 6px;
+  background: rgba(15, 24, 34, 0.7);
+}
+
+.battle-escorts b {
+  flex: 1 0 100%;
+  font: 9px/1.4 var(--mono);
+  color: #8fb6d9;
+}
+
+.battle-escorts .battle-escort {
+  width: auto;
+  flex: 1 1 120px;
+  min-height: 26px;
+  margin-top: 0;
+  border-color: #34485c;
+}
+
+.battle-escorts .battle-escort.is-on {
+  border-color: #e0a84e;
+  background: rgba(120, 74, 20, 0.55);
+  color: #ffe1a6;
+}
+
 .battle-choice .btn {
   width: 100%;
   height: auto;
