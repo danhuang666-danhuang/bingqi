@@ -4589,7 +4589,6 @@
       const u = own[i];
       if (battleIsRecon(u) &&
           battleHexDistance(u.c, u.r, target.c, target.r) <= battleReconRadius(u)) return true;
-      if (battleHexDistance(u.c, u.r, target.c, target.r) === 1) return true;
     }
     return false;
   }
@@ -6707,7 +6706,7 @@
     }
     if (battleIsAir(selected)) {
       if (battleIsReconPlane(selected) &&
-          (!clicked || clicked.side === selected.side || !battleAirCanTarget(selected, clicked))) {
+          (!clicked || clicked.side === selected.side || !battleAirHasBomberLock(clicked, selected.side))) {
         if (battleIsNight()) { toast('夜间飞机不能起飞'); return; }
         if (!battleReconAvailable(selected)) { toast('该侦察机本回合已经侦察过'); return; }
         battleOpenReconChoice(selected, c, r);
@@ -7006,16 +7005,22 @@
       refreshBattle3DBombHint();
     }
     const fighterNeedsLock = !battleAirCanLock(air) && !battleAirHasBomberLock(target, air.side);
+    const escortOnly = !canBomb && bomberLock && !battleIsAir(target);
     if (!battleIsAir(target) && battleAirCanLock(air) &&
         (target.lockedBy || []).indexOf(air.id) === -1) {
       add('锁定 · ' + airCost + ' 行动力', 'airLock', false,
         mismatch || air.mp < airCost || !canNormalAir);
     }
-    add((role === 'intercept' ? '攻击 · 空战' : '攻击 · 对地轰炸') + ' · ' + airCost + ' 行动力',
-      'airAttack', false, mismatch || air.mp < airCost || !canNormalAir || fighterNeedsLock);
-    if (targetLocked) {
-      add('集火 · ' + (role === 'intercept' ? '空战' : '对地轰炸') + ' · ' + airCost + ' 行动力',
-        'airAttack', true, mismatch || air.mp < airCost || fighterNeedsLock);
+    if (escortOnly) {
+      add('护航 · 随轰炸机出击 · ' + airCost + ' 行动力', 'airAttack', true,
+        mismatch || air.mp < airCost || !canNormalAir);
+    } else {
+      add((role === 'intercept' ? '攻击 · 空战' : '攻击 · 对地轰炸') + ' · ' + airCost + ' 行动力',
+        'airAttack', false, mismatch || air.mp < airCost || !canNormalAir || fighterNeedsLock);
+      if (targetLocked) {
+        add('集火 · ' + (role === 'intercept' ? '空战' : '对地轰炸') + ' · ' + airCost + ' 行动力',
+          'airAttack', true, mismatch || air.mp < airCost || fighterNeedsLock);
+      }
     }
     if (!battleIsAir(target) && battleTrait(air, 'nuke') && Number(state.battle.nukeStock && state.battle.nukeStock[air.side]) > 0) {
       add('核弹 · 剩余 ' + state.battle.nukeStock[air.side] + ' 枚 · 2 行动力', 'nukeAttack', false, air.mp < 2);
