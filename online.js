@@ -10476,6 +10476,7 @@
         '<button id="sandbox-place" type="button">放置模式</button>' +
         '<button id="sandbox-delete" type="button">删除模式</button>' +
         '<button id="sandbox-clear" type="button">清空单位</button>' +
+        '<button id="sandbox-turn" type="button">切换行动方</button>' +
         '<button id="sandbox-import" type="button">导入地图</button>' +
       '</div>' +
       '<input id="sandbox-map-file" type="file" accept=".json,application/json" hidden>' +
@@ -10516,6 +10517,19 @@
       if (e.target.closest('#sandbox-import')) {
         const f = el('sandbox-map-file');
         if (f) f.click();
+        return;
+      }
+      if (e.target.closest('#sandbox-turn')) {
+        if (!state.battle) return;
+        state.battle.activeSide = otherSide(state.battle.activeSide);
+        const seat = state.testSeats.filter(function (s) { return s.side === state.battle.activeSide; })[0];
+        if (seat) { state.activeSeat = seat.id; syncActiveSeat(); }
+        battleResetMp(state.battle, state.battle.activeSide);
+        state.battle.selectedId = null;
+        state.battle.counter = null;
+        state.sandbox.place = state.sandbox.del = false;
+        battleRefresh();
+        renderSandboxPanel();
         return;
       }
     });
