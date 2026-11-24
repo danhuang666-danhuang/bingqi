@@ -3507,12 +3507,13 @@
   }
 
   function battleReinforceBegin(b, phase) {
-    if (phase === 'c' && b.reinforce && b.reinforce.picks) {
-      const pa = b.reinforce.picks.attacker || {};
-      const pd = b.reinforce.picks.defender || {};
+    if (phase === 'c' && b.reinforce) {
+      const last = b.nukeLastPhase || {};
+      const pa = Math.max(0, Number(last.attacker) || 0);
+      const pd = Math.max(0, Number(last.defender) || 0);
       b.nukeCarry = {
-        attacker: Math.max(0, Number(pd.nukes) || 0) * 100,
-        defender: Math.max(0, Number(pa.nukes) || 0) * 100,
+        attacker: pd * 100,
+        defender: pa * 100,
       };
     }
     const make = function (side) {
@@ -4634,7 +4635,7 @@
     battleDamageUnit(target, centerHp + 999);
     b3AddDamageFloat(target, centerHp + 999, '#ff3b2f');
     battleAliveUnits().forEach(function (u) {
-      if (u.id === target.id || u.airBase) return;
+      if (u.id === target.id || u.airBase || battleIsAir(u)) return;
       const d = battleHexDistance(u.c, u.r, target.c, target.r);
       if (d < 1 || d > 2) return;
       let dmg = d === 1 ? 4 : 2;
@@ -5511,6 +5512,8 @@
       if (stats.total <= 0) return;
       const pick = r.picks[side];
       const nukes = Math.max(0, Number(pick && pick.nukes) || 0);
+      b.nukeLastPhase = b.nukeLastPhase || { attacker: 0, defender: 0 };
+      b.nukeLastPhase[side] = nukes;
       if (nukes > 0) {
         b.nukeStock = b.nukeStock || { attacker: 0, defender: 0 };
         b.nukeStock[side] = (Number(b.nukeStock[side]) || 0) + nukes;
@@ -8731,6 +8734,7 @@
     prep.corpsId = id;
     prep.divisionId = '';
     prep.units = {};
+    prep.nukes = 0;
     prep.ready = false;
     publishPrep();
     renderPrep();
@@ -8747,6 +8751,7 @@
     if (!div) return;
     prep.divisionId = id;
     prep.units = {};
+    prep.nukes = 0;
     prep.ready = false;
     publishPrep();
     renderPrep();
@@ -8758,6 +8763,7 @@
     prep.corpsId = '';
     prep.divisionId = '';
     prep.units = {};
+    prep.nukes = 0;
     prep.ready = false;
     publishPrep();
     renderPrep();
@@ -8768,6 +8774,7 @@
     if (prep.ready) return;
     prep.divisionId = '';
     prep.units = {};
+    prep.nukes = 0;
     prep.ready = false;
     publishPrep();
     renderPrep();
