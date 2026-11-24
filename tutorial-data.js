@@ -338,8 +338,8 @@ window.TUTORIAL_LEVELS = [
       {
         "side": "attacker",
         "name": "步兵营",
-        "c": 2,
-        "r": 4,
+        "c": 1,
+        "r": 5,
         "id": "tutorial-us-inf"
       },
       {
@@ -352,8 +352,8 @@ window.TUTORIAL_LEVELS = [
       {
         "side": "defender",
         "name": "步兵营",
-        "c": 4,
-        "r": 4,
+        "c": 3,
+        "r": 5,
         "id": "tutorial-de-inf"
       },
       {
