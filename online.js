@@ -120,7 +120,7 @@
     factionPrompted: false, // 攻守双方就位后是否已经自动跳过界面
     hostTeams: null,        // 开局时房主发布的编制快照
     test: false,            // 沙盒模式模式：不连中继，一台电脑热座操控
-    sandbox: { faction: 'us', unit: '', place: false, del: false },
+    sandbox: { factions: { attacker: 'us', defender: 'de' }, unit: '', place: false, del: false },
     testSeats: [],          // { id, name, side, ready }，第一个是房主
     testSeq: 0,
     activeSeat: '',         // 当前操控的本机玩家 id
@@ -10379,7 +10379,9 @@
   }
 
   function sandboxFaction() {
-    return normalizeFaction(state.sandbox && state.sandbox.faction) || 'us';
+    const side = sandboxSide();
+    return normalizeFaction(state.sandbox && state.sandbox.factions && state.sandbox.factions[side]) ||
+      (side === 'defender' ? 'de' : 'us');
   }
 
   function sandboxSide() {
@@ -10475,7 +10477,7 @@
     panel.innerHTML =
       '<div class="sandbox-head"><b>沙盒模式</b><button type="button" data-sandbox-close="1">×</button></div>' +
       '<div class="sandbox-current">当前方：<b id="sandbox-side">攻方</b>（点顶部座位切换）</div>' +
-      '<label>国家<select id="sandbox-faction"><option value="us">美国</option><option value="de">德国</option><option value="ussr">苏联</option></select></label>' +
+      '<label>本国（当前方）<select id="sandbox-faction"><option value="us">美国</option><option value="de">德国</option><option value="ussr">苏联</option></select></label>' +
       '<label>单位<select id="sandbox-unit"></select></label>' +
       '<div class="sandbox-actions">' +
         '<button id="sandbox-place" type="button">放置模式</button>' +
@@ -10487,11 +10489,12 @@
         '<button id="sandbox-import" type="button">导入地图</button>' +
       '</div>' +
       '<input id="sandbox-map-file" type="file" accept=".json,application/json" hidden>' +
-      '<p class="sandbox-hint">选单位后点「放置模式」，再点地图格放置；删除模式点单位删除。座位按钮切换攻守。</p>';
+      '<p class="sandbox-hint">无配卡、无数量限制。选本国单位后点「放置模式」，再点全图任意空格放置；删除模式点单位删除。</p>';
     document.body.appendChild(panel);
     panel.addEventListener('change', function (e) {
       if (e.target.id === 'sandbox-faction') {
-        state.sandbox.faction = e.target.value;
+        if (!state.sandbox.factions) state.sandbox.factions = { attacker: 'us', defender: 'de' };
+        state.sandbox.factions[sandboxSide()] = e.target.value;
         state.sandbox.unit = '';
         renderSandboxPanel();
       }
@@ -10606,7 +10609,7 @@
     closeMapDialog(true);
     hideAlert();
     state.test = true;
-    state.sandbox = { faction: 'us', unit: '', place: false, del: false };
+    state.sandbox = { factions: { attacker: 'us', defender: 'de' }, unit: '', place: false, del: false };
     state.role = 'host';
     state.name = name;
     state.roomCode = 'TEST';
@@ -11491,7 +11494,7 @@
       entry.className = 'online-test-entry';
       entry.innerHTML =
         '<span class="online-test-entry-label"><b>沙盒模式</b><em>SANDBOX</em></span>' +
-        '<span class="online-test-entry-note">不连接中继：自由切换双方、放置各国单位、导入地图。</span>' +
+        '<span class="online-test-entry-note">不连接中继：选图后自由放置任意数量本国单位，无需配卡。</span>' +
         '<button id="online-test-start" type="button" class="btn">进入沙盒</button>';
       card.appendChild(entry);
     }
