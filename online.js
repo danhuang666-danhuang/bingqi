@@ -6827,6 +6827,8 @@
 
   function battleCheckAutoEnd() {
     const b = state.battle;
+    // 教程由步骤脚本控制回合，不自动结束。
+    if (state.tutorial) return;
     // 客人做乐观更新时不本地推进回合，等房主的状态回来
     if (state.optimistic) return;
     if (!b || b.counter || b.reinforce || b.airIntercept || b.facingChoice) return;
@@ -12855,7 +12857,7 @@
   function tutorialGuideHtml(level, step) {
     const stepDef = level && level.steps ? level.steps[step] : null;
     const text = typeof stepDef === 'string' ? stepDef : ((stepDef && stepDef.text) || '');
-    const autoPending = !!(stepDef && stepDef.auto && !(state.tutorial && state.tutorial.enemyDone));
+    const autoPending = !!(stepDef && stepDef.auto === 'enemyRiver' && !(state.tutorial && state.tutorial.enemyDone));
     const locked = autoPending || !!(stepDef && (stepDef.allow || stepDef.blocked));
     return '<div class="tutorial-guide-head"><b>' + battleReinforceEsc(level ? level.title : '教程') +
       '</b><span>' + (step + 1) + ' / ' + ((level && level.steps && level.steps.length) || 1) + '</span></div>' +
@@ -12879,6 +12881,16 @@
     const level = state.tutorial.level;
     const steps = level.steps || [];
     if (e.target.closest && e.target.closest('[data-tutorial-next]')) {
+      const current = tutorialCurrentStep();
+      if (current && current.auto === 'rewind') {
+        if (tutorialRestoreCheckpoint()) {
+          state.tutorial.step = 8;
+          state.tutorial.enemyDone = false;
+          renderTutorialGuide();
+          refreshTutorialFocus();
+          return;
+        }
+      }
       if ((state.tutorial.step || 0) + 1 >= steps.length) {
         hideEl('tutorial-guide', true);
         state.tutorial = null;
@@ -12904,6 +12916,27 @@
     const t = state.tutorial;
     if (!t || !t.level || !t.level.steps) return null;
     return t.level.steps[t.step || 0] || null;
+  }
+
+  function tutorialSaveCheckpoint() {
+    if (!state.tutorial) return;
+    try { state.tutorial.checkpoint = JSON.stringify(state.battle); } catch (e) { /* ignore */ }
+  }
+
+  function tutorialRestoreCheckpoint() {
+    if (!state.tutorial || !state.tutorial.checkpoint) return false;
+    try { state.battle = JSON.parse(state.tutorial.checkpoint); } catch (e) { return false; }
+    const seat = state.testSeats.filter(function (s) { return s.side === 'attacker'; })[0];
+    if (seat) {
+      state.activeSeat = seat.id;
+      syncActiveSeat();
+    }
+    state.battle.selectedId = null;
+    state.battle.ghost = null;
+    state.battle.counter = null;
+    state.battle.choice = null;
+    renderRoom();
+    return true;
   }
 
   function tutorialAdvance() {
@@ -12958,6 +12991,10 @@
       toast('教程步骤：请攻击指定目标');
       return false;
     }
+    if (allow.buildingType && action.buildingType !== allow.buildingType) {
+      toast('教程步骤：请修建指定建筑');
+      return false;
+    }
     if (allow.c != null && Number(action.c) !== Number(allow.c)) {
       toast('教程步骤：请移动到指定格');
       return false;
@@ -12976,6 +13013,10 @@
     if (action.type === step.allow.type &&
         (!step.allow.unitId || action.unitId === step.allow.unitId) &&
         (!step.allow.targetId || action.targetId === step.allow.targetId)) {
+      if (state.tutorial.level && state.tutorial.level.id === 't02' &&
+          (state.tutorial.step || 0) === 4) {
+        tutorialSaveCheckpoint();
+      }
       tutorialAdvance();
     }
   }
@@ -13028,7 +13069,7 @@
         s0.factionReady = s1.factionReady = true;
         s0.deckReady = s1.deckReady = true;
         s0.ready = s1.ready = true;
-        state.activeSeat = s0.id;
+        state.activeSeat = (level.firstSide === 'defender' ? s1.id : s0.id);
         syncActiveSeat();
         state.factionView = false;
         state.hostFactions = Object.assign({}, level.factions);
@@ -13052,6 +13093,10 @@
         state.deploy = { units: units, ready: { attacker: true, defender: true } };
         state.phase = 'battle';
         state.battle = initBattleState();
+        if (level.firstSide === 'defender') {
+          state.battle.activeSide = 'defender';
+          battleResetMp(state.battle, 'defender');
+        }
         state.battle.buildings = [];
         state.battle.history = [];
         state.tutorial = { level: level, step: 0, enemyDone: false };

@@ -453,5 +453,511 @@ window.TUTORIAL_LEVELS = [
         }
       }
     ]
+  },
+  {
+    "id": "t02",
+    "title": "第二关 · 锁定、集火与推进",
+    "subtitle": "德军先手 · 战壕 · 高抗性格 · 集火 · 回退 · 推进",
+    "map": {
+      "format": "bingqi-map",
+      "version": 3,
+      "app": "bingqi-map-editor",
+      "savedAt": "2026-11-24T13:42:33.864Z",
+      "cols": 8,
+      "rows": 6,
+      "mode": "attack",
+      "terrains": [
+        "plain",
+        "road",
+        "rail",
+        "house",
+        "city",
+        "forest",
+        "hill",
+        "mountain",
+        "river",
+        "swamp"
+      ],
+      "cells": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        4,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "rules": {
+        "plain": {
+          "move": 1,
+          "moveMech": 1,
+          "protect": 0,
+          "blocksSight": false,
+          "urban": false,
+          "riverReset": false,
+          "chaos": 0
+        },
+        "road": {
+          "move": 1,
+          "moveMech": 0.5,
+          "protect": 0,
+          "blocksSight": false,
+          "urban": false,
+          "riverReset": false,
+          "chaos": 0
+        },
+        "rail": {
+          "move": 1,
+          "moveMech": 0.5,
+          "protect": 0,
+          "blocksSight": false,
+          "urban": false,
+          "riverReset": false,
+          "chaos": 0
+        },
+        "house": {
+          "move": 1,
+          "moveMech": 1,
+          "protect": 0.3,
+          "blocksSight": true,
+          "urban": true,
+          "riverReset": false,
+          "chaos": 0
+        },
+        "city": {
+          "move": 1,
+          "moveMech": 1,
+          "protect": 0.5,
+          "blocksSight": true,
+          "urban": true,
+          "riverReset": false,
+          "chaos": 0
+        },
+        "forest": {
+          "move": 1,
+          "moveMech": 2,
+          "protect": 0.2,
+          "blocksSight": true,
+          "urban": false,
+          "riverReset": false,
+          "chaos": 0
+        },
+        "hill": {
+          "move": 2,
+          "moveMech": 2,
+          "protect": 0.25,
+          "blocksSight": true,
+          "urban": false,
+          "riverReset": false,
+          "chaos": 0
+        },
+        "mountain": {
+          "move": 3,
+          "moveMech": 3,
+          "protect": 0.4,
+          "blocksSight": true,
+          "urban": false,
+          "riverReset": false,
+          "chaos": 0
+        },
+        "river": {
+          "move": 1,
+          "moveMech": 1,
+          "protect": 0,
+          "blocksSight": false,
+          "urban": false,
+          "riverReset": true,
+          "chaos": 0
+        },
+        "swamp": {
+          "move": 2,
+          "moveMech": 2,
+          "protect": 0,
+          "blocksSight": false,
+          "urban": false,
+          "riverReset": false,
+          "chaos": 1
+        }
+      },
+      "grid": {
+        "move": [
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1
+        ],
+        "moveMech": [
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1
+        ],
+        "protect": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0.5,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      "phases": {
+        "a": 1,
+        "b": null,
+        "c": null
+      },
+      "facing": 0,
+      "deploy": {
+        "spawn": null,
+        "hqA": null,
+        "hqD": null,
+        "zone": []
+      }
+    },
+    "firstSide": "defender",
+    "factions": {
+      "attacker": "us",
+      "defender": "de"
+    },
+    "units": [
+      {
+        "side": "attacker",
+        "name": "步兵营",
+        "c": 2,
+        "r": 3,
+        "id": "tutorial2-us-1"
+      },
+      {
+        "side": "attacker",
+        "name": "步兵营",
+        "c": 2,
+        "r": 1,
+        "id": "tutorial2-us-2"
+      },
+      {
+        "side": "defender",
+        "name": "工兵营",
+        "c": 5,
+        "r": 2,
+        "id": "tutorial2-de-eng"
+      },
+      {
+        "side": "defender",
+        "name": "步兵营",
+        "c": 5,
+        "r": 1,
+        "id": "tutorial2-de-inf"
+      }
+    ],
+    "steps": [
+      {
+        "text": "德军先行动。选中德军工兵（F3），在 E3 城区上修建战壕。",
+        "allow": {
+          "type": "build",
+          "unitId": "tutorial2-de-eng",
+          "c": 4,
+          "r": 2,
+          "buildingType": "trench"
+        },
+        "focus": {
+          "c": 4,
+          "r": 2,
+          "label": "E3 · 修建战壕"
+        }
+      },
+      {
+        "text": "战壕修好了。选中德军步兵（F2），移动到 E3 战壕上。",
+        "allow": {
+          "type": "move",
+          "unitId": "tutorial2-de-inf",
+          "c": 4,
+          "r": 2
+        },
+        "focus": {
+          "c": 4,
+          "r": 2,
+          "label": "E3 · 进入战壕"
+        }
+      },
+      {
+        "text": "德军结束回合。点「结束回合」，然后切换顶部座位到「教程玩家」。",
+        "allow": {
+          "type": "endTurn"
+        },
+        "focus": {
+          "c": 4,
+          "r": 2,
+          "label": "E3 · 高抗性格"
+        }
+      },
+      {
+        "text": "轮到美军。切换座位到「教程玩家」，把第一组步兵从 C4 移动到 D4，贴近 E3。",
+        "allow": {
+          "type": "move",
+          "unitId": "tutorial2-us-1",
+          "c": 3,
+          "r": 3
+        },
+        "focus": {
+          "c": 3,
+          "r": 3,
+          "label": "D4 · 第一组步兵"
+        }
+      },
+      {
+        "text": "把第二组步兵从 C2 移动到 D2，准备远程集火。",
+        "allow": {
+          "type": "move",
+          "unitId": "tutorial2-us-2",
+          "c": 3,
+          "r": 1
+        },
+        "focus": {
+          "c": 3,
+          "r": 1,
+          "label": "D2 · 第二组步兵"
+        }
+      },
+      {
+        "text": "E3 城区战壕让德军抗性极高。先让第一组步兵锁定德军，减少之后的反击次数。",
+        "allow": {
+          "type": "lock",
+          "unitId": "tutorial2-us-1",
+          "targetId": "tutorial2-de-inf"
+        },
+        "focus": {
+          "c": 4,
+          "r": 2,
+          "label": "E3 · 锁定德军"
+        }
+      },
+      {
+        "text": "锁定后，第二组步兵对 E3 集火。集火只结算一次反击，比两个单位分别攻击更安全。",
+        "allow": {
+          "type": "focus",
+          "unitId": "tutorial2-us-2",
+          "targetId": "tutorial2-de-inf"
+        },
+        "focus": {
+          "c": 4,
+          "r": 2,
+          "label": "E3 · 集火"
+        }
+      },
+      {
+        "text": "观察这次集火和反击。点「下一步」回退到美军回合开始，改学推进。",
+        "auto": "rewind",
+        "focus": {
+          "c": 4,
+          "r": 2,
+          "label": "准备回退"
+        }
+      },
+      {
+        "text": "回退完成。现在不要集火：让第一组步兵推进 E3 德军，把它推出高防护格。",
+        "allow": {
+          "type": "push",
+          "unitId": "tutorial2-us-1",
+          "targetId": "tutorial2-de-inf"
+        },
+        "focus": {
+          "c": 4,
+          "r": 2,
+          "label": "推进德军"
+        }
+      },
+      {
+        "text": "德军被推到 E2 平原。第二组步兵从 D2 攻击它，比较离开战壕后的伤害。",
+        "allow": {
+          "type": "attack",
+          "unitId": "tutorial2-us-2",
+          "targetId": "tutorial2-de-inf"
+        },
+        "focus": {
+          "c": 5,
+          "r": 1,
+          "label": "E2 · 德军失去掩护"
+        }
+      },
+      {
+        "text": "打开对战历史，比较锁定集火和推进后攻击的伤害与反击；教程完成。",
+        "focus": {
+          "c": 3,
+          "r": 1,
+          "label": "教程完成"
+        }
+      }
+    ]
   }
 ];
