@@ -10492,7 +10492,7 @@
         '<button id="sandbox-import" type="button">导入地图</button>' +
       '</div>' +
       '<input id="sandbox-map-file" type="file" accept=".json,application/json" hidden>' +
-      '<p class="sandbox-hint">无配卡、无数量限制。选本国单位后点「放置模式」，再点全图任意空格放置；删除模式点单位删除。</p>';
+      '<p class="sandbox-hint">无配卡、无数量限制、不受出生点/部署区限制。选本国单位后点「放置模式」，全图任意空格都能放；删除模式点单位删除。</p>';
     document.body.appendChild(panel);
     panel.addEventListener('change', function (e) {
       if (e.target.id === 'sandbox-faction') {
