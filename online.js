@@ -6397,15 +6397,25 @@
     const b = state.battle;
     if (!b || b.counter || b.reinforce || b.facingChoice) return;
     const leavingSide = b.activeSide;
-    const slots = airPadCells(leavingSide, 8);
+    const occupied = {};
+    b.units.forEach(function (u) {
+      if (u.alive && u.airBase) occupied[u.c + ',' + u.r] = true;
+    });
+    const slots = airPadCells(leavingSide, 8).filter(function (p) {
+      return !occupied[p.c + ',' + p.r];
+    });
     let slotIndex = 0;
     b.units.forEach(function (u) {
       if (u.side !== leavingSide || !u.alive || !u.reconActiveRound) return;
-      const slot = slots[slotIndex++] || airPadCells(leavingSide, 1)[0];
+      const slot = slots[slotIndex++] || null;
       u.reconActiveRound = 0;
       u.reconCell = null;
       u.airBase = true;
-      if (slot) { u.c = slot.c; u.r = slot.r; }
+      if (slot) {
+        u.c = slot.c;
+        u.r = slot.r;
+        occupied[slot.c + ',' + slot.r] = true;
+      }
     });
     b.counterBatteryMarks = (b.counterBatteryMarks || []).filter(function (m) {
       return m.forSide !== leavingSide;
