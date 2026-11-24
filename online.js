@@ -4846,7 +4846,10 @@
   }
 
   function battleHighAltitude(unit) {
-    return !!(unit && battleTrait(unit, 'highAltitude'));
+    if (!unit) return false;
+    if (battleTrait(unit, 'highAltitude')) return true;
+    const info = battleInfoFor(unit);
+    return !!(info && /高空/.test(String(info.traits || '')));
   }
 
   function battleHeavyBomber(unit) {
