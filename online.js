@@ -12858,7 +12858,7 @@
     const stepDef = level && level.steps ? level.steps[step] : null;
     const text = typeof stepDef === 'string' ? stepDef : ((stepDef && stepDef.text) || '');
     const autoPending = !!(stepDef && stepDef.auto === 'enemyRiver' && !(state.tutorial && state.tutorial.enemyDone));
-    const locked = autoPending || !!(stepDef && (stepDef.allow || stepDef.blocked));
+    const locked = autoPending || !!(stepDef && (stepDef.allow || stepDef.blocked || stepDef.expectCounter));
     return '<div class="tutorial-guide-head"><b>' + battleReinforceEsc(level ? level.title : '教程') +
       '</b><span>' + (step + 1) + ' / ' + ((level && level.steps && level.steps.length) || 1) + '</span></div>' +
       '<p>' + battleReinforceEsc(text) + '</p>' +
@@ -12884,7 +12884,7 @@
       const current = tutorialCurrentStep();
       if (current && current.auto === 'rewind') {
         if (tutorialRestoreCheckpoint()) {
-          state.tutorial.step = 8;
+          state.tutorial.step = 9;
           state.tutorial.enemyDone = false;
           renderTutorialGuide();
           refreshTutorialFocus();
@@ -12960,9 +12960,13 @@
 
   function tutorialCheck(action) {
     if (!state.tutorial || state.tutorialScripting) return true;
+    const step = tutorialCurrentStep();
+    if (step && step.expectCounter && action.type === 'counterSkip') {
+      toast('教程步骤：请完成一次反击，再继续');
+      return false;
+    }
     // 反击属于防守方选择，不拦。
     if (action.type === 'counter' || action.type === 'counterSkip') return true;
-    const step = tutorialCurrentStep();
     if (!step) return true;
     if (step.auto) {
       toast('请阅读提示后点「下一步」继续');
@@ -13009,7 +13013,12 @@
   function tutorialAfterAction(action) {
     if (!state.tutorial || state.tutorialScripting) return;
     const step = tutorialCurrentStep();
-    if (!step || !step.allow) return;
+    if (!step) return;
+    if (action.type === 'counter' && step.expectCounter) {
+      tutorialAdvance();
+      return;
+    }
+    if (!step.allow) return;
     if (action.type === step.allow.type &&
         (!step.allow.unitId || action.unitId === step.allow.unitId) &&
         (!step.allow.targetId || action.targetId === step.allow.targetId)) {
