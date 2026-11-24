@@ -5489,8 +5489,12 @@
   }
 
   function battleTryConfusion(target, attackers, facing, canPen) {
-    if (canPen === false) return false;
     if (!target || !target.alive || !attackers || attackers.length < 2) return false;
+    if (target.tutorialForceConfusion) {
+      target.confused = true;
+      return true;
+    }
+    if (canPen === false) return false;
     // 政治军队永远不会混乱。
     if (battleTrait(target, 'political')) return false;
     // 友方宪兵半径 1 内免疫混乱。
@@ -12857,7 +12861,8 @@
   function tutorialGuideHtml(level, step) {
     const stepDef = level && level.steps ? level.steps[step] : null;
     const text = typeof stepDef === 'string' ? stepDef : ((stepDef && stepDef.text) || '');
-    const autoPending = !!(stepDef && stepDef.auto === 'enemyRiver' && !(state.tutorial && state.tutorial.enemyDone));
+    const autoPending = !!(stepDef && stepDef.auto && stepDef.auto !== 'rewind' &&
+      !(state.tutorial && state.tutorial.enemyDone));
     const locked = autoPending || !!(stepDef && (stepDef.allow || stepDef.blocked || stepDef.expectCounter));
     return '<div class="tutorial-guide-head"><b>' + battleReinforceEsc(level ? level.title : '教程') +
       '</b><span>' + (step + 1) + ' / ' + ((level && level.steps && level.steps.length) || 1) + '</span></div>' +
@@ -12955,6 +12960,10 @@
     const step = tutorialCurrentStep();
     if (step && step.auto === 'enemyRiver') {
       setTimeout(tutorialEnemyRiver, 500);
+    } else if (step && step.auto === 'stagePlain') {
+      setTimeout(function () { tutorial3Stage('plain'); }, 300);
+    } else if (step && step.auto === 'stageMaus') {
+      setTimeout(function () { tutorial3Stage('maus'); }, 300);
     }
   }
 
@@ -12987,6 +12996,7 @@
       toast('教程步骤：请按提示操作');
       return false;
     }
+    if (allow.facing != null) action.facing = allow.facing;
     if (allow.unitId && action.unitId !== allow.unitId) {
       toast('教程步骤：请使用指定单位');
       return false;
@@ -13028,6 +13038,63 @@
       }
       tutorialAdvance();
     }
+  }
+
+  function tutorial3Stage(stage) {
+    if (!state.tutorial || !state.battle || !state.map) return;
+    const b = state.battle;
+    const target = battleUnitById('tutorial3-target');
+    let us1 = battleUnitById('tutorial3-us-1');
+    let us2 = battleUnitById('tutorial3-us-2');
+    if (!target || !us1) return;
+    if (!us2) {
+      us2 = {
+        id: 'tutorial3-us-2', side: 'attacker', name: '步兵营',
+        c: 4, r: 2, hp: 6, maxHp: 6, mp: 4, maxMp: 4,
+        alive: true, lockedBy: [], actionLocked: false,
+      };
+      b.units.push(us2);
+    }
+    if (stage === 'plain' || stage === 'maus') {
+      state.map.cells = state.map.cells.map(function () { return 0; });
+      if (state.mapWrapper && state.mapWrapper.map) {
+        state.mapWrapper.map.cells = state.map.cells.slice();
+      }
+      if (B3) B3.mapRef = null;
+    }
+    b.buildings = [];
+    b.counter = null;
+    b.choice = null;
+    b.selectedId = null;
+    b.history = [];
+    b.units.forEach(function (u) {
+      u.lockedBy = [];
+      u.lockCosts = {};
+      u.actionLocked = false;
+      u.confused = false;
+      u.tutorialForceConfusion = false;
+    });
+    target.name = stage === 'maus' ? '鼠式超重坦营' : '四号突击炮营';
+    target.c = 4; target.r = 3;
+    target.hp = stage === 'plain' ? 20 : 6;
+    target.maxHp = target.hp;
+    target.alive = true;
+    target.facing = 3;
+    target.tutorialForceConfusion = stage === 'plain';
+    us1.c = 3; us1.r = 3; us1.alive = true; us1.hp = 6;
+    us2.c = stage === 'maus' ? 5 : 4;
+    us2.r = stage === 'maus' ? 3 : 2;
+    us2.alive = true; us2.hp = 6;
+    b.activeSide = 'attacker';
+    const seat = state.testSeats.filter(function (s) { return s.side === 'attacker'; })[0];
+    if (seat) { state.activeSeat = seat.id; syncActiveSeat(); }
+    battleResetMp(b, 'attacker');
+    state.tutorial.stage = stage;
+    state.tutorial.enemyDone = true;
+    renderRoom();
+    renderTutorialGuide();
+    refreshTutorialFocus();
+    if (B3) B3.need = true;
   }
 
   function tutorialEnemyRiver() {

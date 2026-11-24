@@ -968,5 +968,509 @@ window.TUTORIAL_LEVELS = [
         }
       }
     ]
+  },
+  {
+    "id": "t03",
+    "title": "第三关 · 装甲、巷战与混乱",
+    "subtitle": "装甲单位 · 穿深 · 巷战 · 前后包夹 · 混乱 · 鼠式",
+    "map": {
+      "format": "bingqi-map",
+      "version": 3,
+      "app": "bingqi-map-editor",
+      "savedAt": "2026-11-24T13:42:33.864Z",
+      "cols": 8,
+      "rows": 6,
+      "mode": "attack",
+      "terrains": [
+        "plain",
+        "road",
+        "rail",
+        "house",
+        "city",
+        "forest",
+        "hill",
+        "mountain",
+        "river",
+        "swamp"
+      ],
+      "cells": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        4,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "rules": {
+        "plain": {
+          "move": 1,
+          "moveMech": 1,
+          "protect": 0,
+          "blocksSight": false,
+          "urban": false,
+          "riverReset": false,
+          "chaos": 0
+        },
+        "road": {
+          "move": 1,
+          "moveMech": 0.5,
+          "protect": 0,
+          "blocksSight": false,
+          "urban": false,
+          "riverReset": false,
+          "chaos": 0
+        },
+        "rail": {
+          "move": 1,
+          "moveMech": 0.5,
+          "protect": 0,
+          "blocksSight": false,
+          "urban": false,
+          "riverReset": false,
+          "chaos": 0
+        },
+        "house": {
+          "move": 1,
+          "moveMech": 1,
+          "protect": 0.3,
+          "blocksSight": true,
+          "urban": true,
+          "riverReset": false,
+          "chaos": 0
+        },
+        "city": {
+          "move": 1,
+          "moveMech": 1,
+          "protect": 0.5,
+          "blocksSight": true,
+          "urban": true,
+          "riverReset": false,
+          "chaos": 0
+        },
+        "forest": {
+          "move": 1,
+          "moveMech": 2,
+          "protect": 0.2,
+          "blocksSight": true,
+          "urban": false,
+          "riverReset": false,
+          "chaos": 0
+        },
+        "hill": {
+          "move": 2,
+          "moveMech": 2,
+          "protect": 0.25,
+          "blocksSight": true,
+          "urban": false,
+          "riverReset": false,
+          "chaos": 0
+        },
+        "mountain": {
+          "move": 3,
+          "moveMech": 3,
+          "protect": 0.4,
+          "blocksSight": true,
+          "urban": false,
+          "riverReset": false,
+          "chaos": 0
+        },
+        "river": {
+          "move": 1,
+          "moveMech": 1,
+          "protect": 0,
+          "blocksSight": false,
+          "urban": false,
+          "riverReset": true,
+          "chaos": 0
+        },
+        "swamp": {
+          "move": 2,
+          "moveMech": 2,
+          "protect": 0,
+          "blocksSight": false,
+          "urban": false,
+          "riverReset": false,
+          "chaos": 1
+        }
+      },
+      "grid": {
+        "move": [
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1
+        ],
+        "moveMech": [
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1
+        ],
+        "protect": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0.5,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      "phases": {
+        "a": 1,
+        "b": null,
+        "c": null
+      },
+      "facing": 0,
+      "deploy": {
+        "spawn": null,
+        "hqA": null,
+        "hqD": null,
+        "zone": []
+      }
+    },
+    "firstSide": "attacker",
+    "factions": {
+      "attacker": "us",
+      "defender": "de"
+    },
+    "units": [
+      {
+        "side": "attacker",
+        "name": "步兵营",
+        "c": 3,
+        "r": 3,
+        "id": "tutorial3-us-1"
+      },
+      {
+        "side": "defender",
+        "name": "四号突击炮营",
+        "c": 4,
+        "r": 3,
+        "id": "tutorial3-target"
+      }
+    ],
+    "steps": [
+      {
+        "text": "E4 是德军四号突击炮，属于装甲单位，装甲远高于步兵。先右键查看美军步兵 D4 对它的攻击预览：AP 不足，伤害会非常低。",
+        "blocked": true,
+        "blockedText": "穿深不足：步兵的 AP 无法有效击穿四号突击炮的正面装甲。",
+        "allow": {
+          "type": "attack",
+          "unitId": "tutorial3-us-1",
+          "targetId": "tutorial3-target"
+        },
+        "focus": {
+          "c": 4,
+          "r": 3,
+          "label": "E4 · 四号突击炮"
+        }
+      },
+      {
+        "text": "把步兵移动到 E3 城区，利用巷战数值和更高穿深再攻击。城区会提供额外地形防护。",
+        "allow": {
+          "type": "move",
+          "unitId": "tutorial3-us-1",
+          "c": 4,
+          "r": 2
+        },
+        "focus": {
+          "c": 4,
+          "r": 2,
+          "label": "E3 · 城区"
+        }
+      },
+      {
+        "text": "从城区攻击相邻的四号突击炮，观察巷战伤害和穿深是否提高。",
+        "allow": {
+          "type": "attack",
+          "unitId": "tutorial3-us-1",
+          "targetId": "tutorial3-target"
+        },
+        "focus": {
+          "c": 4,
+          "r": 3,
+          "label": "巷战攻击"
+        }
+      },
+      {
+        "text": "现在把地图刷成纯平原，并增加第二组美军。E3 的第二组先待命，准备从侧面/后方包夹。",
+        "auto": "stagePlain",
+        "focus": {
+          "c": 4,
+          "r": 2,
+          "label": "第二组美军"
+        }
+      },
+      {
+        "text": "把第二组美军从 E3 移动到 F4，与 D4 的第一组形成前后包夹。",
+        "allow": {
+          "type": "move",
+          "unitId": "tutorial3-us-2",
+          "c": 5,
+          "r": 3
+        },
+        "focus": {
+          "c": 5,
+          "r": 3,
+          "label": "F4 · 后方"
+        }
+      },
+      {
+        "text": "先让正面 D4 的第一组锁定四号突击炮，锁定后可以组织集火，减少反击次数。",
+        "allow": {
+          "type": "lock",
+          "unitId": "tutorial3-us-1",
+          "targetId": "tutorial3-target"
+        },
+        "focus": {
+          "c": 4,
+          "r": 3,
+          "label": "正面锁定"
+        }
+      },
+      {
+        "text": "让后方 F4 的第二组集火。教学演示中四号突击炮会 100% 混乱：混乱单位无法反击，且下一次被击中会直接消灭。",
+        "allow": {
+          "type": "focus",
+          "unitId": "tutorial3-us-2",
+          "targetId": "tutorial3-target",
+          "facing": 3
+        },
+        "focus": {
+          "c": 4,
+          "r": 3,
+          "label": "后方集火 · 触发混乱"
+        }
+      },
+      {
+        "text": "四号突击炮已经混乱。现在任意一次攻击都会直接消灭它，而且它无法反击。",
+        "allow": {
+          "type": "attack",
+          "unitId": "tutorial3-us-1",
+          "targetId": "tutorial3-target"
+        },
+        "focus": {
+          "c": 4,
+          "r": 3,
+          "label": "混乱单位 · 直接消灭"
+        }
+      },
+      {
+        "text": "现在重置为鼠式超重坦。鼠式正面装甲极高，即使成功绕后，步兵 AP 仍然无法击穿；无法击穿就不会触发混乱。",
+        "auto": "stageMaus",
+        "focus": {
+          "c": 4,
+          "r": 3,
+          "label": "鼠式超重坦"
+        }
+      },
+      {
+        "text": "鼠式已经直接放在前后包夹位置。先让正面 D4 的第一组锁定它。",
+        "allow": {
+          "type": "lock",
+          "unitId": "tutorial3-us-1",
+          "targetId": "tutorial3-target"
+        },
+        "focus": {
+          "c": 4,
+          "r": 3,
+          "label": "鼠式 · 锁定"
+        }
+      },
+      {
+        "text": "让后方 F4 的第二组集火鼠式。观察：即使绕后，AP 仍无法击穿，伤害很低，也不会混乱。",
+        "allow": {
+          "type": "focus",
+          "unitId": "tutorial3-us-2",
+          "targetId": "tutorial3-target",
+          "facing": 3
+        },
+        "focus": {
+          "c": 4,
+          "r": 3,
+          "label": "鼠式 · 无法击穿"
+        }
+      },
+      {
+        "text": "第三关完成。记住：绕后能创造机会，但能不能打出效果仍取决于穿深；完全无法击穿时不会触发混乱。",
+        "focus": {
+          "c": 4,
+          "r": 3,
+          "label": "教程完成"
+        }
+      }
+    ]
   }
 ];
