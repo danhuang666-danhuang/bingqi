@@ -10589,6 +10589,9 @@
   function startSandboxBattle() {
     if (!state.test) return;
     if (!state.map) { toast('先选择或导入地图'); return; }
+    ensureSandboxPanel();
+    const panel = el('sandbox-panel');
+    if (panel) panel.classList.remove('hidden');
     state.deploy = { units: [], ready: { attacker: true, defender: true } };
     state.decks = { attacker: [], defender: [] };
     const hf = state.hostFactions || {};
