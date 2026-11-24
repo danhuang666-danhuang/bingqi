@@ -3334,3 +3334,1841 @@ window.PREP_DATA = {
     },
   },
 };
+
+window.PREP_DATA.factions.ussr = {
+  "name": "苏联",
+  "units": {
+    "步兵营": {
+      "price": 28,
+      "hp": 6,
+      "cat": "main",
+      "move": 4,
+      "ap": {
+        "urban": 20,
+        "r1": 5,
+        "r2": 4
+      },
+      "av": {
+        "front": 0,
+        "side": 0,
+        "rear": 0
+      },
+      "attack": {
+        "urban": [
+          2.75,
+          1.25
+        ],
+        "r1": [
+          2.5,
+          1.5
+        ],
+        "r2": [
+          0.75,
+          0.25
+        ]
+      },
+      "counter": 1.25,
+      "traits": ""
+    },
+    "近卫步兵营": {
+      "price": 50,
+      "hp": 6,
+      "cat": "main",
+      "move": 5,
+      "ap": {
+        "urban": 20,
+        "r1": 13,
+        "r2": 10
+      },
+      "av": {
+        "front": 0,
+        "side": 0,
+        "rear": 0
+      },
+      "attack": {
+        "urban": [
+          3.5,
+          2
+        ],
+        "r1": [
+          3.5,
+          2.75
+        ],
+        "r2": [
+          1.5,
+          1
+        ]
+      },
+      "counter": 1.25,
+      "traits": "山地作战，政治军队"
+    },
+    "惩戒营": {
+      "price": 15,
+      "hp": 6,
+      "cat": "main",
+      "move": 4,
+      "ap": {
+        "urban": 0,
+        "r1": 0,
+        "r2": 0
+      },
+      "av": {
+        "front": 0,
+        "side": 0,
+        "rear": 0
+      },
+      "attack": {
+        "urban": [
+          4,
+          1.5
+        ],
+        "r1": [
+          2,
+          1.75
+        ],
+        "r2": [
+          0.75,
+          0.5
+        ]
+      },
+      "counter": 1.25,
+      "traits": ""
+    },
+    "伞兵营": {
+      "price": 28,
+      "hp": 5,
+      "cat": "main",
+      "move": 5,
+      "ap": {
+        "urban": 20,
+        "r1": 3,
+        "r2": 0
+      },
+      "av": {
+        "front": 0,
+        "side": 0,
+        "rear": 0
+      },
+      "attack": {
+        "urban": [
+          1.5,
+          0.5
+        ],
+        "r1": [
+          0.75,
+          0.5
+        ],
+        "r2": [
+          0.25,
+          0.25
+        ]
+      },
+      "counter": 1.25,
+      "traits": ""
+    },
+    "机械化步兵营": {
+      "price": 32,
+      "hp": 6,
+      "cat": "main",
+      "move": 8,
+      "ap": {
+        "urban": 20,
+        "r1": 13,
+        "r2": 10
+      },
+      "av": {
+        "front": 3,
+        "side": 2,
+        "rear": 2
+      },
+      "attack": {
+        "urban": [
+          3.5,
+          1.25
+        ],
+        "r1": [
+          2.75,
+          1.25
+        ],
+        "r2": [
+          0.75,
+          0.25
+        ]
+      },
+      "counter": 1.2,
+      "traits": "机械化"
+    },
+    "突击工兵营": {
+      "price": 35,
+      "hp": 4,
+      "cat": "main",
+      "move": 4,
+      "ap": {
+        "urban": 20,
+        "r1": 5,
+        "r2": 0
+      },
+      "av": {
+        "front": 0,
+        "side": 0,
+        "rear": 0
+      },
+      "attack": {
+        "urban": [
+          2.25,
+          0.75
+        ],
+        "r1": [
+          1.5,
+          0.75
+        ],
+        "r2": [
+          0.25,
+          0
+        ]
+      },
+      "counter": 1.25,
+      "traits": "爆破"
+    },
+    "反坦克营": {
+      "price": 32,
+      "hp": 6,
+      "cat": "main",
+      "move": 3,
+      "ap": {
+        "urban": 20,
+        "r1": 8,
+        "r2": 6
+      },
+      "av": {
+        "front": 0,
+        "side": 0,
+        "rear": 0
+      },
+      "attack": {
+        "urban": [
+          1.75,
+          1
+        ],
+        "r1": [
+          1.75,
+          1.75
+        ],
+        "r2": [
+          0.5,
+          0.5
+        ]
+      },
+      "counter": 1.75,
+      "traits": ""
+    },
+    "SU85中型坦歼营": {
+      "price": 70,
+      "hp": 6,
+      "cat": "main",
+      "move": 6,
+      "ap": {
+        "urban": 20,
+        "r1": 13,
+        "r2": 11
+      },
+      "av": {
+        "front": 7,
+        "side": 5,
+        "rear": 5
+      },
+      "attack": {
+        "urban": [
+          2.25,
+          1.25
+        ],
+        "r1": [
+          2.5,
+          2.25
+        ],
+        "r2": [
+          1,
+          1
+        ]
+      },
+      "counter": 1.5,
+      "traits": "机械化"
+    },
+    "SU100中型坦歼营": {
+      "price": 95,
+      "hp": 6,
+      "cat": "main",
+      "move": 6,
+      "ap": {
+        "urban": 24,
+        "r1": 22,
+        "r2": 17
+      },
+      "av": {
+        "front": 7,
+        "side": 5,
+        "rear": 5
+      },
+      "attack": {
+        "urban": [
+          2.75,
+          1.5
+        ],
+        "r1": [
+          3.25,
+          3
+        ],
+        "r2": [
+          1.25,
+          1.25
+        ]
+      },
+      "counter": 1.2,
+      "traits": "机械化"
+    },
+    "ISU152重型坦歼营": {
+      "price": 85,
+      "hp": 6,
+      "cat": "main",
+      "move": 4,
+      "ap": {
+        "urban": 20,
+        "r1": 19,
+        "r2": 17
+      },
+      "av": {
+        "front": 13,
+        "side": 9,
+        "rear": 8
+      },
+      "attack": {
+        "urban": [
+          3,
+          1.5
+        ],
+        "r1": [
+          3.25,
+          2.5
+        ],
+        "r2": [
+          1.25,
+          0.75
+        ]
+      },
+      "counter": 1.5,
+      "traits": "机械化"
+    },
+    "37防空炮营": {
+      "price": 25,
+      "hp": 3,
+      "cat": "aux",
+      "move": 3,
+      "ap": {
+        "urban": 0,
+        "r1": 0,
+        "r2": 2
+      },
+      "av": {
+        "front": 0,
+        "side": 0,
+        "rear": 0
+      },
+      "attack": {
+        "urban": [
+          4.5,
+          3.5
+        ],
+        "r1": [
+          3.75,
+          3
+        ],
+        "r2": [
+          1,
+          0.75
+        ]
+      },
+      "counter": 1.75,
+      "traits": "防空半径1，伤害1"
+    },
+    "85防空炮营": {
+      "price": 40,
+      "hp": 3,
+      "cat": "aux",
+      "move": 2,
+      "ap": {
+        "urban": 15,
+        "r1": 13,
+        "r2": 11
+      },
+      "av": {
+        "front": 0,
+        "side": 0,
+        "rear": 0
+      },
+      "attack": {
+        "urban": [
+          1,
+          1.5
+        ],
+        "r1": [
+          2.25,
+          3.25
+        ],
+        "r2": [
+          1.25,
+          2
+        ]
+      },
+      "counter": 1.75,
+      "traits": "防空半径2，伤害1.5"
+    },
+    "ZSU37自行防空炮营": {
+      "price": 25,
+      "hp": 3,
+      "cat": "aux",
+      "move": 6,
+      "ap": {
+        "urban": 0,
+        "r1": 0,
+        "r2": 2
+      },
+      "av": {
+        "front": 3,
+        "side": 2,
+        "rear": 1
+      },
+      "attack": {
+        "urban": [
+          3.25,
+          2.5
+        ],
+        "r1": [
+          3.25,
+          2.5
+        ],
+        "r2": [
+          0.75,
+          0.5
+        ]
+      },
+      "counter": 1.2,
+      "traits": "机械化，防空半径1，伤害1"
+    },
+    "Il2侦察机": {
+      "price": 30,
+      "hp": 5,
+      "cat": "air",
+      "move": 450,
+      "ap": {
+        "urban": 0,
+        "r1": 0,
+        "r2": 0
+      },
+      "av": {
+        "front": 0,
+        "side": 0,
+        "rear": 0
+      },
+      "attack": {
+        "urban": [
+          0,
+          0
+        ],
+        "r1": [
+          0,
+          0
+        ],
+        "r2": [
+          0,
+          0
+        ]
+      },
+      "counter": 1,
+      "traits": "侦察半径2"
+    },
+    "Yak9战斗机": {
+      "price": 25,
+      "hp": 4,
+      "cat": "air",
+      "move": 600,
+      "ap": {
+        "urban": 0,
+        "r1": 0,
+        "r2": 0
+      },
+      "av": {
+        "front": 0,
+        "side": 0,
+        "rear": 0
+      },
+      "attack": {
+        "urban": [
+          0,
+          0
+        ],
+        "r1": [
+          0,
+          0
+        ],
+        "r2": [
+          0,
+          0
+        ]
+      },
+      "counter": 1,
+      "traits": "拦截伤害0.75"
+    },
+    "Il2攻击机": {
+      "price": 55,
+      "hp": 5,
+      "cat": "air",
+      "move": 420,
+      "ap": {
+        "urban": 0,
+        "r1": 0,
+        "r2": 0
+      },
+      "av": {
+        "front": 0,
+        "side": 0,
+        "rear": 0
+      },
+      "attack": {
+        "urban": [
+          0,
+          0
+        ],
+        "r1": [
+          0,
+          0
+        ],
+        "r2": [
+          0,
+          0
+        ]
+      },
+      "counter": 1,
+      "traits": "空中压制1.5/2.5"
+    },
+    "Tu2轰炸机": {
+      "price": 125,
+      "hp": 5,
+      "cat": "air",
+      "move": 350,
+      "ap": {
+        "urban": 0,
+        "r1": 0,
+        "r2": 0
+      },
+      "av": {
+        "front": 0,
+        "side": 0,
+        "rear": 0
+      },
+      "attack": {
+        "urban": [
+          0,
+          0
+        ],
+        "r1": [
+          0,
+          0
+        ],
+        "r2": [
+          0,
+          0
+        ]
+      },
+      "counter": 1,
+      "traits": "重轰，空中压制3/2"
+    },
+    "反炮兵小组": {
+      "price": 10,
+      "hp": 1,
+      "cat": "support",
+      "move": 4,
+      "ap": {
+        "urban": 0,
+        "r1": 0,
+        "r2": 0
+      },
+      "av": {
+        "front": 0,
+        "side": 0,
+        "rear": 0
+      },
+      "attack": {
+        "urban": [
+          0,
+          0
+        ],
+        "r1": [
+          0,
+          0
+        ],
+        "r2": [
+          0,
+          0
+        ]
+      },
+      "counter": 1,
+      "traits": "声学反炮兵6"
+    },
+    "76炮兵营": {
+      "price": 35,
+      "hp": 3,
+      "cat": "aux",
+      "move": 2,
+      "ap": {
+        "urban": 9,
+        "r1": 8,
+        "r2": 6
+      },
+      "av": {
+        "front": 0,
+        "side": 0,
+        "rear": 0
+      },
+      "attack": {
+        "urban": [
+          0.5,
+          0.25
+        ],
+        "r1": [
+          1.5,
+          1
+        ],
+        "r2": [
+          1,
+          0.75
+        ]
+      },
+      "counter": 1,
+      "traits": "曲射伤害1，半径7"
+    },
+    "122炮兵营": {
+      "price": 50,
+      "hp": 3,
+      "cat": "aux",
+      "move": 2,
+      "ap": {
+        "urban": 21,
+        "r1": 19,
+        "r2": 17
+      },
+      "av": {
+        "front": 0,
+        "side": 0,
+        "rear": 0
+      },
+      "attack": {
+        "urban": [
+          0.5,
+          0.5
+        ],
+        "r1": [
+          2.25,
+          2
+        ],
+        "r2": [
+          1.5,
+          1.25
+        ]
+      },
+      "counter": 1,
+      "traits": "曲射伤害1.5，半径11"
+    },
+    "152炮兵营": {
+      "price": 60,
+      "hp": 3,
+      "cat": "aux",
+      "move": 2,
+      "ap": {
+        "urban": 0,
+        "r1": 0,
+        "r2": 0
+      },
+      "av": {
+        "front": 0,
+        "side": 0,
+        "rear": 0
+      },
+      "attack": {
+        "urban": [
+          0.75,
+          0.5
+        ],
+        "r1": [
+          3,
+          2
+        ],
+        "r2": [
+          2,
+          1.5
+        ]
+      },
+      "counter": 1,
+      "traits": "曲射伤害2，半径7"
+    },
+    "SU76自行火炮": {
+      "price": 35,
+      "hp": 3,
+      "cat": "aux",
+      "move": 6,
+      "ap": {
+        "urban": 9,
+        "r1": 8,
+        "r2": 6
+      },
+      "av": {
+        "front": 3,
+        "side": 2,
+        "rear": 0
+      },
+      "attack": {
+        "urban": [
+          0.5,
+          0.25
+        ],
+        "r1": [
+          1.5,
+          1.5
+        ],
+        "r2": [
+          1,
+          1
+        ]
+      },
+      "counter": 1,
+      "traits": "机械化，曲射伤害1，半径7"
+    },
+    "喀秋莎火箭炮营": {
+      "price": 80,
+      "hp": 3,
+      "cat": "aux",
+      "move": 6,
+      "ap": {
+        "urban": 0,
+        "r1": 0,
+        "r2": 0
+      },
+      "av": {
+        "front": 0,
+        "side": 0,
+        "rear": 0
+      },
+      "attack": {
+        "urban": [
+          0,
+          0
+        ],
+        "r1": [
+          2.25,
+          1.25
+        ],
+        "r2": [
+          1.5,
+          0.75
+        ]
+      },
+      "counter": 1,
+      "traits": "摩托化，火箭炮，杀伤半径1，伤害3"
+    },
+    "侦查营": {
+      "price": 25,
+      "hp": 3,
+      "cat": "aux",
+      "move": 5,
+      "ap": {
+        "urban": 20,
+        "r1": 3,
+        "r2": 0
+      },
+      "av": {
+        "front": 0,
+        "side": 0,
+        "rear": 0
+      },
+      "attack": {
+        "urban": [
+          1.25,
+          0.5
+        ],
+        "r1": [
+          0.75,
+          0.5
+        ],
+        "r2": [
+          0,
+          0
+        ]
+      },
+      "counter": 1.25,
+      "traits": "侦查半径2"
+    },
+    "工兵营": {
+      "price": 25,
+      "hp": 3,
+      "cat": "aux",
+      "move": 4,
+      "ap": {
+        "urban": 0,
+        "r1": 0,
+        "r2": 0
+      },
+      "av": {
+        "front": 0,
+        "side": 0,
+        "rear": 0
+      },
+      "attack": {
+        "urban": [
+          1.25,
+          0.25
+        ],
+        "r1": [
+          0.75,
+          0.25
+        ],
+        "r2": [
+          0,
+          0
+        ]
+      },
+      "counter": 1.25,
+      "traits": "工程"
+    },
+    "教导营": {
+      "price": 8,
+      "hp": 3,
+      "cat": "aux",
+      "move": 4,
+      "ap": {
+        "urban": 0,
+        "r1": 0,
+        "r2": 0
+      },
+      "av": {
+        "front": 0,
+        "side": 0,
+        "rear": 0
+      },
+      "attack": {
+        "urban": [
+          1.25,
+          0.25
+        ],
+        "r1": [
+          0.75,
+          0.25
+        ],
+        "r2": [
+          0,
+          0
+        ]
+      },
+      "counter": 1.25,
+      "traits": "宪兵"
+    },
+    "医疗连": {
+      "price": 5,
+      "hp": 2,
+      "cat": "support",
+      "move": 4,
+      "ap": {
+        "urban": 0,
+        "r1": 0,
+        "r2": 0
+      },
+      "av": {
+        "front": 0,
+        "side": 0,
+        "rear": 0
+      },
+      "attack": {
+        "urban": [
+          0.75,
+          0.25
+        ],
+        "r1": [
+          0.5,
+          0
+        ],
+        "r2": [
+          0,
+          0
+        ]
+      },
+      "counter": 1.25,
+      "traits": "医疗"
+    },
+    "摩托化运输队": {
+      "price": 13,
+      "hp": 3,
+      "cat": "aux",
+      "move": 5,
+      "ap": {
+        "urban": 0,
+        "r1": 0,
+        "r2": 0
+      },
+      "av": {
+        "front": 0,
+        "side": 0,
+        "rear": 0
+      },
+      "attack": {
+        "urban": [
+          0,
+          0
+        ],
+        "r1": [
+          0,
+          0
+        ],
+        "r2": [
+          0,
+          0
+        ]
+      },
+      "counter": 1,
+      "traits": "地面运输，摩托化"
+    },
+    "T60轻坦营": {
+      "price": 45,
+      "hp": 6,
+      "cat": "main",
+      "move": 6,
+      "ap": {
+        "urban": 20,
+        "r1": 3,
+        "r2": 1
+      },
+      "av": {
+        "front": 4,
+        "side": 3,
+        "rear": 3
+      },
+      "attack": {
+        "urban": [
+          3.25,
+          2.25
+        ],
+        "r1": [
+          2.75,
+          2
+        ],
+        "r2": [
+          0.75,
+          0.5
+        ]
+      },
+      "counter": 1.2,
+      "traits": "机械化"
+    },
+    "T3476中坦营": {
+      "price": 52,
+      "hp": 6,
+      "cat": "main",
+      "move": 7,
+      "ap": {
+        "urban": 20,
+        "r1": 9,
+        "r2": 8
+      },
+      "av": {
+        "front": 9,
+        "side": 5,
+        "rear": 5
+      },
+      "attack": {
+        "urban": [
+          3.25,
+          2.25
+        ],
+        "r1": [
+          3.25,
+          2.75
+        ],
+        "r2": [
+          1,
+          0.75
+        ]
+      },
+      "counter": 1.2,
+      "traits": "机械化，中坦"
+    },
+    "T3485中坦营": {
+      "price": 75,
+      "hp": 6,
+      "cat": "main",
+      "move": 6,
+      "ap": {
+        "urban": 20,
+        "r1": 13,
+        "r2": 11
+      },
+      "av": {
+        "front": 11,
+        "side": 7,
+        "rear": 5
+      },
+      "attack": {
+        "urban": [
+          3,
+          2.25
+        ],
+        "r1": [
+          3.25,
+          3
+        ],
+        "r2": [
+          1.25,
+          1.25
+        ]
+      },
+      "counter": 1.2,
+      "traits": "机械化，中坦"
+    },
+    "T44中坦营": {
+      "price": 90,
+      "hp": 6,
+      "cat": "main",
+      "move": 6,
+      "ap": {
+        "urban": 20,
+        "r1": 13,
+        "r2": 11
+      },
+      "av": {
+        "front": 18,
+        "side": 8,
+        "rear": 8
+      },
+      "attack": {
+        "urban": [
+          3,
+          2.25
+        ],
+        "r1": [
+          3.25,
+          3
+        ],
+        "r2": [
+          1.25,
+          1.25
+        ]
+      },
+      "counter": 1.2,
+      "traits": "机械化，中坦"
+    },
+    "T44-100中坦营": {
+      "price": 105,
+      "hp": 6,
+      "cat": "main",
+      "move": 6,
+      "ap": {
+        "urban": 24,
+        "r1": 22,
+        "r2": 17
+      },
+      "av": {
+        "front": 20,
+        "side": 9,
+        "rear": 8
+      },
+      "attack": {
+        "urban": [
+          4,
+          2.25
+        ],
+        "r1": [
+          4.5,
+          3.5
+        ],
+        "r2": [
+          2,
+          1.25
+        ]
+      },
+      "counter": 1.2,
+      "traits": "机械化，中坦"
+    },
+    "IS2重坦营": {
+      "price": 95,
+      "hp": 6,
+      "cat": "main",
+      "move": 5,
+      "ap": {
+        "urban": 21,
+        "r1": 19,
+        "r2": 17
+      },
+      "av": {
+        "front": 18,
+        "side": 11,
+        "rear": 10
+      },
+      "attack": {
+        "urban": [
+          3.75,
+          2
+        ],
+        "r1": [
+          4.25,
+          2.75
+        ],
+        "r2": [
+          1.75,
+          1
+        ]
+      },
+      "counter": 1.2,
+      "traits": "机械化，重坦"
+    },
+    "IS3重坦营": {
+      "price": 140,
+      "hp": 6,
+      "cat": "main",
+      "move": 5,
+      "ap": {
+        "urban": 20,
+        "r1": 19,
+        "r2": 17
+      },
+      "av": {
+        "front": 28,
+        "side": 22,
+        "rear": 14
+      },
+      "attack": {
+        "urban": [
+          2.75,
+          1.75
+        ],
+        "r1": [
+          3,
+          2.5
+        ],
+        "r2": [
+          1,
+          0.75
+        ]
+      },
+      "counter": 1.2,
+      "traits": "机械化，重坦"
+    },
+    "Il2对地攻击机": {
+      "price": 55,
+      "hp": 5,
+      "cat": "air",
+      "move": 420,
+      "ap": {
+        "urban": 0,
+        "r1": 0,
+        "r2": 0
+      },
+      "av": {
+        "front": 0,
+        "side": 0,
+        "rear": 0
+      },
+      "attack": {
+        "urban": [
+          0,
+          0
+        ],
+        "r1": [
+          0,
+          0
+        ],
+        "r2": [
+          0,
+          0
+        ]
+      },
+      "counter": 1,
+      "traits": "空中压制1.5/2.5"
+    }
+  },
+  "corps": [
+    {
+      "id": "ussr-belarus-2-front",
+      "name": "白俄罗斯第2方面军直属",
+      "units": [
+        {
+          "name": "医疗连",
+          "max": 5
+        },
+        {
+          "name": "152炮兵营",
+          "max": 3
+        },
+        {
+          "name": "喀秋莎火箭炮营",
+          "max": 1
+        },
+        {
+          "name": "IS2重坦营",
+          "max": 2
+        },
+        {
+          "name": "运输车",
+          "max": 2
+        },
+        {
+          "name": "反炮兵小组",
+          "max": 2
+        }
+      ]
+    },
+    {
+      "id": "ussr-stalingrad-front",
+      "name": "斯大林格勒方面军直属",
+      "units": [
+        {
+          "name": "医疗连",
+          "max": 5
+        },
+        {
+          "name": "喀秋莎火箭炮营",
+          "max": 1
+        },
+        {
+          "name": "惩戒营",
+          "max": 4
+        },
+        {
+          "name": "Tu2轰炸机",
+          "max": 1
+        },
+        {
+          "name": "运输车",
+          "max": 2
+        },
+        {
+          "name": "反炮兵小组",
+          "max": 2
+        }
+      ]
+    }
+  ],
+  "divisions": [
+    {
+      "id": "ussr-32gds-rifle",
+      "name": "第32近卫步兵军",
+      "type": "infantry",
+      "phase": "AB",
+      "slots": {
+        "main": 7,
+        "support": 5
+      },
+      "planes": 3,
+      "attack": {
+        "A": 235,
+        "B": 300
+      },
+      "defense": {
+        "A": 185,
+        "B": 285
+      },
+      "fundsC": null,
+      "pool": {
+        "A": [
+          {
+            "name": "突击工兵营",
+            "max": 1
+          },
+          {
+            "name": "步兵营",
+            "max": 2
+          },
+          {
+            "name": "近卫步兵营",
+            "max": 2
+          },
+          {
+            "name": "76炮兵营",
+            "max": 2
+          },
+          {
+            "name": "122炮兵营",
+            "max": 1
+          },
+          {
+            "name": "37防空炮营",
+            "max": 1
+          },
+          {
+            "name": "反坦克营",
+            "max": 1
+          },
+          {
+            "name": "Yak9战斗机",
+            "max": 1
+          },
+          {
+            "name": "Il2对地攻击机",
+            "max": 1
+          },
+          {
+            "name": "T60轻坦营",
+            "max": 1
+          },
+          {
+            "name": "教导营",
+            "max": 1
+          }
+        ],
+        "B": [
+          {
+            "name": "ISU152重型坦歼营",
+            "max": 1
+          },
+          {
+            "name": "T3476中坦营",
+            "max": 1
+          },
+          {
+            "name": "近卫步兵营",
+            "max": 1
+          },
+          {
+            "name": "工兵营",
+            "max": 1
+          },
+          {
+            "name": "85防空炮营",
+            "max": 1
+          }
+        ],
+        "C": []
+      }
+    },
+    {
+      "id": "ussr-4gds-abn",
+      "name": "第4近卫空降军",
+      "type": "airborne",
+      "phase": "AB",
+      "slots": {
+        "main": 8,
+        "support": 5
+      },
+      "planes": null,
+      "attack": {
+        "A": 250,
+        "B": 320
+      },
+      "defense": {
+        "A": 170,
+        "B": 270
+      },
+      "fundsC": null,
+      "pool": {
+        "A": [
+          {
+            "name": "工兵营",
+            "max": 1
+          },
+          {
+            "name": "伞兵营",
+            "max": 3
+          },
+          {
+            "name": "近卫步兵营",
+            "max": 2
+          },
+          {
+            "name": "侦查营",
+            "max": 1
+          },
+          {
+            "name": "76炮兵营",
+            "max": 2
+          },
+          {
+            "name": "37防空炮营",
+            "max": 1
+          },
+          {
+            "name": "Yak9战斗机",
+            "max": 3
+          },
+          {
+            "name": "Il2对地攻击机",
+            "max": 2
+          },
+          {
+            "name": "T60轻坦营",
+            "max": 1
+          },
+          {
+            "name": "教导营",
+            "max": 1
+          }
+        ],
+        "B": [
+          {
+            "name": "喀秋莎火箭炮营",
+            "max": 1
+          },
+          {
+            "name": "SU85中型坦歼营",
+            "max": 1
+          },
+          {
+            "name": "Il2对地攻击机",
+            "max": 1
+          },
+          {
+            "name": "T60轻坦营",
+            "max": 1
+          }
+        ],
+        "C": []
+      }
+    },
+    {
+      "id": "ussr-22gds-rifle",
+      "name": "第22近卫步兵军",
+      "type": "infantry",
+      "phase": "AB",
+      "slots": {
+        "main": 8,
+        "support": 5
+      },
+      "planes": 3,
+      "attack": {
+        "A": 225,
+        "B": 265
+      },
+      "defense": {
+        "A": 200,
+        "B": 295
+      },
+      "fundsC": null,
+      "pool": {
+        "A": [
+          {
+            "name": "工兵营",
+            "max": 1
+          },
+          {
+            "name": "步兵营",
+            "max": 3
+          },
+          {
+            "name": "近卫步兵营",
+            "max": 1
+          },
+          {
+            "name": "侦查营",
+            "max": 1
+          },
+          {
+            "name": "76炮兵营",
+            "max": 2
+          },
+          {
+            "name": "122炮兵营",
+            "max": 1
+          },
+          {
+            "name": "37防空炮营",
+            "max": 2
+          },
+          {
+            "name": "反坦克营",
+            "max": 2
+          },
+          {
+            "name": "Yak9战斗机",
+            "max": 2
+          },
+          {
+            "name": "Il2对地攻击机",
+            "max": 1
+          },
+          {
+            "name": "Il2侦察机",
+            "max": 1
+          },
+          {
+            "name": "教导营",
+            "max": 1
+          }
+        ],
+        "B": [
+          {
+            "name": "T60轻坦营",
+            "max": 2
+          },
+          {
+            "name": "85防空炮营",
+            "max": 1
+          }
+        ],
+        "C": []
+      }
+    },
+    {
+      "id": "ussr-6-breakthrough-art",
+      "name": "第6突破炮兵军",
+      "type": "artillery",
+      "phase": "AB",
+      "slots": {
+        "main": 8,
+        "support": 5
+      },
+      "planes": 3,
+      "attack": {
+        "A": 255,
+        "B": 305
+      },
+      "defense": {
+        "A": 185,
+        "B": 275
+      },
+      "fundsC": null,
+      "pool": {
+        "A": [
+          {
+            "name": "工兵营",
+            "max": 1
+          },
+          {
+            "name": "突击工兵营",
+            "max": 1
+          },
+          {
+            "name": "近卫步兵营",
+            "max": 1
+          },
+          {
+            "name": "步兵营",
+            "max": 2
+          },
+          {
+            "name": "76炮兵营",
+            "max": 3
+          },
+          {
+            "name": "122炮兵营",
+            "max": 2
+          },
+          {
+            "name": "喀秋莎火箭炮营",
+            "max": 2
+          },
+          {
+            "name": "37防空炮营",
+            "max": 1
+          },
+          {
+            "name": "Yak9战斗机",
+            "max": 2
+          },
+          {
+            "name": "Il2侦察机",
+            "max": 1
+          },
+          {
+            "name": "教导营",
+            "max": 1
+          }
+        ],
+        "B": [
+          {
+            "name": "T3476中坦营",
+            "max": 1
+          },
+          {
+            "name": "近卫步兵营",
+            "max": 1
+          }
+        ],
+        "C": []
+      }
+    },
+    {
+      "id": "ussr-2gds-tank",
+      "name": "第2近卫坦克军",
+      "type": "armored",
+      "phase": "C",
+      "slots": {
+        "main": 8,
+        "support": 5
+      },
+      "planes": 3,
+      "attack": null,
+      "defense": null,
+      "fundsC": 495,
+      "pool": {
+        "A": [],
+        "B": [],
+        "C": [
+          {
+            "name": "机械化步兵营",
+            "max": 4
+          },
+          {
+            "name": "T3476中坦营",
+            "max": 1
+          },
+          {
+            "name": "T3485中坦营",
+            "max": 2
+          },
+          {
+            "name": "SU85中型坦歼营",
+            "max": 2
+          },
+          {
+            "name": "T44中坦营",
+            "max": 1
+          },
+          {
+            "name": "T44-100中坦营",
+            "max": 1
+          },
+          {
+            "name": "ZSU37自行防空炮营",
+            "max": 1
+          },
+          {
+            "name": "SU76自行火炮",
+            "max": 1
+          },
+          {
+            "name": "喀秋莎火箭炮营",
+            "max": 1
+          },
+          {
+            "name": "Yak9战斗机",
+            "max": 2
+          },
+          {
+            "name": "Il2对地攻击机",
+            "max": 1
+          },
+          {
+            "name": "Il2侦察机",
+            "max": 1
+          },
+          {
+            "name": "Tu2轰炸机",
+            "max": 1
+          }
+        ]
+      }
+    },
+    {
+      "id": "ussr-7gds-heavy-tank",
+      "name": "第7近卫重型坦克军",
+      "type": "armored",
+      "phase": "C",
+      "slots": {
+        "main": 7,
+        "support": 5
+      },
+      "planes": 3,
+      "attack": null,
+      "defense": null,
+      "fundsC": 515,
+      "pool": {
+        "A": [],
+        "B": [],
+        "C": [
+          {
+            "name": "机械化步兵营",
+            "max": 2
+          },
+          {
+            "name": "T3476中坦营",
+            "max": 2
+          },
+          {
+            "name": "IS2重坦营",
+            "max": 2
+          },
+          {
+            "name": "ISU152重型坦歼营",
+            "max": 2
+          },
+          {
+            "name": "T44中坦营",
+            "max": 2
+          },
+          {
+            "name": "SU76自行火炮",
+            "max": 2
+          },
+          {
+            "name": "ZSU37自行防空炮营",
+            "max": 1
+          },
+          {
+            "name": "喀秋莎火箭炮营",
+            "max": 2
+          },
+          {
+            "name": "Yak9战斗机",
+            "max": 2
+          },
+          {
+            "name": "Il2对地攻击机",
+            "max": 1
+          },
+          {
+            "name": "Il2侦察机",
+            "max": 1
+          }
+        ]
+      }
+    },
+    {
+      "id": "ussr-6gds-tank",
+      "name": "第6近卫坦克军",
+      "type": "armored",
+      "phase": "C",
+      "slots": {
+        "main": 7,
+        "support": 5
+      },
+      "planes": 3,
+      "attack": null,
+      "defense": null,
+      "fundsC": 490,
+      "pool": {
+        "A": [],
+        "B": [],
+        "C": [
+          {
+            "name": "机械化步兵营",
+            "max": 3
+          },
+          {
+            "name": "T60轻坦营",
+            "max": 2
+          },
+          {
+            "name": "T3476中坦营",
+            "max": 1
+          },
+          {
+            "name": "T3485中坦营",
+            "max": 2
+          },
+          {
+            "name": "IS2重坦营",
+            "max": 1
+          },
+          {
+            "name": "ZSU37自行防空炮营",
+            "max": 1
+          },
+          {
+            "name": "SU76自行火炮",
+            "max": 3
+          },
+          {
+            "name": "T44中坦营",
+            "max": 2
+          },
+          {
+            "name": "IS3重坦营",
+            "max": 1
+          },
+          {
+            "name": "喀秋莎火箭炮营",
+            "max": 2
+          },
+          {
+            "name": "Il2侦察机",
+            "max": 1
+          },
+          {
+            "name": "Yak9战斗机",
+            "max": 2
+          },
+          {
+            "name": "Il2对地攻击机",
+            "max": 2
+          },
+          {
+            "name": "Tu2轰炸机",
+            "max": 1
+          }
+        ]
+      }
+    },
+    {
+      "id": "ussr-18gds-tank",
+      "name": "第18红旗坦克军",
+      "type": "armored",
+      "phase": "C",
+      "slots": {
+        "main": 7,
+        "support": 5
+      },
+      "planes": 3,
+      "attack": null,
+      "defense": null,
+      "fundsC": 500,
+      "pool": {
+        "A": [],
+        "B": [],
+        "C": [
+          {
+            "name": "机械化步兵营",
+            "max": 3
+          },
+          {
+            "name": "T60轻坦营",
+            "max": 3
+          },
+          {
+            "name": "T3476中坦营",
+            "max": 2
+          },
+          {
+            "name": "SU100中型坦歼营",
+            "max": 2
+          },
+          {
+            "name": "T44中坦营",
+            "max": 2
+          },
+          {
+            "name": "SU76自行火炮",
+            "max": 2
+          },
+          {
+            "name": "喀秋莎火箭炮营",
+            "max": 1
+          },
+          {
+            "name": "ZSU37自行防空炮营",
+            "max": 1
+          },
+          {
+            "name": "Yak9战斗机",
+            "max": 2
+          },
+          {
+            "name": "Il2对地攻击机",
+            "max": 1
+          },
+          {
+            "name": "Il2侦察机",
+            "max": 1
+          }
+        ]
+      }
+    }
+  ]
+};
+
+window.PREP_DATA.modelIndex = Object.assign(window.PREP_DATA.modelIndex || {}, {"37防空炮营":{"ussr":["ussr-40s-aa.js","ussr|40s|aa|37防空炮营"]},"85防空炮营":{"ussr":["ussr-40s-aa.js","ussr|40s|aa|85防空炮营"]},"ZSU37自行防空炮营":{"ussr":["ussr-40s-aa.js","ussr|40s|aa|ZSU37自行防空炮营"]},"Il2侦察机":{"ussr":["ussr-40s-air.js","ussr|40s|air|Il2侦察机"]},"Yak9战斗机":{"ussr":["ussr-40s-air.js","ussr|40s|air|Yak9战斗机"]},"Il2攻击机":{"ussr":["ussr-40s-air.js","ussr|40s|air|Il2攻击机"]},"Tu2轰炸机":{"ussr":["ussr-40s-air.js","ussr|40s|air|Tu2轰炸机"]},"T60轻坦营":{"ussr":["ussr-40s-armor.js","ussr|40s|armor|T60轻坦营"]},"T3476中坦营":{"ussr":["ussr-40s-armor.js","ussr|40s|armor|T3476中坦营"]},"T3485中坦营":{"ussr":["ussr-40s-armor.js","ussr|40s|armor|T3485中坦营"]},"T44中坦营":{"ussr":["ussr-40s-armor.js","ussr|40s|armor|T44中坦营"]},"T44-100中坦营":{"ussr":["ussr-40s-armor.js","ussr|40s|armor|T44-100中坦营"]},"IS2重坦营":{"ussr":["ussr-40s-armor.js","ussr|40s|armor|IS2重坦营"]},"IS3重坦营":{"ussr":["ussr-40s-armor.js","ussr|40s|armor|IS3重坦营"]},"反炮兵小组":{"ussr":["ussr-40s-arty.js","ussr|40s|arty|反炮兵小组"]},"76炮兵营":{"ussr":["ussr-40s-arty.js","ussr|40s|arty|76炮兵营"]},"122炮兵营":{"ussr":["ussr-40s-arty.js","ussr|40s|arty|122炮兵营"]},"152炮兵营":{"ussr":["ussr-40s-arty.js","ussr|40s|arty|152炮兵营"]},"SU76自行火炮":{"ussr":["ussr-40s-arty.js","ussr|40s|arty|SU76自行火炮"]},"喀秋莎火箭炮营":{"ussr":["ussr-40s-arty.js","ussr|40s|arty|喀秋莎火箭炮营"]},"反坦克营":{"ussr":["ussr-40s-at.js","ussr|40s|at|反坦克营"]},"SU85中型坦歼营":{"ussr":["ussr-40s-at.js","ussr|40s|at|SU85中型坦歼营"]},"SU100中型坦歼营":{"ussr":["ussr-40s-at.js","ussr|40s|at|SU100中型坦歼营"]},"ISU152重型坦歼营":{"ussr":["ussr-40s-at.js","ussr|40s|at|ISU152重型坦歼营"]},"步兵营":{"ussr":["ussr-40s-inf.js","ussr|40s|inf|步兵营"]},"近卫步兵营":{"ussr":["ussr-40s-inf.js","ussr|40s|inf|近卫步兵营"]},"惩戒营":{"ussr":["ussr-40s-inf.js","ussr|40s|inf|惩戒营"]},"伞兵营":{"ussr":["ussr-40s-inf.js","ussr|40s|inf|伞兵营"]},"机械化步兵营":{"ussr":["ussr-40s-inf.js","ussr|40s|inf|机械化步兵营"]},"侦查营":{"ussr":["ussr-40s-recon.js","ussr|40s|recon|侦查营"]},"突击工兵营":{"ussr":["ussr-40s-support.js","ussr|40s|support|突击工兵营"]},"工兵营":{"ussr":["ussr-40s-support.js","ussr|40s|support|工兵营"]},"教导营":{"ussr":["ussr-40s-support.js","ussr|40s|support|教导营"]},"医疗连":{"ussr":["ussr-40s-support.js","ussr|40s|support|医疗连"]},"摩托化运输队":{"ussr":["ussr-40s-support.js","ussr|40s|support|摩托化运输队"]}});
+
+window.PREP_DATA.factions.ussr.units['运输车'] = Object.assign({}, window.PREP_DATA.factions.ussr.units['摩托化运输队']);

@@ -71,7 +71,7 @@
   const FACTIONS = [
     { id: 'us', name: '美国', code: 'US', char: '美', color: '#5b8ad6', available: true },
     { id: 'de', name: '德国', code: 'DE', char: '德', color: '#909cab', available: true },
-    { id: 'ussr', name: '苏联', code: 'USSR', char: '苏', color: '#d2453c', available: false },
+    { id: 'ussr', name: '苏联', code: 'USSR', char: '苏', color: '#d2453c', available: true },
     { id: 'uk', name: '英国', code: 'UK', char: '英', color: '#8a9a58', available: false },
     { id: 'cn', name: '中国', code: 'CN', char: '中', color: '#c2603f', available: false },
   ];
@@ -579,6 +579,7 @@
     '海军陆战队步兵营': '海军陆战队营',
     'M13自行防空炮营': 'M15自行防空炮营',
     '运输车': '摩托化运输队',
+    'Il2对地攻击机': 'Il2攻击机',
     '野蜂自行火炮': '野蜂自行火炮营',
     '黄蜂自行火炮': '黄蜂自行火炮营',
   };
@@ -608,7 +609,9 @@
 
   function unitModelInfo(name, faction) {
     const key = UNIT_MODEL_ALIASES[name] || name;
-    const entry = UNIT_MODEL_INDEX[key];
+    const prepModels = (state.prepData && state.prepData.modelIndex) ||
+      (window.PREP_DATA && window.PREP_DATA.modelIndex) || null;
+    const entry = UNIT_MODEL_INDEX[key] || (prepModels && prepModels[key]);
     if (!entry) return null;
     const pair = entry[faction] || entry.us || entry.de;
     if (!pair) return null;
@@ -1223,6 +1226,9 @@
           de: new THREE.MeshStandardMaterial({
             color: 0x50565e, roughness: 0.85, metalness: 0, flatShading: true, side: THREE.DoubleSide,
           }),
+          ussr: new THREE.MeshStandardMaterial({
+            color: 0x6f2d29, roughness: 0.85, metalness: 0, flatShading: true, side: THREE.DoubleSide,
+          }),
         },
         hovered: null,
         hexBaseGeo: null,
@@ -1802,7 +1808,7 @@
       } catch (err) { /* keep fallback */ }
     } else {
       const fbMat = new THREE.MeshStandardMaterial({
-        color: faction === 'us' ? 0x163fb7 : 0x50565e, roughness: 0.8,
+        color: faction === 'us' ? 0x163fb7 : (faction === 'ussr' ? 0x6f2d29 : 0x50565e), roughness: 0.8,
       });
       fbMat._b3Dispose = true;
       const fb = new THREE.Mesh(
@@ -9117,7 +9123,9 @@
       const title = document.createElement('b');
       title.textContent = d.name;
       const type = document.createElement('em');
-      type.textContent = d.type === 'airborne' ? '空降' : (d.type === 'mountain' ? '山地' : '步兵');
+      type.textContent = d.type === 'airborne' ? '空降' :
+        (d.type === 'mountain' ? '山地' :
+          (d.type === 'armored' ? '装甲' : (d.type === 'artillery' ? '炮兵' : '步兵')));
       top.appendChild(title);
       top.appendChild(type);
       const meta = document.createElement('small');
