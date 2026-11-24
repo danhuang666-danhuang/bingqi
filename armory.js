@@ -768,6 +768,7 @@
   const DECK_FACTIONS = [
     { id: 'us', name: '美国', code: 'US' },
     { id: 'de', name: '德国', code: 'DE' },
+    { id: 'ussr', name: '苏联', code: 'USSR' },
   ];
 
   const deck = {
