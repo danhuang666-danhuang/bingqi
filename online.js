@@ -2089,7 +2089,7 @@
       if (!cells.length) return;
       cells.sort(function (a, b) { return (b.r - a.r) || (b.c - a.c); });
       const anchor = cells[0];
-      const sp = b3CostSprite(ring.name + ' ' + battleFmt(ring.ap), { color: '#9feaff' });
+      const sp = b3CostSprite(ring.name + ' ' + battleFmtShort(ring.ap), { color: '#9feaff' });
       if (sp) {
         const cell = L.cell(anchor.c, anchor.r);
         sp.position.set(cell[0], L.TOP + L.HEXR * 1.18, cell[1]);
@@ -4812,7 +4812,7 @@
         const dmg = battleRollDamage(raw);
         battleDamageUnit(tgt, dmg);
         b3AddDamageFloat(tgt, dmg, '#ff6b57');
-        logs.push(tgt.name + ' -' + dmg + '（' + battleFmt(raw) + '）');
+        logs.push(tgt.name + ' -' + battleFmt(dmg) + '（' + battleFmt(raw) + '）');
       });
       b.log.push('空袭命中 ' + target.name + '：' + logs.join('；'));
     } else {
@@ -5236,6 +5236,10 @@
   }
 
   function battleFmt(n) {
+    return (Number(n) || 0).toFixed(2);
+  }
+
+  function battleFmtShort(n) {
     return (Math.round((Number(n) || 0) * 10) / 10).toFixed(1).replace(/\.0$/, '');
   }
 
@@ -5663,7 +5667,7 @@
         const dmg = battleRollDamage(calc.raw);
         battleDamageUnit(au, dmg);
         b3AddDamageFloat(au, dmg, '#ffb36b');
-        b.log.push(cu.name + ' 反击 ' + au.name + '：' + battleFmt(calc.raw) + ' → ' + dmg);
+        b.log.push(cu.name + ' 反击 ' + au.name + '：' + battleFmt(calc.raw) + ' → ' + battleFmt(dmg));
       }
       b.counter = null;
       hideEl('battle-counter', true);
@@ -5736,7 +5740,7 @@
       b.ghost = null;
       b.selectedId = unit.id;
       b.log.push(unit.name + ' 与 ' + other.name + ' 互换位置（' +
-        battleFmt(unitCost) + ' + ' + battleFmt(otherCost) + ' 行动力）');
+        battleFmtShort(unitCost) + ' + ' + battleFmtShort(otherCost) + ' 行动力）');
       battleRefresh();
       battleCheckAutoEnd();
       return;
@@ -5831,7 +5835,7 @@
         b3AddDamageFloat(target, dmg, '#ff6b57');
         unit.mp -= airCost;
         b.selectedId = null;
-        b.log.push(unit.name + ' 空战 ' + target.name + '：' + dmg);
+        b.log.push(unit.name + ' 空战 ' + target.name + '：' + battleFmt(dmg));
         battleRefresh();
         battleCheckAutoEnd();
         return;
@@ -5896,7 +5900,7 @@
         const dmg = battleRollDamage(raw);
         battleDamageUnit(tgt, dmg);
         b3AddDamageFloat(tgt, dmg, '#ff6b57');
-        hitLogs.push(tgt.name + ' -' + dmg + '（' + battleFmt(raw) + '）');
+        hitLogs.push(tgt.name + ' -' + battleFmt(dmg) + '（' + battleFmt(raw) + '）');
       });
       if (participants.some(function (p) { return p.id !== unit.id; })) {
         target.lockedBy = [];
@@ -6158,7 +6162,7 @@
           } else {
             b.counter = null;
           }
-          hits.push(target.name + ' -' + dmg);
+          hits.push(target.name + ' -' + battleFmt(dmg));
         } else {
           const targets = spec.rocket ? battleRocketArea(target) : [target];
           targets.forEach(function (t) {
@@ -6166,7 +6170,7 @@
             const dmg = battleRollDamage(calc.raw);
             battleDamageUnit(t, dmg);
             b3AddDamageFloat(t, dmg, t.side === unit.side ? '#ffcc66' : '#ff6b57');
-            hits.push(t.name + ' -' + dmg);
+            hits.push(t.name + ' -' + battleFmt(dmg));
           });
         }
         unit.mp -= cost;
@@ -6262,7 +6266,7 @@
       battleActionLockUnit(unit);
       b.selectedId = null;
       b.log.push(unit.name + (action.type === 'focus' ? ' 集火 ' : ' 攻击 ') + target.name +
-        '：' + battleFmt(calc.raw) + ' → ' + dmg +
+        '：' + battleFmt(calc.raw) + ' → ' + battleFmt(dmg) +
         '（穿透 ' + battleFmt(calc.pen) + '，地形 -' + Math.round(calc.protect * 100) + '%' +
         (calc.night < 1 ? '，夜间' : '') + '，' + cost + ' 行动力）');
       // 混乱单位被击中直接消灭，且不能再反击；本次被集火打出混乱也同样无法反击。
@@ -6684,7 +6688,7 @@
         const swapC1 = battleTerrainCost(selected, clicked.c, clicked.r);
         const swapC2 = battleTerrainCost(clicked, selected.c, selected.r);
         if (selected.mp < swapC1 || clicked.mp < swapC2) {
-          toast('换位行动力不足（需 ' + battleFmt(swapC1) + ' + ' + battleFmt(swapC2) + '）');
+          toast('换位行动力不足（需 ' + battleFmtShort(swapC1) + ' + ' + battleFmtShort(swapC2) + '）');
           return;
         }
         if (selected.guardStop) {
