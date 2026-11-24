@@ -2394,7 +2394,10 @@
     const reconR = battleIsRecon(unit) ? battleReconRadius(unit) : 0;
     const aa = battleAntiAirSpec(unit);
     const aaR = aa ? aa.radius : 0;
-    const radius = Math.max(reconR, aaR);
+    const arty = battleArtillerySpec(unit);
+    const artyR = arty ? arty.range : 0;
+    const cbR = battleCounterBatteryKind(unit) ? battleCounterBatteryRange(unit) : 0;
+    const radius = Math.max(reconR, aaR, artyR, cbR);
     if (radius <= 0) { B3.need = true; return; }
     const plate = b3HexPlateGeo();
     if (!plate) return;
@@ -2422,8 +2425,12 @@
         B3.rangeGroup.add(line);
       }
     }
-    const labelText = (reconR && aaR) ? ('侦察 ' + reconR + ' / 防空 ' + aaR)
-      : (reconR ? ('侦察 ' + reconR) : ('防空 ' + aaR));
+    const parts = [];
+    if (reconR) parts.push('侦察');
+    if (aa) parts.push('防空伤害 ' + battleFmt(aa.damage));
+    if (arty) parts.push((arty.rocket ? '火箭炮伤害 ' : '炮击伤害 ') + battleFmt(arty.damage));
+    if (cbR) parts.push('反炮兵');
+    const labelText = parts.join(' / ');
     const label = b3CostSprite(labelText, { color: '#ff6b6b' });
     if (label) {
       const w = L.cell(unit.c, unit.r);
