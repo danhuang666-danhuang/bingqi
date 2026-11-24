@@ -377,10 +377,10 @@ window.TUTORIAL_LEVELS = [
         }
       },
       {
-        "text": "回合交给德军。德军步兵移动到了河格（6,2）。上河会立刻清空该单位剩余行动力。确认后点「下一步」继续。",
+        "text": "回合交给德军。德军步兵移动到了河格（5,2）。上河会立刻清空该单位剩余行动力。确认后点「下一步」继续。",
         "auto": "enemyRiver",
         "focus": {
-          "c": 6,
+          "c": 5,
           "r": 2,
           "label": "德军上河 · 行动力清零"
         }
@@ -395,21 +395,21 @@ window.TUTORIAL_LEVELS = [
           "targetId": "tutorial-de-inf"
         },
         "focus": {
-          "c": 6,
+          "c": 5,
           "r": 2,
           "label": "房区后的德军"
         }
       },
       {
-        "text": "把步兵移动到（5,2）房屋，绕开阻挡获得德军视野。",
+        "text": "把步兵移动到（4,2）房屋，绕开阻挡获得德军视野。",
         "allow": {
           "type": "move",
           "unitId": "tutorial-us-inf",
-          "c": 5,
+          "c": 4,
           "r": 2
         },
         "focus": {
-          "c": 5,
+          "c": 4,
           "r": 2,
           "label": "攻击位置"
         }
@@ -422,7 +422,7 @@ window.TUTORIAL_LEVELS = [
           "targetId": "tutorial-de-inf"
         },
         "focus": {
-          "c": 6,
+          "c": 5,
           "r": 2,
           "label": "德军"
         }
@@ -430,7 +430,7 @@ window.TUTORIAL_LEVELS = [
       {
         "text": "德军会反击。点顶部座位切换到「教程敌军」，选择反击目标，再切回「教程玩家」。",
         "focus": {
-          "c": 6,
+          "c": 5,
           "r": 2,
           "label": "反击选择"
         }

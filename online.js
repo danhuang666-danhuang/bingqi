@@ -12989,7 +12989,7 @@
       if (b.activeSide !== 'defender') return;
       battleApply({
         type: 'move', side: 'defender', unitId: 'tutorial-de-inf',
-        c: 6, r: 2, id: 'tutorial-script-' + Date.now().toString(36),
+        c: 5, r: 2, id: 'tutorial-script-' + Date.now().toString(36),
       });
       if (state.battle.activeSide === 'defender') {
         battleApply({
