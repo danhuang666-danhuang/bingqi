@@ -4636,6 +4636,11 @@
     });
   }
 
+  function battleAirLockedParticipant(target, unit) {
+    return !!(target && unit && (target.lockedBy || []).indexOf(unit.id) !== -1 &&
+      unit.actionLocked);
+  }
+
   function battleIsReconPlane(unit) {
     return !!(unit && unit.alive && battleIsAir(unit) && battleIsRecon(unit));
   }
@@ -4904,7 +4909,9 @@
       b.log.push('空袭被拦截机击退，目标未受损');
     }
     attackers.forEach(function (a) {
-      a.mp = Math.max(0, a.mp - battleAirActionCost(a, target, 'bomb'));
+      if (!battleAirLockedParticipant(target, a)) {
+        a.mp = Math.max(0, a.mp - battleAirActionCost(a, target, 'bomb'));
+      }
     });
     survivors.forEach(function (a, i) { b3StartAirFlight(a, target, null, i * 0.28); });
     attackers.forEach(function (a) { battleReconAfterSortie(a, target); });
@@ -5911,12 +5918,13 @@
         return u && u.alive && battleIsAir(u);
       }).length;
       if (airLocks >= 2) return;
-      const cost = 1;
+      const cost = 2;
       if (unit.mp < cost) return;
       target.lockedBy = (target.lockedBy || []).concat(unit.id);
       target.lockCosts = target.lockCosts || {};
       target.lockCosts[unit.id] = cost;
       unit.mp -= cost;
+      unit.actionLocked = true;
       b.selectedId = unit.id;
       b.log.push(unit.name + ' 锁定 ' + target.name + '（空中集火，' + cost + ' 行动力）');
       battleRefresh();
@@ -5953,7 +5961,9 @@
         ? (Number.isFinite(Number(action.dir)) ? Math.max(0, Math.min(5, Number(action.dir))) : 0)
         : null;
       const airCost = battleAirActionCost(unit, target, role);
-      if (group.some(function (u) { return u.mp < airCost; })) return;
+      if (group.some(function (u) {
+        return u.id !== unit.id && !battleAirLockedParticipant(target, u) && u.mp < airCost;
+      }) || unit.mp < airCost) return;
       if (battleIsAir(target) && role !== 'intercept') return;
       if (!battleIsAir(target) && role !== 'bomb') return;
       const targetLocked = (target.lockedBy || []).some(function (id) {
@@ -6041,7 +6051,7 @@
       const airStarts = participants.filter(battleIsAir).slice(0, 2);
       airStarts.forEach(function (a, i) { b3StartAirFlight(a, target, null, i * 0.28); });
       group.filter(function (u) { return u.id !== unit.id; }).forEach(function (e, i) {
-        e.mp = Math.max(0, e.mp - airCost);
+        if (!battleAirLockedParticipant(target, e)) e.mp = Math.max(0, e.mp - airCost);
         b3StartAirFlight(e, target, null, 0.7 + i * 0.2);
       });
       unit.mp -= airCost;
@@ -7075,8 +7085,8 @@
     const escortOnly = !canBomb && bomberLock && !battleIsAir(target);
     if (!battleIsAir(target) && battleAirCanLock(air) &&
         (target.lockedBy || []).indexOf(air.id) === -1) {
-      add('锁定 · 1 行动力', 'airLock', false,
-        mismatch || air.mp < 1 || !canNormalAir);
+      add('锁定 · 2 行动力', 'airLock', false,
+        mismatch || air.mp < 2 || !canNormalAir);
     }
     if (escortOnly) {
       const heavyLock = (target.lockedBy || []).map(battleUnitById).filter(function (u) {
