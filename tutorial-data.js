@@ -945,7 +945,7 @@ window.TUTORIAL_LEVELS = [
           "targetId": "tutorial2-de-inf"
         },
         "focus": {
-          "c": 5,
+          "c": 4,
           "r": 1,
           "label": "E2 · 德军失去掩护"
         }
