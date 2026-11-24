@@ -674,7 +674,7 @@
   function loadUnitModelBag(info, cb) {
     if (!info) { if (cb) cb(); return; }
     if (unitModelRecord(info)) { if (cb) cb(); return; }
-    const stateKey = info.key;
+    const stateKey = info.bag || info.key;
     if (UNIT_MODEL_STATE[stateKey] === 'loading') {
       (UNIT_MODEL_WAITERS[stateKey] = UNIT_MODEL_WAITERS[stateKey] || []).push(cb);
       return;
@@ -5905,7 +5905,8 @@
         const u = battleUnitById(id);
         return u && u.alive;
       });
-      if (targetLocked && !action.focus && !battleAirHasOwnVision(unit, target)) return;
+      if (targetLocked && !action.focus && !battleAirHasOwnVision(unit, target) &&
+          !battleLockedBySide(target, unit.side)) return;
       if (!battleIsAir(target) && !battleAirCanTarget(unit, target)) return;
       if (!battleIsAir(target) && battleAirInterceptOptions(target.side).length) {
         battleBeginAirIntercept(unit, target, attackerIds, role);
@@ -6935,15 +6936,16 @@
     const intercept = battleAirIntercept(air);
     const canBomb = ground.soft > 0 || ground.hard > 0;
     const canIntercept = intercept > 0;
+    const bomberLock = battleAirHasBomberLock(target, air.side);
     const multi = canBomb && canIntercept;
     let role = roleOverride || (battleIsAir(target) ? 'intercept' : 'bomb');
     if (role === 'intercept' && !canIntercept) role = 'bomb';
-    if (role === 'bomb' && !canBomb) role = 'intercept';
+    if (role === 'bomb' && !canBomb && !bomberLock) role = 'intercept';
     const targetLocked = (target.lockedBy || []).some(function (id) {
       const u = battleUnitById(id);
       return u && u.alive;
     });
-    const canNormalAir = !targetLocked || battleAirHasOwnVision(air, target);
+    const canNormalAir = !targetLocked || battleAirHasOwnVision(air, target) || bomberLock;
     state.battle.choice = { attackerId: air.id, defenderId: target.id };
     box.innerHTML = '';
     const h = document.createElement('h4');
