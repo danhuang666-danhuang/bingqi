@@ -88,135 +88,79 @@
    *   move = 行动力，price = 价格（动员点）
    * 目前只录了 美国 40s 步兵；其它空着，界面会提示「还没录」。
    */
-  const UNITS = {
+  /* 单位索引：只记「哪个国家 / 年代 / 兵种有哪些单位」。
+   * 数值和词条统一从 online-prep-data.js（window.PREP_DATA）读，
+   * 和线上对战用同一份数据，不再各存一套。 */
+  const UNIT_INDEX = {
     us: {
-      inf: [
-        { name: "步兵营", atk: [[2, 0.75], [1.75, 0.5], [0.5, 0.25]], ref: 1.375, hp: 6, ap: [13, 5, 3], armor: [0, 0, 0], move: 4, price: 30, traits: [] },
-        { name: "游骑兵营", atk: [[3.5, 1.25], [1.5, 0.5], [0.5, 0.25]], ref: 1.25, hp: 5, ap: [13, 10, 7], armor: [0, 0, 0], move: 5, price: 42, traits: ["山地作战"] },
-        { name: "山地步兵营", atk: [[2, 0.5], [2, 0.75], [0.5, 0.25]], ref: 1.375, hp: 6, ap: [11, 10, 7], armor: [0, 0, 0], move: 4, price: 35, traits: ["山地作战"] },
-        { name: "海军陆战队营", atk: [[3.25, 1], [1.25, 0.25], [0.25, 0.25]], ref: 1.25, hp: 4, ap: [13, 10, 7], armor: [0, 0, 0], move: 5, price: 38, traits: ["政治军队"] },
-        { name: "伞兵营", atk: [[2, 0.75], [1.5, 0.25], [0, 0]], ref: 1.375, hp: 6, ap: [13, 0, 0], armor: [0, 0, 0], move: 4, price: 25, traits: ["空降"] },
-        { name: "机械化步兵营", atk: [[3.25, 1], [3.25, 1], [1, 0.25]], ref: 1.25, hp: 6, ap: [13, 10, 7], armor: [2, 1, 1], move: 6, price: 28, traits: [] },
-        { name: "突击工兵营", atk: [[2.5, 0.75], [1, 0.25], [0, 0]], ref: 1.375, hp: 4, ap: [13, 0, 0], armor: [0, 0, 0], move: 4, price: 40, traits: ["爆破"] }
-      ],
-      armor: [
-        { name: "斯图亚特轻坦营", atk: [[3.5, 1.5], [3.5, 1], [1.5, 0.5]], ref: 1.2, hp: 6, ap: [13, 5, 3], armor: [6, 4, 3], move: 7, price: 50, traits: [] },
-        { name: "75谢尔曼中坦营", atk: [[4.25, 1.75], [4.5, 1.75], [1.75, 0.75]], ref: 1.2, hp: 6, ap: [13, 10, 7], armor: [9, 4, 4], move: 5, price: 70, traits: [] },
-        { name: "76谢尔曼中坦营", atk: [[4, 1.75], [4.25, 2], [1.75, 1]], ref: 1.2, hp: 6, ap: [15, 13, 10], armor: [11, 5, 5], move: 5, price: 78, traits: [] },
-        { name: "潘兴重坦营", atk: [[4.25, 2], [5, 2.5], [2.25, 1.25]], ref: 1.2, hp: 6, ap: [18, 16, 12], armor: [16, 8, 8], move: 5, price: 110, traits: [] },
-        { name: "巨无霸重坦营", atk: [[4.25, 1.75], [4.5, 1.75], [1.75, 0.75]], ref: 1.2, hp: 6, ap: [13, 10, 7], armor: [20, 9, 9], move: 5, price: 95, traits: [] },
-        { name: "超级潘兴重坦营", atk: [[4, 1.75], [4.75, 2.5], [2, 1.25]], ref: 1.2, hp: 6, ap: [22, 20, 18], armor: [23, 9, 8], move: 5, price: 120, traits: [] }
-      ],
-      at: [
-        { name: "反坦克小组", atk: [[0.5, 0.25], [0.25, 0], [0, 0]], ref: 1.375, hp: 1, ap: [13, 13, 0], armor: [0, 0, 0], move: 5, price: 5, traits: ["隐蔽"] },
-        { name: "反坦克营", atk: [[1.5, 0.75], [1.5, 1], [0.25, 0.25]], ref: 1.75, hp: 6, ap: [13, 10, 7], armor: [0, 0, 0], move: 3, price: 35, traits: [] },
-        { name: "M10中型坦歼营", atk: [[4, 1.75], [4.25, 2], [1.75, 1]], ref: 1.2, hp: 6, ap: [15, 13, 10], armor: [8, 3, 3], move: 6, price: 70, traits: [] },
-        { name: "T95超重坦营", atk: [[2, 1], [3, 1.5], [1.5, 0.75]], ref: 1.5, hp: 6, ap: [25, 24, 19], armor: [32, 15, 9], move: 3, price: 125, traits: [] }
-      ],
-      arty: [
-        { name: "105炮兵营", atk: [[0.75, 0.25], [1.75, 0.25], [1, 0.25]], ref: 1, hp: 3, ap: [0, 0, 0], armor: [0, 0, 0], move: 2, price: 40, traits: ["曲射伤害1", "半径7"] },
-        { name: "155炮兵营", atk: [[0.75, 0.25], [2.5, 0.5], [1.5, 0.25]], ref: 1, hp: 3, ap: [0, 0, 0], armor: [0, 0, 0], move: 2, price: 60, traits: ["曲射伤害1.5", "半径11"] },
-        { name: "M7自行火炮营", atk: [[1.5, 0.25], [2.5, 0.5], [1.5, 0.25]], ref: 1, hp: 3, ap: [0, 0, 0], armor: [4, 3, 2], move: 5, price: 40, traits: ["曲射伤害1", "半径7"] },
-        { name: "M12自行火炮营", atk: [[0.75, 0.25], [2.5, 0.5], [1.5, 0.25]], ref: 1, hp: 3, ap: [0, 0, 0], armor: [2, 1, 1], move: 5, price: 60, traits: ["曲射伤害1.5", "半径11"] },
-        { name: "反炮兵小组", atk: [[0, 0], [0, 0], [0, 0]], ref: 1, hp: 1, ap: [0, 0, 0], armor: [0, 0, 0], move: 4, price: 10, traits: ["反炮兵"] },
-        { name: "管风琴火箭炮营", atk: [[2.25, 0.75], [6.25, 1.75], [3.5, 0.75]], ref: 1, hp: 3, ap: [11, 10, 7], armor: [11, 4, 4], move: 5, price: 80, traits: ["火箭炮", "杀伤半径1", "伤害2"] }
-      ],
-      aa: [
-        { name: "40防空炮营", atk: [[2.25, 1.25], [2, 1.25], [0.25, 0.25]], ref: 1.75, hp: 3, ap: [4, 3, 2], armor: [0, 0, 0], move: 3, price: 25, traits: ["防空半径1", "伤害1"] },
-        { name: "90防空炮营", atk: [[1.25, 1.25], [2.5, 3], [1.5, 1.75]], ref: 1.75, hp: 3, ap: [18, 16, 12], armor: [0, 0, 0], move: 2, price: 40, traits: ["防空半径2", "伤害1.5"] },
-        { name: "M16自行防空炮营", atk: [[3.25, 1.25], [3.25, 1.25], [1, 0.25]], ref: 1.2, hp: 3, ap: [0, 0, 0], armor: [2, 1, 1], move: 6, price: 25, traits: ["辅助防空", "伤害0.5"] },
-        { name: "M15自行防空炮营", atk: [[2.5, 0.5], [2.75, 0.5], [1.25, 0.25]], ref: 1.2, hp: 3, ap: [4, 3, 2], armor: [2, 1, 1], move: 6, price: 40, traits: ["防空半径1", "伤害1"] }
-      ],
-      recon: [
-        { name: "侦察营", atk: [[1, 0.25], [0.75, 0.25], [0, 0]], ref: 1.375, hp: 3, ap: [13, 0, 0], armor: [0, 0, 0], move: 5, price: 25, traits: ["侦查半径2"] },
-        { name: "灰狗装甲侦察营", atk: [[2.25, 1], [2.25, 0.75], [1, 0.25]], ref: 1.2, hp: 4, ap: [13, 5, 3], armor: [3, 2, 2], move: 7, price: 55, traits: ["侦查半径1"] },
-        { name: "地狱猫装甲侦察营", atk: [[2.5, 1.25], [2.75, 1.25], [1.25, 0.75]], ref: 1.2, hp: 4, ap: [15, 13, 10], armor: [4, 2, 2], move: 7, price: 65, traits: ["侦查半径1"] }
-      ],
-      support: [
-        { name: "工兵营", atk: [[1, 0.25], [0.75, 0.25], [0, 0]], ref: 1.375, hp: 3, ap: [0, 0, 0], armor: [0, 0, 0], move: 4, price: 25, traits: ["工程"] },
-        { name: "宪兵连", atk: [[0.75, 0.25], [0.5, 0], [0, 0]], ref: 1.375, hp: 2, ap: [0, 0, 0], armor: [0, 0, 0], move: 4, price: 10, traits: ["宪兵"] },
-        { name: "医疗连", atk: [[0.75, 0.25], [0.5, 0], [0, 0]], ref: 1.375, hp: 2, ap: [0, 0, 0], armor: [0, 0, 0], move: 4, price: 5, traits: ["医疗"] },
-        { name: "摩托化运输队", atk: [[0, 0], [0, 0], [0, 0]], ref: 1, hp: 3, ap: [0, 0, 0], armor: [0, 0, 0], move: 6, price: 15, traits: ["地面运输"] }
-      ],
-      air: [
-        { name: "F5侦察机", atk: [[null, null], [null, null], [null, null]], ref: null, hp: 3, ap: [null, null, null], armor: [0, 0, 0], move: 650, price: 25, traits: ["侦查半径2"] },
-        { name: "F6战斗侦察机", atk: [[null, null], [null, null], [null, null]], ref: null, hp: 3, ap: [null, null, null], armor: [0, 0, 0], move: 650, price: 40, traits: ["拦截伤害1", "侦查半径2"] },
-        { name: "P38战斗机", atk: [[null, null], [null, null], [null, null]], ref: null, hp: 4, ap: [null, null, null], armor: [0, 0, 0], move: 550, price: 35, traits: ["拦截伤害1"] },
-        { name: "P51战斗机", atk: [[null, null], [null, null], [null, null]], ref: null, hp: 4, ap: [null, null, null], armor: [0, 0, 0], move: 650, price: 40, traits: ["拦截伤害1.5"] },
-        { name: "P47战斗轰炸机", atk: [[null, null], [null, null], [null, null]], ref: null, hp: 4, ap: [null, null, null], armor: [0, 0, 0], move: 550, price: 55, traits: ["拦截伤害1.25", "空中压制1.5/1.5"] },
-        { name: "B25轰炸机", atk: [[null, null], [null, null], [null, null]], ref: null, hp: 6, ap: [null, null, null], armor: [0, 0, 0], move: 400, price: 120, traits: ["重轰", "空中压制3/2"] },
-        { name: "B29轰炸机", atk: [[null, null], [null, null], [null, null]], ref: null, hp: 6, ap: [null, null, null], armor: [0, 0, 0], move: 500, price: 200, traits: ["重轰", "高空", "空中压制4/3", "核弹"] }
-      ],
-      fort: [
-        { name: "桥", atk: [[null, null], [null, null], [null, null]], ref: null, hp: null, ap: [null, null, null], armor: [0, 0, 0], move: null, price: null, traits: [] },
-        { name: "防御基座", atk: [[null, null], [null, null], [null, null]], ref: null, hp: null, ap: [null, null, null], armor: [0, 0, 0], move: null, price: null, traits: [] }
-      ]
+      inf: ["步兵营", "游骑兵营", "山地步兵营", "海军陆战队营", "伞兵营", "机械化步兵营", "突击工兵营"],
+      armor: ["斯图亚特轻坦营", "75谢尔曼中坦营", "76谢尔曼中坦营", "潘兴重坦营", "巨无霸重坦营", "超级潘兴重坦营"],
+      at: ["反坦克小组", "反坦克营", "M10中型坦歼营", "T95超重坦营"],
+      arty: ["105炮兵营", "155炮兵营", "M7自行火炮营", "M12自行火炮营", "反炮兵小组", "管风琴火箭炮营"],
+      aa: ["40防空炮营", "90防空炮营", "M16自行防空炮营", "M15自行防空炮营"],
+      recon: ["侦察营", "灰狗装甲侦察营", "地狱猫装甲侦察营"],
+      support: ["工兵营", "宪兵连", "医疗连", "摩托化运输队"],
+      air: ["F5侦察机", "F6战斗侦察机", "P38战斗机", "P51战斗机", "P47战斗轰炸机", "B25轰炸机", "B29轰炸机"],
+      fort: ["桥", "防御基座"]
     },
     de: {
-      inf: [
-        { name: "步兵营", atk: [[1.75, 0.75], [1.5, 0.25], [0.5, 0]], ref: 1.375, hp: 6, ap: [12, 10, 7], armor: [0, 0, 0], move: 4, price: 25, traits: ["空降"] },
-        { name: "突击步兵营", atk: [[3.5, 1.25], [3, 1.25], [0.75, 0.5]], ref: 1.25, hp: 5, ap: [14, 13, 10], armor: [0, 0, 0], move: 5, price: 45, traits: [] },
-        { name: "猎兵营", atk: [[2, 0.75], [0.75, 0.5], [0.5, 0.25]], ref: 1.375, hp: 6, ap: [14, 9, 7], armor: [0, 0, 0], move: 5, price: 30, traits: [] },
-        { name: "山地猎兵营", atk: [[2, 0.5], [0.75, 0.5], [0.5, 0.25]], ref: 1.375, hp: 6, ap: [10, 9, 7], armor: [0, 0, 0], move: 5, price: 38, traits: ["山地作战"] },
-        { name: "人民冲锋队", atk: [[1.5, 0.75], [0.5, 0], [0, 0]], ref: 1.375, hp: 6, ap: [14, 0, 0], armor: [0, 0, 0], move: 3, price: 10, traits: ["碎心"] },
-        { name: "装甲掷弹兵营", atk: [[2.75, 1], [3, 1], [1.5, 0.5]], ref: 1.25, hp: 6, ap: [14, 13, 10], armor: [2, 1, 1], move: 6, price: 28, traits: [] },
-        { name: "突击工兵营", atk: [[0.5, 0.25], [0.25, 0], [0, 0]], ref: 1.375, hp: 4, ap: [12, 0, 0], armor: [0, 0, 0], move: null, price: 35, traits: [] }
-      ],
-      armor: [
-        { name: "四号中坦营", atk: [[2.5, 1.5], [2.5, 1.5], [1, 0.75]], ref: 1.2, hp: 6, ap: [14, 13, 10], armor: [8, 3, 3], move: 5, price: 65, traits: [] },
-        { name: "豹式中坦营", atk: [[3, 1.75], [3.75, 2.25], [1.75, 1.25]], ref: 1.2, hp: 6, ap: [19, 17, 14], armor: [14, 5, 5], move: 6, price: 85, traits: [] },
-        { name: "虎式重坦营", atk: [[3.25, 1.75], [3.75, 2.25], [1.75, 1.25]], ref: 1.2, hp: 6, ap: [16, 15, 13], armor: [12, 9, 9], move: 5, price: 87, traits: [] },
-        { name: "虎王重坦营", atk: [[3.5, 2], [4.25, 3], [2, 1.5]], ref: 1.2, hp: 6, ap: [24, 22, 19], armor: [21, 9, 9], move: 4, price: 105, traits: [] },
-        { name: "鼠式超重坦营", atk: [[2.75, 1.5], [3.5, 2], [1.75, 1]], ref: 1.2, hp: 6, ap: [31, 29, 25], armor: [26, 23, 20], move: 3, price: 135, traits: [] }
-      ],
-      at: [
-        { name: "反坦克小组", atk: [[0.5, 0.25], [0.5, 0], [0, 0]], ref: 1.375, hp: 1, ap: [12, 0, 0], armor: [0, 0, 0], move: 4, price: 5, traits: [] },
-        { name: "反坦克敢死队", atk: [[0.5, 0.25], [0.25, 0], [0, 0]], ref: 1.375, hp: 1, ap: [14, 0, 0], armor: [0, 0, 0], move: 3, price: 2, traits: ["碎心"] },
-        { name: "反坦克营", atk: [[1.75, 1], [2.5, 2], [1.25, 1]], ref: 1.75, hp: 6, ap: [19, 17, 13], armor: [0, 0, 0], move: 3, price: 35, traits: ["隐蔽"] },
-        { name: "黄鼠狼轻型坦歼营", atk: [[1, 0.75], [1.5, 1.25], [0.5, 0.75]], ref: 1.5, hp: 6, ap: [15, 13, 10], armor: [3, 1, 1], move: 5, price: 55, traits: [] },
-        { name: "追猎者轻型坦歼营", atk: [[1.75, 1], [2, 1.25], [1, 0.75]], ref: 1.5, hp: 6, ap: [14, 13, 10], armor: [10, 3, 3], move: 6, price: 50, traits: [] },
-        { name: "四号突击炮营", atk: [[2, 1], [2.5, 1.25], [1, 0.75]], ref: 1.5, hp: 6, ap: [14, 13, 10], armor: [4, 3, 3], move: 5, price: 67, traits: [] },
-        { name: "四号中型坦歼营", atk: [[2.25, 1.25], [2.75, 1.75], [1.25, 1]], ref: 1.5, hp: 6, ap: [14, 13, 10], armor: [14, 5, 3], move: 5, price: 75, traits: [] },
-        { name: "猎豹重型坦歼营", atk: [[2, 1.25], [3, 2.25], [1.25, 1]], ref: 1.5, hp: 6, ap: [24, 22, 19], armor: [16, 5, 5], move: 6, price: 80, traits: [] },
-        { name: "猎虎重型坦歼营", atk: [[2, 1], [2.75, 1.25], [1.25, 0.5]], ref: 1.5, hp: 6, ap: [31, 29, 25], armor: [24, 10, 8], move: 4, price: 130, traits: [] }
-      ],
-      arty: [
-        { name: "105炮兵营", atk: [[0.5, 0], [1.5, 0.25], [1, 0.25]], ref: 1, hp: 3, ap: [0, 0, 0], armor: [0, 0, 0], move: 2, price: 50, traits: ["曲射伤害1", "半径7", "政治军队"] },
-        { name: "150炮兵营", atk: [[0.5, 0], [2.25, 0.5], [1.5, 0.25]], ref: 1, hp: 3, ap: [0, 0, 0], armor: [0, 0, 0], move: 2, price: 60, traits: ["曲射伤害1.5", "半径11"] },
-        { name: "黄蜂自行火炮营", atk: [[1, 0.25], [2.25, 0.5], [1.25, 0.25]], ref: 1, hp: 3, ap: [0, 0, 0], armor: [3, 2, 2], move: 5, price: 40, traits: ["曲射伤害1", "半径7"] },
-        { name: "野蜂自行火炮营", atk: [[0.75, 0.25], [2.25, 0.5], [1.5, 0.25]], ref: 1, hp: 3, ap: [0, 0, 0], armor: [2, 2, 2], move: 5, price: 60, traits: ["曲射伤害1.5", "半径11"] },
-        { name: "反炮兵小组", atk: [[0, 0], [0, 0], [0, 0]], ref: 1, hp: 1, ap: [0, 0, 0], armor: [0, 0, 0], move: 4, price: 10, traits: ["反炮兵"] }
-      ],
-      aa: [
-        { name: "20防空炮营", atk: [[1.25, 1.5], [0.75, 1], [0.25, 0.25]], ref: 1.75, hp: 3, ap: [5, 3, 1], armor: [0, 0, 0], move: 3, price: 25, traits: ["防空半径1", "伤害1"] },
-        { name: "88防空炮营", atk: [[1, 1.25], [2.25, 2.75], [1.5, 1.75]], ref: 1.75, hp: 3, ap: [16, 15, 13], armor: [0, 0, 0], move: 2, price: 35, traits: ["防空半径2", "伤害1.5"] },
-        { name: "卡车自行防空炮营", atk: [[2, 1.5], [1.25, 1], [0.25, 0.25]], ref: 1.2, hp: 3, ap: [5, 3, 1], armor: [0, 0, 0], move: 6, price: 30, traits: ["防空半径1", "伤害0.75"] },
-        { name: "东风自行防空炮营", atk: [[3.75, 3.25], [2.25, 1.75], [0.75, 0.75]], ref: 1.2, hp: 3, ap: [5, 3, 1], armor: [5, 3, 2], move: 6, price: 35, traits: ["防空半径1", "伤害1.75"] }
-      ],
-      recon: [
-        { name: "侦察营", atk: [[1, 0.5], [0.5, 0], [0, 0]], ref: 1.375, hp: 3, ap: [12, 0, 0], armor: [0, 0, 0], move: 5, price: 25, traits: ["侦查半径2"] },
-        { name: "222装甲侦察营", atk: [[1.5, 0.75], [1.25, 0.25], [0.5, 0]], ref: 1.2, hp: 4, ap: [14, 5, 3], armor: [3, 2, 2], move: 6, price: 50, traits: ["侦查半径1"] },
-        { name: "美洲狮装甲侦察营", atk: [[1.5, 0.75], [1.5, 0.75], [0.5, 0.25]], ref: 1.2, hp: 4, ap: [14, 12, 9], armor: [4, 2, 2], move: 6, price: 60, traits: ["侦查半径1"] }
-      ],
-      support: [
-        { name: "工兵营", atk: [[0.25, 0], [0.25, 0], [0, 0]], ref: 1.375, hp: 3, ap: [0, 0, 0], armor: [0, 0, 0], move: 4, price: 25, traits: ["工程"] },
-        { name: "宪兵连", atk: [[0.5, 0], [0.5, 0], [0, 0]], ref: 1.375, hp: 2, ap: [0, 0, 0], armor: [0, 0, 0], move: 5, price: 10, traits: ["宪兵"] },
-        { name: "医疗连", atk: [[0.5, 0], [0.5, 0], [0, 0]], ref: 1.375, hp: 2, ap: [0, 0, 0], armor: [0, 0, 0], move: 5, price: 5, traits: ["医疗", "政治军队"] },
-        { name: "摩托化运输队", atk: [[0, 0], [0, 0], [0, 0]], ref: 1, hp: 3, ap: [0, 0, 0], armor: [0, 0, 0], move: 6, price: 15, traits: ["地面运输"] }
-      ],
-      air: [
-        { name: "Fw189侦察机", atk: [[null, null], [null, null], [null, null]], ref: null, hp: 3, ap: [null, null, null], armor: [0, 0, 0], move: 500, price: 25, traits: ["侦查"] },
-        { name: "Bf109战斗机", atk: [[null, null], [null, null], [null, null]], ref: null, hp: 4, ap: [null, null, null], armor: [0, 0, 0], move: 600, price: 30, traits: ["拦截伤害1.25"] },
-        { name: "Me262战斗机", atk: [[null, null], [null, null], [null, null]], ref: null, hp: 4, ap: [null, null, null], armor: [0, 0, 0], move: 900, price: 45, traits: ["拦截伤害1.75"] },
-        { name: "Fw190战斗轰炸机", atk: [[null, null], [null, null], [null, null]], ref: null, hp: 4, ap: [null, null, null], armor: [0, 0, 0], move: 575, price: 48, traits: ["拦截伤害0.75", "空中压制1.5/1"] },
-        { name: "Ju88轰炸机", atk: [[null, null], [null, null], [null, null]], ref: null, hp: 6, ap: [null, null, null], armor: [0, 0, 0], move: 550, price: 135, traits: ["重轰", "空中压制3/2"] }
-      ]
+      inf: ["步兵营", "突击步兵营", "猎兵营", "山地猎兵营", "人民冲锋队", "装甲掷弹兵营", "突击工兵营"],
+      armor: ["四号中坦营", "豹式中坦营", "虎式重坦营", "虎王重坦营", "鼠式超重坦营"],
+      at: ["反坦克小组", "反坦克敢死队", "反坦克营", "黄鼠狼轻型坦歼营", "追猎者轻型坦歼营", "四号突击炮营", "四号中型坦歼营", "猎豹重型坦歼营", "猎虎重型坦歼营"],
+      arty: ["105炮兵营", "150炮兵营", "黄蜂自行火炮营", "野蜂自行火炮营", "反炮兵小组"],
+      aa: ["20防空炮营", "88防空炮营", "卡车自行防空炮营", "东风自行防空炮营"],
+      recon: ["侦察营", "222装甲侦察营", "美洲狮装甲侦察营"],
+      support: ["工兵营", "宪兵连", "医疗连", "摩托化运输队"],
+      air: ["Fw189侦察机", "Bf109战斗机", "Me262战斗机", "Fw190战斗轰炸机", "Ju88轰炸机"]
     }
   };
 
+  /* 图鉴和属性卡里名字对不上的几个 */
+  const PREP_ALIAS = {
+    '山地步兵营': '山地营',
+    '海军陆战队营': '海军陆战队步兵营',
+    '突击工兵营': '战斗工兵营',
+    'M16自行防空炮营': 'M13自行防空炮营',
+  };
+
+  const EMPTY_STATS = {
+    atk: [[null, null], [null, null], [null, null]], ref: null, hp: null,
+    ap: [null, null, null], armor: [0, 0, 0], move: null, price: null, traits: [],
+  };
+
+  /* 从 PREP_DATA 取一个单位的数值（和战斗系统同一份数据） */
+  function unitStats(country, name) {
+    const d = window.PREP_DATA;
+    const f = d && d.factions ? d.factions[country] : null;
+    const bag = f && f.units;
+    if (!bag) return null;
+    const u = bag[name] || bag[PREP_ALIAS[name]];
+    if (!u) return null;
+    const atk = u.attack || {};
+    const ap = u.ap || {};
+    const av = u.av || {};
+    return {
+      atk: [atk.urban || [null, null], atk.r1 || [null, null], atk.r2 || [null, null]],
+      ref: (u.counter === undefined ? null : u.counter),
+      hp: (u.hp === undefined ? null : u.hp),
+      ap: [ap.urban === undefined ? null : ap.urban, ap.r1 === undefined ? null : ap.r1, ap.r2 === undefined ? null : ap.r2],
+      armor: [av.front || 0, av.side || 0, av.rear || 0],
+      move: (u.move === undefined ? null : u.move),
+      price: (u.price === undefined ? null : u.price),
+      traits: String(u.traits || '').split(/[，,]/).map(function (s) { return s.trim(); }).filter(Boolean),
+    };
+  }
+
   function unitsOf(country, era, cat) {
-    const byEra = UNITS[country];
-    return (era === '40s' && byEra && byEra[cat]) ? byEra[cat] : [];
+    const byEra = UNIT_INDEX[country];
+    const names = (era === '40s' && byEra && byEra[cat]) ? byEra[cat] : [];
+    return names.map(function (n) {
+      const s = unitStats(country, n) || EMPTY_STATS;
+      return {
+        name: n, atk: s.atk, ref: s.ref, hp: s.hp, ap: s.ap,
+        armor: s.armor, move: s.move, price: s.price, traits: s.traits,
+      };
+    });
   }
 
   /* 词条说明：规则文档第 7 节有的照抄，没有的只显示名字，不编。 */
@@ -1452,6 +1396,14 @@
       catsEl = mount.querySelector('#ar-cats');
       bindDesc();
 
+      // 数值在 online-prep-data.js 里，和线上对战同一份；没读完先显示「—」，读完刷一次右栏
+      if (!window.PREP_DATA) {
+        const want = state.country;
+        loadPrep().then(function () {
+          if (state.open && state.view === 'country' && state.country === want) dataRefresh();
+        }).catch(function () { /* 没有这个文件就一直显示「—」 */ });
+      }
+
       // 先同步建一次：读 clientWidth 会强制 layout，尺寸是准的；
       // 再补一帧，防止刚显示时 flex 还没算完。
       const v = ensureViewer();
@@ -1547,6 +1499,14 @@
     state.unit = 0;
     render();
     focusEl(mount);
+    // 数值在 online-prep-data.js 里，和线上对战同一份；没读完先显示「—」，读完再刷一次
+    if (!window.PREP_DATA) {
+      loadPrep().then(function () {
+        if (state.open && state.view === 'country' && state.country === id) {
+          dataRefresh();
+        }
+      }).catch(function () { /* 没有这个文件就一直是「—」 */ });
+    }
   }
 
   function goBack() {

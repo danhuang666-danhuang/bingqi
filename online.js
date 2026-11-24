@@ -4057,31 +4057,46 @@
     (state.battle.counterBatteryMarks || []).forEach(function (m) {
       if (m.forSide !== side) return;
       const w = L.cell(m.c, m.r);
-      const r = L.HEXR * 0.52;
-      const y = L.TOP + 0.24;
-      const pts = [];
-      for (let i = 0; i <= 20; i++) {
-        const a = i / 20 * Math.PI * 2;
-        pts.push(new THREE.Vector3(w[0] + Math.cos(a) * r, y, w[1] + Math.sin(a) * r));
-      }
-      const ring = new THREE.LineLoop(
-        new THREE.BufferGeometry().setFromPoints(pts),
-        new THREE.LineBasicMaterial({ color: 0xff3030, transparent: true, opacity: 0.95, depthTest: false })
-      );
-      ring.material._b3Dispose = true;
-      B3.counterBatteryGroup.add(ring);
-      [0, Math.PI / 2].forEach(function (a) {
-        const dx = Math.cos(a) * r, dz = Math.sin(a) * r;
-        const line = new THREE.Line(
-          new THREE.BufferGeometry().setFromPoints([
-            new THREE.Vector3(w[0] - dx, y, w[1] - dz),
-            new THREE.Vector3(w[0] + dx, y, w[1] + dz),
-          ]),
-          new THREE.LineBasicMaterial({ color: 0xff2020, transparent: true, opacity: 0.95, depthTest: false })
-        );
-        line.material._b3Dispose = true;
-        B3.counterBatteryGroup.add(line);
+      const y = L.TOP + 0.26;
+      const mat = new THREE.MeshBasicMaterial({
+        color: 0xff1414, transparent: true, opacity: 0.95,
+        depthTest: false, depthWrite: false, side: THREE.DoubleSide,
       });
+      mat._b3Dispose = true;
+      const ring = new THREE.Mesh(
+        new THREE.RingGeometry(L.HEXR * 0.62, L.HEXR * 0.82, 32),
+        mat
+      );
+      ring.rotation.x = -Math.PI / 2;
+      ring.position.set(w[0], y, w[1]);
+      ring.renderOrder = 30;
+      B3.counterBatteryGroup.add(ring);
+      const barMat = new THREE.MeshBasicMaterial({
+        color: 0xff0808, transparent: true, opacity: 0.95,
+        depthTest: false, depthWrite: false,
+      });
+      barMat._b3Dispose = true;
+      const barX = new THREE.Mesh(
+        new THREE.BoxGeometry(L.HEXR * 1.7, 0.10, L.HEXR * 0.20),
+        barMat
+      );
+      barX.position.set(w[0], y, w[1]);
+      barX.renderOrder = 31;
+      B3.counterBatteryGroup.add(barX);
+      const barZ = new THREE.Mesh(
+        new THREE.BoxGeometry(L.HEXR * 0.20, 0.10, L.HEXR * 1.7),
+        barMat
+      );
+      barZ.position.set(w[0], y, w[1]);
+      barZ.renderOrder = 31;
+      B3.counterBatteryGroup.add(barZ);
+      const dot = new THREE.Mesh(
+        new THREE.CylinderGeometry(L.HEXR * 0.16, L.HEXR * 0.16, 0.14, 16),
+        barMat
+      );
+      dot.position.set(w[0], y + 0.06, w[1]);
+      dot.renderOrder = 32;
+      B3.counterBatteryGroup.add(dot);
     });
     B3.need = true;
   }
