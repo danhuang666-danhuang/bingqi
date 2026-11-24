@@ -4600,6 +4600,20 @@
     return battleAirHasOwnVision(air, target);
   }
 
+  function battleAirCanLock(unit) {
+    if (!battleIsAir(unit)) return false;
+    if (battleHeavyBomber(unit)) return true;
+    const stats = battleAirGroundStats(unit);
+    return stats.soft > 0 || stats.hard > 0;
+  }
+
+  function battleAirHasBomberLock(target, side) {
+    return !!((target && target.lockedBy) || []).some(function (id) {
+      const u = battleUnitById(id);
+      return u && u.alive && u.side === side && battleAirCanLock(u);
+    });
+  }
+
   function battleIsReconPlane(unit) {
     return !!(unit && unit.alive && battleIsAir(unit) && battleIsRecon(unit));
   }
@@ -5832,12 +5846,48 @@
       battleCheckAutoEnd();
       return;
     }
+    if (action.type === 'airLock') {
+      const target = battleUnitById(action.targetId);
+      if (!battleIsAir(unit) || !battleAirCanLock(unit) || !target || !target.alive ||
+          target.side === unit.side || battleIsAir(target)) return;
+      if (!battleAirCanTarget(unit, target)) return;
+      const own = (target.lockedBy || []).indexOf(unit.id) !== -1;
+      if (own) return;
+      const airLocks = (target.lockedBy || []).map(battleUnitById).filter(function (u) {
+        return u && u.alive && battleIsAir(u);
+      }).length;
+      if (airLocks >= 2) return;
+      const cost = battleAirActionCost(unit, target, 'bomb');
+      if (unit.mp < cost) return;
+      target.lockedBy = (target.lockedBy || []).concat(unit.id);
+      target.lockCosts = target.lockCosts || {};
+      target.lockCosts[unit.id] = cost;
+      unit.mp -= cost;
+      b.selectedId = unit.id;
+      b.log.push(unit.name + ' 锁定 ' + target.name + '（空中集火，' + cost + ' 行动力）');
+      battleRefresh();
+      battleCheckAutoEnd();
+      return;
+    }
     if (action.type === 'airAttack') {
       const target = battleUnitById(action.targetId);
       if (!battleIsAir(unit) || !target || !target.alive || target.side === unit.side) return;
-      const attackerIds = [unit.id].concat((Array.isArray(action.attackerIds) ? action.attackerIds : [])
-        .filter(function (id) { return id && id !== unit.id; }));
-      if (attackerIds.length > 2) return;
+      // 战斗机不能单独主动出击；目标必须先被轰炸机/对地攻击机锁定。
+      if (!battleAirCanLock(unit) && !battleAirHasBomberLock(target, unit.side)) return;
+      let attackerIds = [unit.id];
+      if (action.focus && !battleIsAir(target)) {
+        const lockedAir = (target.lockedBy || []).map(battleUnitById).filter(function (u) {
+          return u && u.alive && u.side === unit.side && battleIsAir(u);
+        });
+        attackerIds = attackerIds.concat(lockedAir.map(function (u) { return u.id; }))
+          .filter(function (id, i, arr) { return arr.indexOf(id) === i; })
+          .slice(0, 2);
+        // 轰炸机/攻击机放在编队第一位，战斗机作为护航。
+        attackerIds.sort(function (a, b) {
+          return (battleAirCanLock(battleUnitById(b)) ? 1 : 0) -
+            (battleAirCanLock(battleUnitById(a)) ? 1 : 0);
+        });
+      }
       const group = attackerIds.map(battleUnitById).filter(function (u) {
         return u && u.alive && u.side === unit.side && battleIsAir(u);
       });
@@ -5903,19 +5953,7 @@
         b.log.push(intercept.aa.name + ' 拦截 ' + unit.name + '：' + intercept.spec.damage +
           '，重轰强行突破，继续轰炸');
       }
-      const participants = [unit];
-      let airCount = 1;
-      if (action.focus) {
-        (target.lockedBy || []).forEach(function (id) {
-          const u = battleUnitById(id);
-          if (!u || !u.alive || u.side !== unit.side) return;
-          if (battleIsAir(u)) {
-            if (airCount >= 2) return;
-            airCount++;
-          }
-          if (participants.indexOf(u) === -1) participants.push(u);
-        });
-      }
+      const participants = action.focus && group.length > 1 ? group.slice(0, 2) : [unit];
       const facingInfo = battleAutoFacing(target, participants);
       const facing = facingInfo.facing;
       target.facing = facing;
@@ -6964,41 +7002,28 @@
       state.b3BombHint = { targetId: target.id, dir: 0 };
       refreshBattle3DBombHint();
     }
-    if (role === 'bomb') {
-      const escorts = battleAliveUnits().filter(function (u) {
-        return u.side === air.side && u.id !== air.id && battleIsAir(u) && battleAirIntercept(u) > 0;
-      });
-      if (escorts.length) {
-        const wrap = document.createElement('div');
-        wrap.className = 'battle-escorts';
-        const title = document.createElement('b');
-        title.textContent = '护航编队 · 最多 2 架';
-        wrap.appendChild(title);
-        escorts.forEach(function (u) {
-          const b = document.createElement('button');
-          b.type = 'button';
-          b.className = 'btn small battle-escort';
-          b.setAttribute('data-air-escort', u.id);
-          b.textContent = u.name + ' · 空战 ' + battleFmt(battleAirIntercept(u));
-          wrap.appendChild(b);
-        });
-        box.appendChild(wrap);
-      }
+    const fighterNeedsLock = !battleAirCanLock(air) && !battleAirHasBomberLock(target, air.side);
+    if (!battleIsAir(target) && battleAirCanLock(air) &&
+        (target.lockedBy || []).indexOf(air.id) === -1) {
+      add('锁定 · ' + airCost + ' 行动力', 'airLock', false,
+        mismatch || air.mp < airCost || !canNormalAir);
     }
     add((role === 'intercept' ? '攻击 · 空战' : '攻击 · 对地轰炸') + ' · ' + airCost + ' 行动力',
-      'airAttack', false, mismatch || air.mp < airCost || !canNormalAir);
+      'airAttack', false, mismatch || air.mp < airCost || !canNormalAir || fighterNeedsLock);
     if (targetLocked) {
       add('集火 · ' + (role === 'intercept' ? '空战' : '对地轰炸') + ' · ' + airCost + ' 行动力',
-        'airAttack', true, mismatch || air.mp < airCost);
+        'airAttack', true, mismatch || air.mp < airCost || fighterNeedsLock);
     }
     if (!battleIsAir(target) && battleTrait(air, 'nuke') && Number(state.battle.nukeStock && state.battle.nukeStock[air.side]) > 0) {
       add('核弹 · 剩余 ' + state.battle.nukeStock[air.side] + ' 枚 · 2 行动力', 'nukeAttack', false, air.mp < 2);
     }
     const hint = document.createElement('div');
     hint.className = 'battle-choice-hint';
-    hint.textContent = multi
-      ? '多功能飞机需先选定用途；对地轰炸会沿起飞点直线飞行并检查防空，空战攻击敌机。'
-      : '单一功能飞机自动使用对应任务；出击会检查防空拦截。';
+    hint.textContent = fighterNeedsLock
+      ? '战斗机不能单独主动出击；需要轰炸机或对地攻击机先锁定该目标，战斗机才能参与集火。'
+      : (multi
+        ? '多功能飞机需先选定用途；对地轰炸会沿起飞点直线飞行并检查防空，空战攻击敌机。'
+        : '单一功能飞机自动使用对应任务；出击会检查防空拦截。');
     box.appendChild(hint);
     add('取消', 'cancel', false, false);
     box.classList.remove('hidden');

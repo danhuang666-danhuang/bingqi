@@ -956,8 +956,8 @@ body.online-open { overflow: hidden; }
 
 .br-budget {
   margin: 8px 0 7px;
-  font: 9.5px/1.5 var(--mono);
-  color: #91a0b2;
+  font: 11.5px/1.55 var(--mono);
+  color: #aab8c8;
 }
 
 .br-air {
@@ -968,16 +968,16 @@ body.online-open { overflow: hidden; }
   color: #b8e6ff;
   font: 9px/1.5 var(--mono);
 }
-.br-budget b { color: #ffd28a; }
+.br-budget b { color: #ffd28a; font-size: 14px; }
 
 .br-divs, .br-center { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 7px; }
 .br-div {
-  padding: 4px 6px;
+  padding: 5px 8px;
   border: 1px solid rgba(75, 91, 108, 0.8);
   border-radius: 5px;
   background: rgba(29, 38, 49, 0.8);
   color: #aeb9c7;
-  font: 9px/1.3 var(--mono);
+  font: 10.5px/1.35 var(--mono);
   cursor: pointer;
 }
 .br-div.is-on { border-color: #e0a458; color: #ffe0aa; background: rgba(92, 66, 30, 0.55); }
@@ -1009,8 +1009,8 @@ body.online-open { overflow: hidden; }
   border-bottom: 1px solid rgba(62, 75, 91, 0.45);
 }
 .br-row.is-on { background: rgba(224, 164, 88, 0.08); }
-.br-name b { display: block; font: 10px/1.35 var(--mono); color: #dce4ee; }
-.br-name small { display: block; margin-top: 1px; font: 8.5px/1.3 var(--mono); color: #758396; }
+.br-name b { display: block; font: 11.5px/1.35 var(--mono); color: #dce4ee; }
+.br-name small { display: block; margin-top: 1px; font: 10px/1.3 var(--mono); color: #8795a8; }
 .br-num { display: flex; align-items: center; gap: 5px; }
 .br-num button {
   width: 23px;
@@ -2477,7 +2477,7 @@ body.online-open { overflow: hidden; }
   flex-direction: column;
   gap: 5px;
   min-width: 0;
-  padding: 12px;
+  padding: 14px;
   border: 1px solid #2b333e;
   border-radius: 11px;
   background: #12171e;
@@ -2496,15 +2496,15 @@ body.online-open { overflow: hidden; }
 .prep-division-card.is-selected { border-color: rgba(224, 164, 88, 0.55); background: rgba(224, 164, 88, 0.08); }
 
 .prep-corps-card b,
-.prep-division-top b { font-size: 14px; font-weight: 600; color: #e6eaf0; }
+.prep-division-top b { font-size: 16px; font-weight: 650; color: #eef2f7; }
 .prep-corps-card small,
-.prep-division-card small { font-size: 9.5px; line-height: 1.6; color: #6f7a89; }
+.prep-division-card small { font-size: 11px; line-height: 1.65; color: #8794a5; }
 
 .prep-corps-units,
 .prep-division-pool {
-  font-size: 9.5px;
-  line-height: 1.7;
-  color: #8b96a5;
+  font-size: 11px;
+  line-height: 1.75;
+  color: #9aa8b8;
   overflow-wrap: anywhere;
 }
 
@@ -2573,8 +2573,8 @@ body.online-open { overflow: hidden; }
   background: #12171e;
 }
 
-.prep-stat b { font: 12px/1 var(--mono); color: #dfe4ea; }
-.prep-stat small { font-size: 9px; color: #6f7a89; }
+.prep-stat b { font: 14px/1 var(--mono); color: #e8edf4; }
+.prep-stat small { font-size: 10.5px; color: #8794a5; }
 .prep-stat.is-full b { color: #e0a458; }
 
 .prep-deck-actions { display: flex; gap: 6px; margin-left: auto; flex-wrap: wrap; }
@@ -2585,9 +2585,9 @@ body.online-open { overflow: hidden; }
   justify-content: space-between;
   gap: 10px;
   flex-wrap: wrap;
-  font-size: 9.5px;
-  line-height: 1.6;
-  color: #7f8a99;
+  font-size: 11.5px;
+  line-height: 1.65;
+  color: #95a2b3;
 }
 
 .prep-change { display: flex; gap: 5px; }
@@ -2638,18 +2638,18 @@ body.online-open { overflow: hidden; }
 .prep-unit-card.is-corps { background: #141b24; }
 
 .prep-unit-top { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
-.prep-unit-top b { font-size: 14px; font-weight: 600; color: #e0e5eb; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.prep-unit-top b { font-size: 15px; font-weight: 600; color: #e0e5eb; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .prep-unit-top em {
   flex: 0 0 auto;
   font-style: normal;
   padding: 1px 4px;
   border: 1px solid #2f3945;
   border-radius: 3px;
-  font-size: 8px;
-  color: #7f8a99;
+  font-size: 9px;
+  color: #8b98a8;
 }
 
-.prep-unit-card small { font-size: 9px; color: #6f7a89; }
+.prep-unit-card small { font-size: 10.5px; color: #8794a5; }
 
 .prep-unit-controls { display: flex; align-items: center; gap: 6px; margin-top: 2px; }
 
@@ -2671,7 +2671,7 @@ body.online-open { overflow: hidden; }
 
 .prep-unit-count { margin-left: auto; font: 10px/1 var(--mono); color: #8b96a5; }
 
-.prep-deck-note { margin: 0; font-size: 9.5px; line-height: 1.7; color: #657180; }
+.prep-deck-note { margin: 0; font-size: 10.5px; line-height: 1.75; color: #7c8898; }
 
 .prep-nuke {
   display: flex;
