@@ -7,7 +7,7 @@ window.TUTORIAL_LEVELS = [
       "format": "bingqi-map",
       "version": 3,
       "app": "bingqi-map-editor",
-      "savedAt": "2026-11-24T13:08:17.482Z",
+      "savedAt": "2026-11-24T13:35:21.115Z",
       "cols": 8,
       "rows": 6,
       "mode": "attack",
@@ -43,7 +43,7 @@ window.TUTORIAL_LEVELS = [
         0,
         0,
         0,
-        0,
+        3,
         3,
         8,
         0,
@@ -286,7 +286,7 @@ window.TUTORIAL_LEVELS = [
           0,
           0,
           0,
-          0,
+          0.3,
           0.3,
           0,
           0,
@@ -338,35 +338,35 @@ window.TUTORIAL_LEVELS = [
       {
         "side": "attacker",
         "name": "步兵营",
-        "c": 1,
-        "r": 3,
+        "c": 2,
+        "r": 2,
         "id": "tutorial-us-inf"
       },
       {
         "side": "defender",
         "name": "步兵营",
         "c": 6,
-        "r": 3,
+        "r": 2,
         "id": "tutorial-de-inf"
       }
     ],
     "steps": [
       {
-        "text": "左键选中美军步兵营，右键点击城区房屋（3,3），左键可取消，确认后再右键一次完成移动。",
+        "text": "左键选中美军步兵营，右键点击 D3 房屋（3,2），左键可取消，确认后再右键一次完成移动。",
         "allow": {
           "type": "move",
           "unitId": "tutorial-us-inf",
           "c": 3,
-          "r": 3
+          "r": 2
         },
         "focus": {
           "c": 3,
-          "r": 3,
-          "label": "城区 · 移动到这里"
+          "r": 2,
+          "label": "D3 · 城区"
         }
       },
       {
-        "text": "左侧山地格标红：同样是走一格，山地要消耗 3 点行动力。看完后点击「结束回合」。",
+        "text": "左侧山地格 C4（2,3）标黄：同样是走一格，山地要消耗 3 点行动力。看完后点击「结束回合」。",
         "allow": {
           "type": "endTurn"
         },
@@ -377,16 +377,16 @@ window.TUTORIAL_LEVELS = [
         }
       },
       {
-        "text": "回合交给德军。德军步兵移动到了河格（5,2）。上河会立刻清空该单位剩余行动力。确认后点「下一步」继续。",
+        "text": "回合交给德军。德军步兵移动到了 F3 河格（5,2）。上河会立刻清空该单位剩余行动力。确认后点「下一步」继续。",
         "auto": "enemyRiver",
         "focus": {
           "c": 5,
           "r": 2,
-          "label": "德军上河 · 行动力清零"
+          "label": "F3 · 德军上河"
         }
       },
       {
-        "text": "回到你的回合。现在隔着房区看德军：房屋会阻挡视线，不能直接攻击。",
+        "text": "回到你的回合。现在隔着 E3 房屋看 F3 德军：房屋会阻挡视线，不能直接攻击。",
         "blocked": true,
         "blockedText": "房屋阻挡了视线：需要先移动到能看到目标的位置。",
         "allow": {
@@ -397,11 +397,11 @@ window.TUTORIAL_LEVELS = [
         "focus": {
           "c": 5,
           "r": 2,
-          "label": "房区后的德军"
+          "label": "E3房区后的德军"
         }
       },
       {
-        "text": "把步兵移动到（4,2）房屋，绕开阻挡获得德军视野。",
+        "text": "把步兵移动到 E3 房屋（4,2），绕开阻挡获得 F3 德军视野。",
         "allow": {
           "type": "move",
           "unitId": "tutorial-us-inf",
@@ -411,7 +411,7 @@ window.TUTORIAL_LEVELS = [
         "focus": {
           "c": 4,
           "r": 2,
-          "label": "攻击位置"
+          "label": "E3 · 攻击位置"
         }
       },
       {
@@ -424,7 +424,7 @@ window.TUTORIAL_LEVELS = [
         "focus": {
           "c": 5,
           "r": 2,
-          "label": "德军"
+          "label": "F3 · 德军"
         }
       },
       {
