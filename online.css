@@ -1353,6 +1353,68 @@ body.online-open { overflow: hidden; }
 }
 .battle-history-counter { color: #d9b18b; }
 
+.tutorial-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(4, 8, 13, 0.78);
+  backdrop-filter: blur(5px);
+}
+
+.tutorial-shell {
+  width: min(620px, 100%);
+  max-height: min(78vh, 680px);
+  overflow: auto;
+  padding: 20px;
+  border: 1px solid #34465b;
+  border-radius: 14px;
+  background: #0d141d;
+  box-shadow: 0 26px 80px rgba(0, 0, 0, 0.65);
+}
+
+.tutorial-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.tutorial-head b { font-size: 20px; color: #f0d3a8; }
+.tutorial-head span { margin-left: 8px; font: 10px var(--mono); letter-spacing: 0.16em; color: #7f8d9e; }
+.tutorial-intro { margin: 10px 0 16px; font: 11px/1.7 var(--mono); color: #8e9cad; }
+.tutorial-list { display: flex; flex-direction: column; gap: 8px; }
+.tutorial-card {
+  display: flex; align-items: center; gap: 12px;
+  width: 100%; padding: 13px 14px;
+  border: 1px solid #2d3c4e; border-radius: 9px;
+  background: #121b25; color: #dce5ef; text-align: left; cursor: pointer;
+}
+.tutorial-card:hover { border-color: #e0a458; background: #172231; }
+.tutorial-no { font: 12px var(--mono); color: #e0a458; }
+.tutorial-card-main { flex: 1; min-width: 0; }
+.tutorial-card-main b { display: block; font-size: 15px; }
+.tutorial-card-main small { display: block; margin-top: 3px; font: 10.5px/1.5 var(--mono); color: #8493a5; }
+.tutorial-arrow { color: #e0a458; font-size: 18px; }
+.tutorial-empty { font: 12px var(--mono); color: #8493a5; }
+
+.tutorial-guide {
+  position: absolute;
+  left: 18px;
+  bottom: 18px;
+  z-index: 14;
+  width: min(360px, calc(100% - 36px));
+  padding: 12px 14px;
+  border: 1px solid rgba(224, 164, 88, 0.55);
+  border-radius: 10px;
+  background: rgba(10, 16, 23, 0.96);
+  box-shadow: 0 18px 45px rgba(0, 0, 0, 0.5);
+  color: #dce5ef;
+}
+.tutorial-guide-head { display: flex; justify-content: space-between; gap: 8px; }
+.tutorial-guide-head b { font-size: 13px; color: #f0d3a8; }
+.tutorial-guide-head span { font: 10px var(--mono); color: #e0a458; }
+.tutorial-guide p { margin: 8px 0 10px; font: 11px/1.65 var(--mono); color: #c4cfdb; }
+.tutorial-guide-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.tutorial-guide-actions .btn { width: auto; flex: 1 1 auto; min-height: 28px; }
+
 .battle-tip {
   position: absolute;
   z-index: 9;

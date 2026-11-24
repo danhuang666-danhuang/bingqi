@@ -12716,6 +12716,226 @@
     if (cssLink && !/[?&]v=/.test(cssLink.href)) cssLink.href = 'online.css?v=20261122a';
   } catch (e) { /* ignore */ }
 
+  /* =============================================================
+   * 教程
+   * ============================================================= */
+  let tutorialDataLoading = null;
+
+  function loadTutorialData(cb) {
+    if (window.TUTORIAL_LEVELS) { if (cb) cb(); return; }
+    if (tutorialDataLoading) { if (cb) tutorialDataLoading.push(cb); return; }
+    tutorialDataLoading = [];
+    const s = document.createElement('script');
+    s.src = withBuild('tutorial-data.js');
+    s.async = true;
+    s.onload = function () {
+      const q = tutorialDataLoading || [];
+      tutorialDataLoading = null;
+      q.forEach(function (fn) { try { if (fn) fn(); } catch (e) {} });
+    };
+    s.onerror = function () {
+      tutorialDataLoading = null;
+      toast('教程数据加载失败：tutorial-data.js');
+    };
+    document.head.appendChild(s);
+  }
+
+  function ensureTutorialScreen() {
+    let screen = el('tutorial-screen');
+    if (screen) return screen;
+    screen = document.createElement('section');
+    screen.id = 'tutorial-screen';
+    screen.className = 'tutorial-screen hidden';
+    screen.setAttribute('role', 'dialog');
+    screen.setAttribute('aria-modal', 'true');
+    screen.innerHTML =
+      '<div class="tutorial-shell">' +
+        '<header class="tutorial-head"><div><b>新手教程</b><span>TUTORIAL</span></div>' +
+          '<button type="button" class="btn small" data-tutorial-close="1">关闭</button></header>' +
+        '<p class="tutorial-intro">从基础攻击开始，逐步学习地形、射程、巷战和反击。</p>' +
+        '<div id="tutorial-list" class="tutorial-list"></div>' +
+      '</div>';
+    document.body.appendChild(screen);
+    screen.addEventListener('click', function (e) {
+      if (e.target.closest && e.target.closest('[data-tutorial-close]')) {
+        closeTutorialScreen();
+        return;
+      }
+      const start = e.target.closest ? e.target.closest('[data-tutorial-start]') : null;
+      if (start) {
+        const id = start.getAttribute('data-tutorial-start');
+        if (id) startTutorial(id);
+      }
+    });
+    return screen;
+  }
+
+  function openTutorialScreen() {
+    const screen = ensureTutorialScreen();
+    screen.classList.remove('hidden');
+    loadTutorialData(function () {
+      const list = el('tutorial-list');
+      if (!list) return;
+      const levels = window.TUTORIAL_LEVELS || [];
+      list.innerHTML = '';
+      levels.forEach(function (level, i) {
+        const card = document.createElement('button');
+        card.type = 'button';
+        card.className = 'tutorial-card';
+        card.setAttribute('data-tutorial-start', level.id);
+        card.innerHTML = '<span class="tutorial-no">' + String(i + 1).padStart(2, '0') + '</span>' +
+          '<span class="tutorial-card-main"><b>' + battleReinforceEsc(level.title) + '</b>' +
+          '<small>' + battleReinforceEsc(level.subtitle || '') + '</small></span>' +
+          '<span class="tutorial-arrow">→</span>';
+        list.appendChild(card);
+      });
+      if (!levels.length) list.innerHTML = '<p class="tutorial-empty">还没有教程关卡。</p>';
+    });
+  }
+
+  function closeTutorialScreen() {
+    const screen = el('tutorial-screen');
+    if (screen) screen.classList.add('hidden');
+  }
+
+  function tutorialGuideHtml(level, step) {
+    const text = (level && level.steps && level.steps[step]) || '';
+    return '<div class="tutorial-guide-head"><b>' + battleReinforceEsc(level ? level.title : '教程') +
+      '</b><span>' + (step + 1) + ' / ' + ((level && level.steps && level.steps.length) || 1) + '</span></div>' +
+      '<p>' + battleReinforceEsc(text) + '</p>' +
+      '<div class="tutorial-guide-actions">' +
+        '<button type="button" class="btn small" data-tutorial-prev="1"' + (step <= 0 ? ' disabled' : '') + '>上一步</button>' +
+        '<button type="button" class="btn small primary" data-tutorial-next="1">' + (step + 1 >= ((level && level.steps && level.steps.length) || 1) ? '完成教程' : '下一步') + '</button>' +
+        '<button type="button" class="btn small" data-tutorial-guide-close="1">收起</button>' +
+      '</div>';
+  }
+
+  function renderTutorialGuide() {
+    const panel = el('tutorial-guide');
+    if (!panel || !state.tutorial) return;
+    panel.innerHTML = tutorialGuideHtml(state.tutorial.level, state.tutorial.step || 0);
+    panel.classList.remove('hidden');
+  }
+
+  function tutorialGuideClick(e) {
+    if (!state.tutorial) return;
+    const level = state.tutorial.level;
+    const steps = level.steps || [];
+    if (e.target.closest && e.target.closest('[data-tutorial-next]')) {
+      if ((state.tutorial.step || 0) + 1 >= steps.length) {
+        hideEl('tutorial-guide', true);
+        state.tutorial = null;
+        toast('教程完成');
+        return;
+      }
+      state.tutorial.step = (state.tutorial.step || 0) + 1;
+      renderTutorialGuide();
+      return;
+    }
+    if (e.target.closest && e.target.closest('[data-tutorial-prev]')) {
+      state.tutorial.step = Math.max(0, (state.tutorial.step || 0) - 1);
+      renderTutorialGuide();
+      return;
+    }
+    if (e.target.closest && e.target.closest('[data-tutorial-guide-close]')) {
+      hideEl('tutorial-guide', true);
+    }
+  }
+
+  function startTutorial(levelId) {
+    loadTutorialData(function () {
+      const level = (window.TUTORIAL_LEVELS || []).filter(function (l) { return l.id === levelId; })[0];
+      if (!level) { toast('教程关卡不存在'); return; }
+      loadPrepData().then(function () {
+        closeTutorialScreen();
+        if (!state.open) open();
+        resetRoom();
+        state.test = true;
+        state.role = 'host';
+        state.name = '教程玩家';
+        state.roomCode = 'TUTORIAL';
+        state.joined = true;
+        state.phase = 'lobby';
+        state.net = null;
+        state.netStatus = 'local';
+        ensureTestSeats(2);
+        const s0 = state.testSeats[0], s1 = state.testSeats[1];
+        s0.name = '教程玩家'; s1.name = '教程敌军';
+        s0.side = 'attacker'; s1.side = 'defender';
+        s0.faction = level.factions.attacker; s1.faction = level.factions.defender;
+        s0.factionReady = s1.factionReady = true;
+        s0.deckReady = s1.deckReady = true;
+        s0.ready = s1.ready = true;
+        state.activeSeat = s0.id;
+        syncActiveSeat();
+        state.factionView = false;
+        state.hostFactions = Object.assign({}, level.factions);
+        state.hostTeams = null;
+        state.factionReady = true;
+        state.deckReady = true;
+        const parsed = parseMap(level.map);
+        if (!parsed) { toast('教程地图解析失败'); return; }
+        state.map = parsed.parsed;
+        state.mapWrapper = { title: level.title, map: parsed.map };
+        state.selectedMapId = 'tutorial-' + level.id;
+        const units = (level.units || []).map(function (u, i) {
+          return {
+            id: u.id || 'tutorial-' + level.id + '-' + i,
+            side: u.side, name: u.name, c: Number(u.c), r: Number(u.r),
+            airBase: !!u.airBase,
+          };
+        });
+        state.decks = { attacker: [], defender: [] };
+        units.forEach(function (u) { state.decks[u.side].push(u.name); });
+        state.deploy = { units: units, ready: { attacker: true, defender: true } };
+        state.phase = 'battle';
+        state.battle = initBattleState();
+        state.battle.buildings = [];
+        state.battle.history = [];
+        state.tutorial = { level: level, step: 0 };
+        state.battleSeenAction = '';
+        ensureDeployModels();
+        setView('room');
+        renderRoom();
+        renderTutorialGuide();
+        const guide = el('tutorial-guide');
+        if (!guide) {
+          const panel = document.createElement('div');
+          panel.id = 'tutorial-guide';
+          panel.className = 'tutorial-guide';
+          const view = el('online-battle-view');
+          if (view) view.appendChild(panel);
+          renderTutorialGuide();
+          panel.addEventListener('click', tutorialGuideClick);
+        } else {
+          guide.addEventListener('click', tutorialGuideClick);
+        }
+        window.dispatchEvent(new Event('resize'));
+      }).catch(function (err) {
+        toast('教程初始化失败：' + (err && err.message ? err.message : '编制数据未加载'));
+      });
+    });
+  }
+
+  function installTutorialMenu() {
+    const list = document.querySelector('.menu-list');
+    if (!list || list.querySelector('[data-module="tutorial"]')) return;
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'menu-item';
+    btn.setAttribute('data-module', 'tutorial');
+    btn.setAttribute('data-name', '教程');
+    btn.innerHTML = '<span class="mi-no">00</span>' +
+      '<span class="mi-text"><span class="mi-title">教程<em>TUTORIAL</em></span></span>' +
+      '<span class="mi-arrow" aria-hidden="true">→</span>';
+    list.insertBefore(btn, list.firstChild);
+    btn.addEventListener('click', function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      openTutorialScreen();
+    });
+  }
+
   window.Online = {
     traits: {
       modules: function () { return Object.keys(TRAIT_MODULES); },
@@ -12770,6 +12990,8 @@
       return (state.battle && state.battle.log ? state.battle.log : []).join('\n');
     },
   };
+
+  installTutorialMenu();
 })();
 
 /* ==== 建筑模型（由 building-models.js 嵌入，发布包只带 online.js） ==== */
