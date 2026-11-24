@@ -11108,9 +11108,14 @@
     hideEl('online-back-lobby', !(isHost && live));
 
     if (start) {
-      const why = startReason();
-      start.disabled = !!why;
-      start.title = why || '所有玩家已选阵营并准备，开始对局';
+      if (state.test) {
+        start.disabled = !state.map;
+        start.title = state.map ? '进入沙盒战场' : '先导入或选择地图';
+      } else {
+        const why = startReason();
+        start.disabled = !!why;
+        start.title = why || '所有玩家已选阵营并准备，开始对局';
+      }
     }
 
     if (ready) {
@@ -12870,6 +12875,10 @@
 
   el('online-start').addEventListener('click', async function () {
     if (state.phase !== 'lobby') return;
+    if (state.test) {
+      startSandboxBattle();
+      return;
+    }
     if (!canStart()) return;
     if (!state.test && !state.net) return;
     const factions = {
