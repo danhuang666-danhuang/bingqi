@@ -8662,6 +8662,8 @@
   }
 
   function maybePrepare() {
+    // 沙盒模式没有配卡/师配置，选完国家直接进战场。
+    if (state.test) return;
     if (state.phase !== 'lobby') return;
     if (!state.map || state.map.mode !== 'attack') return;
     if (!factionsReady() || !bothFactionsConfirmed()) return;
@@ -8673,6 +8675,7 @@
   }
 
   function enterPrepare() {
+    if (state.test) return;
     if (state.phase === 'prepare') return;
     state.phase = 'prepare';
     state.factionView = false;
