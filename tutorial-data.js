@@ -1,13 +1,13 @@
 window.TUTORIAL_LEVELS = [
   {
     "id": "t01",
-    "title": "第一关 · 基础攻击与反击",
-    "subtitle": "移动 · 射程 · 地形 · 巷战 · 反击",
+    "title": "第一关 · 移动、地形与攻击",
+    "subtitle": "选中 · 移动 · 山地消耗 · 视野 · 巷战 · 反击",
     "map": {
       "format": "bingqi-map",
       "version": 3,
       "app": "bingqi-map-editor",
-      "savedAt": "2026-11-24T12:55:47.149Z",
+      "savedAt": "2026-11-24T13:08:17.482Z",
       "cols": 8,
       "rows": 6,
       "mode": "attack",
@@ -35,7 +35,7 @@ window.TUTORIAL_LEVELS = [
         0,
         0,
         0,
-        3,
+        0,
         8,
         0,
         0,
@@ -43,7 +43,7 @@ window.TUTORIAL_LEVELS = [
         0,
         0,
         0,
-        3,
+        0,
         3,
         8,
         0,
@@ -53,7 +53,7 @@ window.TUTORIAL_LEVELS = [
         7,
         3,
         8,
-        0,
+        3,
         0,
         0,
         0,
@@ -61,7 +61,7 @@ window.TUTORIAL_LEVELS = [
         0,
         7,
         8,
-        0,
+        3,
         0,
         0,
         0,
@@ -278,7 +278,6 @@ window.TUTORIAL_LEVELS = [
           0,
           0,
           0,
-          0.3,
           0,
           0,
           0,
@@ -286,7 +285,8 @@ window.TUTORIAL_LEVELS = [
           0,
           0,
           0,
-          0.3,
+          0,
+          0,
           0.3,
           0,
           0,
@@ -296,7 +296,7 @@ window.TUTORIAL_LEVELS = [
           0.4,
           0.3,
           0,
-          0,
+          0.3,
           0,
           0,
           0,
@@ -304,7 +304,7 @@ window.TUTORIAL_LEVELS = [
           0,
           0.4,
           0,
-          0,
+          0.3,
           0,
           0,
           0,
@@ -339,37 +339,105 @@ window.TUTORIAL_LEVELS = [
         "side": "attacker",
         "name": "步兵营",
         "c": 1,
-        "r": 5,
+        "r": 3,
         "id": "tutorial-us-inf"
-      },
-      {
-        "side": "attacker",
-        "name": "游骑兵营",
-        "c": 3,
-        "r": 2,
-        "id": "tutorial-us-ranger"
       },
       {
         "side": "defender",
         "name": "步兵营",
-        "c": 3,
-        "r": 5,
+        "c": 6,
+        "r": 3,
         "id": "tutorial-de-inf"
-      },
-      {
-        "side": "defender",
-        "name": "人民冲锋队",
-        "c": 4,
-        "r": 2,
-        "id": "tutorial-de-people"
       }
     ],
     "steps": [
-      "第一步：选中美军步兵营（左侧平原），右键德军步兵营，查看距离 2 时的伤害预览。",
-      "第二步：把步兵营移动到德军步兵营相邻的平原格，再右键攻击，比较距离 1 的伤害。",
-      "第三步：攻击后德军会反击。点顶部座位切换到“教程敌军”，选择反击目标，再切回“教程玩家”。",
-      "第四步：选中美军游骑兵，攻击右侧房屋中的德军人民冲锋队，观察房屋 30% 减伤和巷战数值。",
-      "第五步：打开“对战历史”，确认攻击者、目标、伤害和反击记录。"
+      {
+        "text": "左键选中美军步兵营，右键点击城区房屋（3,3），左键可取消，确认后再右键一次完成移动。",
+        "allow": {
+          "type": "move",
+          "unitId": "tutorial-us-inf",
+          "c": 3,
+          "r": 3
+        },
+        "focus": {
+          "c": 3,
+          "r": 3,
+          "label": "城区"
+        }
+      },
+      {
+        "text": "左侧山地格标红：同样是走一格，山地要消耗 3 点行动力。看完后点击「结束回合」。",
+        "allow": {
+          "type": "endTurn"
+        },
+        "focus": {
+          "c": 2,
+          "r": 3,
+          "label": "山地 · 3行动力"
+        }
+      },
+      {
+        "text": "回合交给德军。德军步兵移动到河格（4,3）。上河会立刻清空该单位剩余行动力。",
+        "auto": "enemyRiver",
+        "focus": {
+          "c": 4,
+          "r": 3,
+          "label": "德军上河"
+        }
+      },
+      {
+        "text": "回到你的回合。现在隔着房区看德军：房屋会阻挡视线，不能直接攻击。",
+        "blocked": true,
+        "blockedText": "房屋阻挡了视线：需要先移动到能看到目标的位置。",
+        "focus": {
+          "c": 4,
+          "r": 3,
+          "label": "房区后的德军"
+        }
+      },
+      {
+        "text": "把步兵移动到（4,2）平原，绕开房屋获得德军视野。",
+        "allow": {
+          "type": "move",
+          "unitId": "tutorial-us-inf",
+          "c": 4,
+          "r": 2
+        },
+        "focus": {
+          "c": 4,
+          "r": 2,
+          "label": "攻击位置"
+        }
+      },
+      {
+        "text": "右键德军步兵攻击：观察预计伤害、房屋/地形修正和反击预览。",
+        "allow": {
+          "type": "attack",
+          "unitId": "tutorial-us-inf",
+          "targetId": "tutorial-de-inf"
+        },
+        "focus": {
+          "c": 4,
+          "r": 3,
+          "label": "德军"
+        }
+      },
+      {
+        "text": "德军会反击。点顶部座位切换到「教程敌军」，选择反击目标，再切回「教程玩家」。",
+        "focus": {
+          "c": 4,
+          "r": 3,
+          "label": "反击选择"
+        }
+      },
+      {
+        "text": "打开「对战历史」，确认攻击者、目标、伤害和反击记录；教程完成。",
+        "focus": {
+          "c": 3,
+          "r": 3,
+          "label": "教程完成"
+        }
+      }
     ]
   }
 ];

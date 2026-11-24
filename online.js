@@ -1214,6 +1214,7 @@
       const bombHintGroup = new THREE.Group();
       const counterBatteryGroup = new THREE.Group();
       const counterFocusGroup = new THREE.Group();
+      const tutorialFocusGroup = new THREE.Group();
       scene.add(boardGroup);
       scene.add(zoneGroup);
       scene.add(flagGroup);
@@ -1234,6 +1235,7 @@
       scene.add(bombHintGroup);
       scene.add(counterBatteryGroup);
       scene.add(counterFocusGroup);
+      scene.add(tutorialFocusGroup);
 
       B3 = {
         canvas: canvas,
@@ -1263,6 +1265,7 @@
         bombHintGroup: bombHintGroup,
         counterBatteryGroup: counterBatteryGroup,
         counterFocusGroup: counterFocusGroup,
+        tutorialFocusGroup: tutorialFocusGroup,
         floats: [],
         flights: [],
         tileMeshes: [],
@@ -2264,6 +2267,7 @@
     refreshBattle3DBombHint();
     refreshBattleCounterBatteryMarks();
     refreshBattleCounterFocus();
+    refreshTutorialFocus();
     B3.need = true;
   }
 
@@ -4264,6 +4268,39 @@
     B3.need = true;
   }
 
+  function refreshTutorialFocus() {
+    if (!B3 || !B3.tutorialFocusGroup || !state.map) return;
+    const THREE = window.THREE;
+    const L = b3Layout();
+    if (!THREE || !L) return;
+    b3ClearGroup(B3.tutorialFocusGroup);
+    const t = state.tutorial;
+    const step = t && t.level && t.level.steps ? t.level.steps[t.step || 0] : null;
+    const focus = step && step.focus;
+    if (!focus) { B3.need = true; return; }
+    const w = L.cell(Number(focus.c), Number(focus.r));
+    const mat = new THREE.MeshBasicMaterial({
+      color: 0xffd166, transparent: true, opacity: 0.9,
+      depthTest: false, depthWrite: false, side: THREE.DoubleSide,
+    });
+    mat._b3Dispose = true;
+    const ring = new THREE.Mesh(
+      new THREE.RingGeometry(L.HEXR * 0.62, L.HEXR * 0.92, 40),
+      mat
+    );
+    ring.rotation.x = -Math.PI / 2;
+    ring.position.set(w[0], L.TOP + 0.28, w[1]);
+    ring.renderOrder = 42;
+    B3.tutorialFocusGroup.add(ring);
+    const label = b3CostSprite(focus.label || '教程目标', { color: '#ffe09a' });
+    if (label) {
+      label.position.set(w[0], L.TOP + L.HEXR * 3.1, w[1]);
+      label.renderOrder = 43;
+      B3.tutorialFocusGroup.add(label);
+    }
+    B3.need = true;
+  }
+
   function refreshBattleCounterFocus() {
     if (!B3 || !B3.counterFocusGroup || !state.map || !state.battle) return;
     const THREE = window.THREE;
@@ -4297,8 +4334,7 @@
     B3.need = true;
   }
 
-  function refreshBattle3DBombHint() {
-    if (!B3 || !B3.bombHintGroup || !state.map) return;
+  function refreshBattle3DBombHint() {    if (!B3 || !B3.bombHintGroup || !state.map) return;
     const THREE = window.THREE;
     const L = b3Layout();
     const plate = b3HexPlateGeo();
@@ -5647,9 +5683,11 @@
   function battleRequest(action) {
     if (!state.battle) return;
     action = action || {};
+    if (!tutorialCheck(action)) return;
     action.id = String(state.selfId || 'local') + '-' + Date.now().toString(36) + '-' + (++state.battleSeq);
     if (state.test || state.role === 'host') {
       battleApply(action);
+      tutorialAfterAction(action);
       battlePublish();
     } else if (state.role === 'guest') {
       // 客人的动作要绕一圈到房主再回来，体感很慢。
@@ -7016,6 +7054,14 @@
         return;
       }
       const artyTarget = battleArtilleryCanTarget(selected, clicked);
+      const tStep = tutorialCurrentStep();
+      if (state.tutorial && clicked && tStep && tStep.blocked && tStep.allow &&
+          clicked.id === tStep.allow.targetId) {
+        tutorialCheck({
+          type: tStep.allow.type, unitId: selected.id, targetId: clicked.id,
+        });
+        return;
+      }
       if (!battleUnitCanSee(selected, clicked) && !artyTarget) {
         toast('没有该单位的视野');
         return;
@@ -12799,13 +12845,15 @@
   }
 
   function tutorialGuideHtml(level, step) {
-    const text = (level && level.steps && level.steps[step]) || '';
+    const stepDef = level && level.steps ? level.steps[step] : null;
+    const text = typeof stepDef === 'string' ? stepDef : ((stepDef && stepDef.text) || '');
+    const locked = !!(stepDef && (stepDef.allow || stepDef.blocked || stepDef.auto));
     return '<div class="tutorial-guide-head"><b>' + battleReinforceEsc(level ? level.title : '教程') +
       '</b><span>' + (step + 1) + ' / ' + ((level && level.steps && level.steps.length) || 1) + '</span></div>' +
       '<p>' + battleReinforceEsc(text) + '</p>' +
       '<div class="tutorial-guide-actions">' +
-        '<button type="button" class="btn small" data-tutorial-prev="1"' + (step <= 0 ? ' disabled' : '') + '>上一步</button>' +
-        '<button type="button" class="btn small primary" data-tutorial-next="1">' + (step + 1 >= ((level && level.steps && level.steps.length) || 1) ? '完成教程' : '下一步') + '</button>' +
+        '<button type="button" class="btn small" data-tutorial-prev="1"' + (step <= 0 || locked ? ' disabled' : '') + '>上一步</button>' +
+        '<button type="button" class="btn small primary" data-tutorial-next="1"' + (locked ? ' disabled' : '') + '>' + (step + 1 >= ((level && level.steps && level.steps.length) || 1) ? '完成教程' : '下一步') + '</button>' +
         '<button type="button" class="btn small" data-tutorial-guide-close="1">收起</button>' +
       '</div>';
   }
@@ -12840,6 +12888,105 @@
     if (e.target.closest && e.target.closest('[data-tutorial-guide-close]')) {
       hideEl('tutorial-guide', true);
     }
+  }
+
+  function tutorialCurrentStep() {
+    const t = state.tutorial;
+    if (!t || !t.level || !t.level.steps) return null;
+    return t.level.steps[t.step || 0] || null;
+  }
+
+  function tutorialAdvance() {
+    const t = state.tutorial;
+    if (!t || !t.level) return;
+    const steps = t.level.steps || [];
+    if ((t.step || 0) + 1 >= steps.length) {
+      renderTutorialGuide();
+      return;
+    }
+    t.step = (t.step || 0) + 1;
+    renderTutorialGuide();
+    refreshTutorialFocus();
+    if (B3) B3.need = true;
+    const step = tutorialCurrentStep();
+    if (step && step.auto === 'enemyRiver') {
+      setTimeout(tutorialEnemyRiver, 500);
+    }
+  }
+
+  function tutorialCheck(action) {
+    if (!state.tutorial || state.tutorialScripting) return true;
+    // 反击属于防守方选择，不拦。
+    if (action.type === 'counter' || action.type === 'counterSkip') return true;
+    const step = tutorialCurrentStep();
+    if (!step) return true;
+    if (step.blocked) {
+      if (!step.allow || action.type !== step.allow.type) {
+        toast('教程步骤：请先尝试攻击被房区遮挡的德军');
+        return false;
+      }
+      if (step.blockedText) toast(step.blockedText);
+      tutorialAdvance();
+      return false;
+    }
+    const allow = step.allow;
+    if (!allow) return true;
+    if (action.type !== allow.type) {
+      toast('教程步骤：请按提示操作');
+      return false;
+    }
+    if (allow.unitId && action.unitId !== allow.unitId) {
+      toast('教程步骤：请使用指定单位');
+      return false;
+    }
+    if (allow.targetId && action.targetId !== allow.targetId) {
+      toast('教程步骤：请攻击指定目标');
+      return false;
+    }
+    if (allow.c != null && Number(action.c) !== Number(allow.c)) {
+      toast('教程步骤：请移动到指定格');
+      return false;
+    }
+    if (allow.r != null && Number(action.r) !== Number(allow.r)) {
+      toast('教程步骤：请移动到指定格');
+      return false;
+    }
+    return true;
+  }
+
+  function tutorialAfterAction(action) {
+    if (!state.tutorial || state.tutorialScripting) return;
+    const step = tutorialCurrentStep();
+    if (!step || !step.allow) return;
+    if (action.type === step.allow.type &&
+        (!step.allow.unitId || action.unitId === step.allow.unitId) &&
+        (!step.allow.targetId || action.targetId === step.allow.targetId)) {
+      tutorialAdvance();
+    }
+  }
+
+  function tutorialEnemyRiver() {
+    if (!state.tutorial || state.tutorialScripting) return;
+    const b = state.battle;
+    if (!b) return;
+    state.tutorialScripting = true;
+    try {
+      if (b.activeSide !== 'defender') return;
+      battleApply({
+        type: 'move', side: 'defender', unitId: 'tutorial-de-inf',
+        c: 4, r: 3, id: 'tutorial-script-' + Date.now().toString(36),
+      });
+      if (state.battle.activeSide === 'defender') {
+        battleApply({
+          type: 'endTurn', side: 'defender',
+          id: 'tutorial-script-' + Date.now().toString(36),
+        });
+      }
+    } finally {
+      state.tutorialScripting = false;
+    }
+    tutorialAdvance();
+    renderTutorialGuide();
   }
 
   function startTutorial(levelId) {
