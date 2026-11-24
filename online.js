@@ -224,7 +224,7 @@
   }
 
   function createPrep() {
-    return { corpsId: '', divisionId: '', units: {}, ready: false };
+    return { corpsId: '', divisionId: '', units: {}, nukes: 0, ready: false };
   }
 
   function normalizeSide(id) {
@@ -3443,6 +3443,38 @@
     return Number(side === 'attacker' ? (div.attack && div.attack.B) : (div.defense && div.defense.B)) || 0;
   }
 
+  function battleReinforceHasNuke(side) {
+    const data = prepFaction(side);
+    const deck = (state.decks && state.decks[side]) || [];
+    const deckNuke = deck.some(function (name) {
+      return /核弹/.test(String((prepUnitInfo(data, name) || {}).traits || ''));
+    });
+    const fieldNuke = !!state.battle && (state.battle.units || []).some(function (u) {
+      return u.side === side && /核弹/.test(String((prepUnitInfo(data, u.name) || {}).traits || ''));
+    });
+    if (deckNuke || fieldNuke) return true;
+    const r = state.battle && state.battle.reinforce;
+    const pick = r && r.picks && r.picks[side];
+    if (!pick) return false;
+    return battleReinforceEntries(side, r.phase).some(function (e) {
+      return (Number(pick.units[e.name]) || 0) > 0 &&
+        /核弹/.test(String(e.info && e.info.traits || ''));
+    });
+  }
+
+  function battleNukeFundsBonus(side, phase) {
+    phase = String(phase || '').toLowerCase();
+    if (phase === 'b') {
+      const opp = sidePrep(otherSide(side));
+      return Math.max(0, Number(opp && opp.nukes) || 0) * 100;
+    }
+    if (phase === 'c') {
+      const carry = state.battle && state.battle.nukeCarry;
+      return Math.max(0, Number(carry && carry[side]) || 0);
+    }
+    return 0;
+  }
+
   function battleReinforceStats(side, phase) {
     phase = String(phase || '').toLowerCase();
     const div = battleReinforceData(side, phase);
@@ -3451,7 +3483,8 @@
     entries.forEach(function (e) { byName[e.name] = e; });
     const picks = state.battle && state.battle.reinforce && state.battle.reinforce.picks[side];
     const units = picks && picks.units || {};
-    let main = 0, support = 0, air = 0, cost = 0, total = 0;
+    const nukes = Math.max(0, Number(picks && picks.nukes) || 0);
+    let main = 0, support = 0, air = 0, cost = nukes * 100, total = 0;
     Object.keys(units).forEach(function (name) {
       const e = byName[name];
       const n = Number(units[name]) || 0;
@@ -3465,18 +3498,26 @@
     });
     return {
       div: div, entries: entries, units: units,
-      main: main, support: support, air: air, total: total, cost: cost,
+      main: main, support: support, air: air, total: total, cost: cost, nukes: nukes,
       mainLimit: div ? div.slots.main : 0,
       supportLimit: div ? div.slots.support : 0,
       planeLimit: div ? (div.planes == null ? Infinity : div.planes) : 0,
-      funds: battleReinforceFunds(div, side, phase),
+      funds: battleReinforceFunds(div, side, phase) + battleNukeFundsBonus(side, phase),
     };
   }
 
   function battleReinforceBegin(b, phase) {
+    if (phase === 'c' && b.reinforce && b.reinforce.picks) {
+      const pa = b.reinforce.picks.attacker || {};
+      const pd = b.reinforce.picks.defender || {};
+      b.nukeCarry = {
+        attacker: Math.max(0, Number(pd.nukes) || 0) * 100,
+        defender: Math.max(0, Number(pa.nukes) || 0) * 100,
+      };
+    }
     const make = function (side) {
       const div = battleReinforceData(side, phase);
-      return { divisionId: div ? div.id : '', units: {} };
+      return { divisionId: div ? div.id : '', units: {}, nukes: 0 };
     };
     b.reinforce = {
       phase: phase === 'c' ? 'C' : 'B',
@@ -3628,6 +3669,11 @@
       units: units,
       buildings: [],
       counterBatteryMarks: [],
+      nukeStock: {
+        attacker: Math.max(0, Number((sidePrep('attacker') || {}).nukes) || 0),
+        defender: Math.max(0, Number((sidePrep('defender') || {}).nukes) || 0),
+      },
+      nukeCarry: { attacker: 0, defender: 0 },
       selectedId: null,
       ghost: null,
       counter: null,
@@ -4581,6 +4627,25 @@
     return true;
   }
 
+  function battleNukeStrike(air, target) {
+    const b = state.battle;
+    if (!b || !air || !target) return;
+    const centerHp = Number(target.hp) || 0;
+    battleDamageUnit(target, centerHp + 999);
+    b3AddDamageFloat(target, centerHp + 999, '#ff3b2f');
+    battleAliveUnits().forEach(function (u) {
+      if (u.id === target.id || u.airBase) return;
+      const d = battleHexDistance(u.c, u.r, target.c, target.r);
+      if (d < 1 || d > 2) return;
+      let dmg = d === 1 ? 4 : 2;
+      const bld = battleBuildingAt(u.c, u.r);
+      if (bld && bld.t === 'bunker') dmg *= 0.1;
+      battleDamageUnit(u, dmg);
+      b3AddDamageFloat(u, dmg, '#ff6b57');
+    });
+    b.log.push(air.name + ' 投掷核弹 ' + target.name + '：中心必死，半径1受到4伤，半径2受到2伤，敌友不分');
+  }
+
   function battleBeginAirIntercept(unit, target, attackerIds, role) {
     const b = state.battle;
     const opts = battleAirInterceptOptions(target.side);
@@ -5424,10 +5489,33 @@
       battleRefresh();
       return;
     }
+    if (action.type === 'reinforceNuke') {
+      if (r.stage !== 'pick' || !battleReinforceHasNuke(side) || r.ready[side]) return;
+      const stats = battleReinforceStats(side, r.phase);
+      const pick = r.picks[side];
+      const cur = Math.max(0, Number(pick.nukes) || 0);
+      const delta = Number(action.delta) || 0;
+      if (delta > 0) {
+        if (stats.cost + 100 > stats.funds) return;
+        pick.nukes = cur + 1;
+      } else {
+        pick.nukes = Math.max(0, cur - 1);
+      }
+      r.ready[side] = false;
+      battleRefresh();
+      return;
+    }
     if (action.type === 'reinforceConfirm') {
-      if (r.stage !== 'pick') return;
+      if (r.stage !== 'pick' || r.ready[side]) return;
       const stats = battleReinforceStats(side, r.phase);
       if (stats.total <= 0) return;
+      const pick = r.picks[side];
+      const nukes = Math.max(0, Number(pick && pick.nukes) || 0);
+      if (nukes > 0) {
+        b.nukeStock = b.nukeStock || { attacker: 0, defender: 0 };
+        b.nukeStock[side] = (Number(b.nukeStock[side]) || 0) + nukes;
+        pick.nukes = 0;
+      }
       r.ready[side] = true;
       battleAutoDeployAir(side);
       if (r.ready.attacker && r.ready.defender) {
@@ -5688,6 +5776,21 @@
       }
       unit.mp = Math.max(0, unit.mp - 1);
       battleSetReconMission(unit, c, r);
+      battleCheckAutoEnd();
+      return;
+    }
+    if (action.type === 'nukeAttack') {
+      const target = battleUnitById(action.targetId);
+      if (!battleIsAir(unit) || !battleTrait(unit, 'nuke') || !target || !target.alive || target.side === unit.side) return;
+      if (!b.nukeStock || Number(b.nukeStock[unit.side]) <= 0) return;
+      if (battleIsNight()) { toast('夜间飞机不能起飞'); return; }
+      if (unit.mp < 2) return;
+      b.nukeStock[unit.side] = Math.max(0, Number(b.nukeStock[unit.side]) - 1);
+      unit.mp -= 2;
+      b.selectedId = null;
+      battleNukeStrike(unit, target);
+      b3StartAirFlight(unit, target, null, 0);
+      battleRefresh();
       battleCheckAutoEnd();
       return;
     }
@@ -6815,6 +6918,9 @@
       add('集火 · ' + (role === 'intercept' ? '空战' : '对地轰炸') + ' · ' + airCost + ' 行动力',
         'airAttack', true, mismatch || air.mp < airCost);
     }
+    if (!battleIsAir(target) && battleTrait(air, 'nuke') && Number(state.battle.nukeStock && state.battle.nukeStock[air.side]) > 0) {
+      add('核弹 · 剩余 ' + state.battle.nukeStock[air.side] + ' 枚 · 2 行动力', 'nukeAttack', false, air.mp < 2);
+    }
     const hint = document.createElement('div');
     hint.className = 'battle-choice-hint';
     hint.textContent = multi
@@ -7205,6 +7311,16 @@
           '<button type="button" data-reinforce-pick="' + battleReinforceEsc(e.name) + '" data-reinforce-delta="1">+</button></div></div>';
       });
       html += '</div>';
+      if (battleReinforceHasNuke(side)) {
+        html += '<div class="prep-nuke"><b>核弹购买</b><span>每枚 100 经费' +
+          (phase === 'C' ? '；C 阶段没有下一阶段' : '；每枚使下一阶段对方经费 +100') + '</span>' +
+          '<div class="br-num">' +
+          '<button type="button" data-reinforce-nuke="1" data-reinforce-nuke-delta="-1"' +
+          (!r.ready[side] && stats.nukes > 0 ? '' : ' disabled') + '>−</button>' +
+          '<b>' + stats.nukes + '</b>' +
+          '<button type="button" data-reinforce-nuke="1" data-reinforce-nuke-delta="1"' +
+          (!r.ready[side] && stats.cost + 100 <= stats.funds ? '' : ' disabled') + '>+</button></div></div>';
+      }
       html += '<p class="br-hint">确认配卡后回到战场进行部署；可先点左上角「查看战场」临时隐藏面板观察局势。</p>';
       html += '<div class="br-actions"><button type="button" class="btn small primary" data-reinforce-confirm="1"' +
         (stats.total <= 0 || r.ready[side] ? ' disabled' : '') + '>' +
@@ -8028,6 +8144,7 @@
       corpsId: prep.corpsId || '',
       divisionId: prep.divisionId || '',
       units: Object.assign({}, prep.units || {}),
+      nukes: Math.max(0, Number(prep.nukes) || 0),
       ready: !!prep.ready,
     };
   }
@@ -8483,12 +8600,20 @@
     return out;
   }
 
+  function prepHasNuke(data, prep) {
+    if (!data || !prep) return false;
+    return prepEntryList(data, prep).some(function (e) {
+      return (Number(prep.units[e.key]) || 0) > 0 && /核弹/.test(String(e.info && e.info.traits || ''));
+    });
+  }
+
   function prepStats(data, prep, side) {
     const div = prepDivision(data, prep);
     const entries = prepEntryList(data, prep);
+    const nukes = Math.max(0, Number(prep.nukes) || 0);
     const byKey = {};
     entries.forEach(function (e) { byKey[e.key] = e; });
-    let main = 0, support = 0, air = 0, cost = 0, total = 0;
+    let main = 0, support = 0, air = 0, cost = nukes * 100, total = 0;
     Object.keys(prep.units || {}).forEach(function (key) {
       const e = byKey[key];
       if (!e) return;
@@ -8503,6 +8628,7 @@
     });
     return {
       main: main, support: support, air: air, cost: cost, total: total,
+      nukes: nukes,
       mainLimit: div ? div.slots.main : 0,
       supportLimit: div ? div.slots.support : 0,
       planeLimit: div ? (div.planes == null ? Infinity : div.planes) : 0,
@@ -8568,6 +8694,25 @@
       if (cur <= 0) return;
       if (cur <= 1) delete prep.units[key];
       else prep.units[key] = cur - 1;
+    }
+    prep.ready = false;
+    publishPrep();
+    renderPrep();
+  }
+
+  function prepAdjustNuke(delta) {
+    const side = normalizeSide(state.side);
+    if (!side || state.phase !== 'prepare' || !selfIsCaptain(side)) return;
+    const data = prepFaction(side);
+    const prep = myPrep();
+    if (!data || prep.ready || !prepHasNuke(data, prep)) return;
+    const stats = prepStats(data, prep, side);
+    const cur = Math.max(0, Number(prep.nukes) || 0);
+    if (delta > 0) {
+      if (stats.cost + 100 > stats.funds) return;
+      prep.nukes = cur + 1;
+    } else {
+      prep.nukes = Math.max(0, cur - 1);
     }
     prep.ready = false;
     publishPrep();
@@ -9269,6 +9414,15 @@
         (!editable || !prepCanAdd(e, stats) ? ' disabled' : '') + '>+</button></div></div>';
     });
     html += '</div>';
+    if (prepHasNuke(data, prep)) {
+      html += '<div class="prep-nuke"><b>核弹购买</b><span>每枚 100 经费；每购买一枚，下一阶段对方经费 +100。</span>' +
+        '<div class="br-num">' +
+        '<button type="button" data-prep-nuke="1" data-prep-nuke-delta="-1"' +
+        (!editable || stats.nukes <= 0 ? ' disabled' : '') + '>−</button>' +
+        '<b>' + stats.nukes + '</b>' +
+        '<button type="button" data-prep-nuke="1" data-prep-nuke-delta="1"' +
+        (!editable || stats.cost + 100 > stats.funds ? ' disabled' : '') + '>+</button></div></div>';
+    }
     html += '<div class="br-actions">';
     html += '<button type="button" class="btn small" data-prep-export="1"' + (canEdit ? '' : ' disabled') + '>导出配置</button>';
     html += '<button type="button" class="btn small" data-prep-import="1"' + (canEdit ? '' : ' disabled') + '>导入配置</button>';
@@ -11498,6 +11652,17 @@
       }
       return;
     }
+    const rNuke = e.target.closest ? e.target.closest('[data-reinforce-nuke]') : null;
+    if (rNuke) {
+      const side = battleMySide();
+      if (side && battleCanReinforce(side)) {
+        battleRequest({
+          type: 'reinforceNuke', side: side,
+          delta: Number(rNuke.getAttribute('data-reinforce-nuke-delta')) || 0,
+        });
+      }
+      return;
+    }
     const rPick = e.target.closest ? e.target.closest('[data-reinforce-pick]') : null;
     if (rPick) {
       const side = battleMySide();
@@ -11734,6 +11899,11 @@
     const prepDivision = e.target.closest ? e.target.closest('[data-prep-division]') : null;
     if (prepDivision) {
       prepChooseDivision(prepDivision.getAttribute('data-prep-division'));
+      return;
+    }
+    const prepNukeBtn = e.target.closest ? e.target.closest('[data-prep-nuke]') : null;
+    if (prepNukeBtn) {
+      prepAdjustNuke(Number(prepNukeBtn.getAttribute('data-prep-nuke-delta')) || 0);
       return;
     }
     const prepUnit = e.target.closest ? e.target.closest('[data-prep-unit]') : null;
