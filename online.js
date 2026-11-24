@@ -12932,7 +12932,17 @@
         return;
       }
       state.tutorial.step = (state.tutorial.step || 0) + 1;
+      state.tutorial.enemyDone = false;
       renderTutorialGuide();
+      refreshTutorialFocus();
+      const nextStep = tutorialCurrentStep();
+      if (nextStep && nextStep.auto === 'stagePlain') {
+        setTimeout(function () { tutorial3Stage('plain'); }, 300);
+      } else if (nextStep && nextStep.auto === 'stageMaus') {
+        setTimeout(function () { tutorial3Stage('maus'); }, 300);
+      } else if (nextStep && nextStep.auto === 'enemyRiver') {
+        setTimeout(tutorialEnemyRiver, 500);
+      }
       return;
     }
     if (e.target.closest && e.target.closest('[data-tutorial-prev]')) {
