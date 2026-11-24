@@ -5095,10 +5095,12 @@
       };
     }
     const zone = facing == null ? 'front' : battleFacingZone(facing, battleDirectionIndex(target.c, target.r, attacker.c, attacker.r));
-    const base = battleAttackBase(ai, ti, key, battleIsTransportTarget(target)) * battleBunkerDamageMod(attacker);
+    const useSoft = battleIsTransportTarget(target) || !battleHasArmor(ti);
+    const base = battleAttackBase(ai, ti, key, useSoft) * battleBunkerDamageMod(attacker);
     const ap = battleAttackAP(ai, key);
     const av = battleArmorValue(ti, zone);
-    const pen = penOverride != null ? penOverride : battlePenMod(ap, av);
+    // 软攻不走穿透；只有打装甲目标、使用硬攻时才计算 AP/AV 穿透。
+    const pen = useSoft ? 1 : (penOverride != null ? penOverride : battlePenMod(ap, av));
     const protect = battleProtectAt(target.c, target.r);
     const night = battleIsNight() ? 0.5 : 1;
     return {
@@ -5158,10 +5160,11 @@
     const ai = battleInfoFor(counterUnit);
     const ti = battleInfoFor(target);
     const zone = facing == null ? 'front' : battleFacingZone(facing, battleDirectionIndex(target.c, target.r, counterUnit.c, counterUnit.r));
-    const base = battleAttackBase(ai, ti, key, battleIsTransportTarget(target)) * battleBunkerDamageMod(counterUnit);
+    const useSoft = battleIsTransportTarget(target) || !battleHasArmor(ti);
+    const base = battleAttackBase(ai, ti, key, useSoft) * battleBunkerDamageMod(counterUnit);
     const ap = battleAttackAP(ai, key);
     const av = battleArmorValue(ti, zone);
-    const pen = battlePenMod(ap, av);
+    const pen = useSoft ? 1 : battlePenMod(ap, av);
     const protect = battleProtectAt(target.c, target.r);
     const night = battleIsNight() ? 0.75 : 1;
     const coef = ai && isFinite(ai.counter) ? Number(ai.counter) : 1;
@@ -5177,16 +5180,18 @@
     const ti = battleInfoFor(target);
     // 推进时己方按当前距离攻值（不额外改成巷战），敌方反击固定按巷战列；减伤取两者被推动前所在格。
     const atkKey = battleDistanceKey(attacker, target);
-    const atkBase = battleAttackBase(ai, ti, atkKey, battleIsTransportTarget(target)) * battleBunkerDamageMod(attacker);
+    const atkSoft = battleIsTransportTarget(target) || !battleHasArmor(ti);
+    const atkBase = battleAttackBase(ai, ti, atkKey, atkSoft) * battleBunkerDamageMod(attacker);
     const atkAP = battleAttackAP(ai, atkKey);
     const atkAV = battleArmorValue(ti);
-    const atkPen = battlePenMod(atkAP, atkAV);
+    const atkPen = atkSoft ? 1 : battlePenMod(atkAP, atkAV);
     const atkProtect = battleProtectAt(target.c, target.r);
     const atkNight = battleIsNight() ? 0.5 : 1;
-    const defBase = battleAttackBase(ti, ai, 'urban');
+    const defSoft = battleIsTransportTarget(attacker) || !battleHasArmor(ai);
+    const defBase = battleAttackBase(ti, ai, 'urban', defSoft);
     const defAP = battleAttackAP(ti, 'urban');
     const defAV = battleArmorValue(ai);
-    const defPen = battlePenMod(defAP, defAV);
+    const defPen = defSoft ? 1 : battlePenMod(defAP, defAV);
     const defProtect = battleProtectAt(attacker.c, attacker.r);
     const defNight = battleIsNight() ? 0.75 : 1;
     const coef = ti && isFinite(ti.counter) ? Number(ti.counter) : 1;
