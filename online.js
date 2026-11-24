@@ -589,9 +589,68 @@
     'us|40s|air|F6战斗侦察机': Math.PI,
   };
 
-  /* 把军械库里的 3D 单位模型渲染成透明棋子贴图；模型文件按需加载，失败时退回文字棋子。 */
-  const UNIT_MODEL_STATE = {};
-  const UNIT_MODEL_WAITERS = {};
+  /* 把军械库里的 3D 单位模型渲染成透明棋子贴图；模型文件按需加载，失败时退回文字棋子。
+   *
+   * 加载状态按“单个单位文件”和“整个兵种包”分开记：
+   * 以前只按兵种包记，一个单位文件 404 就把同兵种的单位全锁成 error，而且永不重试，
+   * 表现就是“一直显示模型加载中”。现在单文件失败只影响那一个单位，并且会重试；
+   * 每次请求还有超时，卡住的请求不会把加载提示永远留在屏幕上。 */
+  const UNIT_FILE_STATE = {};   // 单位 key -> { s, waiters, tries, retryAt }
+  const UNIT_BAG_STATE = {};    // 兵种包 -> 同上（只在退回整包时用）
+  const UNIT_LOAD_RETRY_MAX = 3;
+  const UNIT_LOAD_TIMEOUT = 20000;
+
+  function unitLoadState(store, key) {
+    if (!store[key]) store[key] = { s: '', waiters: [], tries: 0, retryAt: 0 };
+    return store[key];
+  }
+
+  function unitLoadFlush(st) {
+    const q = st.waiters || [];
+    st.waiters = [];
+    q.forEach(function (fn) { try { if (fn) fn(); } catch (e) { /* ignore */ } });
+  }
+
+  function unitModelsLoading() {
+    return [UNIT_FILE_STATE, UNIT_BAG_STATE].some(function (store) {
+      return Object.keys(store).some(function (k) { return store[k].s === 'loading'; });
+    });
+  }
+
+  function loadModelScript(store, key, url, cb) {
+    const st = unitLoadState(store, key);
+    if (st.s === 'loading') { st.waiters.push(cb); return; }
+    if (st.s === 'ready') { if (cb) cb(); return; }
+    if (st.s === 'error' && Date.now() < st.retryAt) { if (cb) cb(); return; }
+
+    st.s = 'loading';
+    st.waiters.push(cb);
+    let done = false;
+    const finish = function (ok) {
+      if (done) return;
+      done = true;
+      if (ok) {
+        st.s = 'ready';
+        st.tries = 0;
+        st.retryAt = 0;
+      } else {
+        st.tries += 1;
+        st.s = 'error';
+        st.retryAt = Date.now() + (st.tries >= UNIT_LOAD_RETRY_MAX ? 60000 : 1500 * st.tries);
+      }
+      unitLoadFlush(st);
+      if (ok && B3) scheduleUnitModelRefresh();
+      scheduleDraw();
+    };
+    const s = document.createElement('script');
+    s.src = withBuild(url);
+    s.async = true;
+    s.onload = function () { finish(true); };
+    s.onerror = function () { finish(false); };
+    setTimeout(function () { if (!done && st.s === 'loading') finish(false); }, UNIT_LOAD_TIMEOUT);
+    document.head.appendChild(s);
+  }
+
   let unitModelRefreshQueued = false;
   function scheduleUnitModelRefresh() {
     if (unitModelRefreshQueued) return;
@@ -648,16 +707,19 @@
     return url + (url.indexOf('?') >= 0 ? '&' : '?') + 'v=' + encodeURIComponent(v);
   }
 
-  /* 单位索引（单位 key → 单个模型文件）。第一次要模型时才加载，只要几 KB。 */
+  /* 单位索引（单位 key → 单个模型文件）。第一次要模型时才加载，只要几 KB。
+   * 索引拿不到（旧站 / 还没发布）会退回兵种包；失败按退避重试，不会永久锁死。 */
   let unitIndexState = '';
   let unitIndexWaiters = [];
+  let unitIndexRetryAt = 0;
+  let unitIndexTries = 0;
 
   function ensureUnitIndex(cb) {
     if (window.ARMORY_UNIT_FILES) { if (cb) cb(); return; }
-    if (unitIndexState === 'loading') { unitIndexWaiters.push(cb); return; }
-    if (unitIndexState === 'error') { if (cb) cb(); return; }
+    if (unitIndexState === 'loading') { if (cb) unitIndexWaiters.push(cb); return; }
+    if (unitIndexState === 'error' && Date.now() < unitIndexRetryAt) { if (cb) cb(); return; }
     unitIndexState = 'loading';
-    unitIndexWaiters = [cb];
+    if (cb) unitIndexWaiters.push(cb);
     const flush = function () {
       const q = unitIndexWaiters;
       unitIndexWaiters = [];
@@ -666,45 +728,30 @@
     const el = document.createElement('script');
     el.src = withBuild('armory-models/unit-index.js');
     el.async = true;
-    el.onload = function () { unitIndexState = window.ARMORY_UNIT_FILES ? 'ready' : 'error'; flush(); };
-    el.onerror = function () { unitIndexState = 'error'; flush(); };
+    el.onload = function () {
+      if (window.ARMORY_UNIT_FILES) { unitIndexState = 'ready'; unitIndexTries = 0; }
+      else { unitIndexState = 'error'; unitIndexRetryAt = Date.now() + 60000; }
+      flush();
+    };
+    el.onerror = function () {
+      unitIndexTries += 1;
+      unitIndexState = 'error';
+      unitIndexRetryAt = Date.now() + (unitIndexTries >= 3 ? 120000 : 5000);
+      flush();
+    };
     document.head.appendChild(el);
   }
 
   function loadUnitModelBag(info, cb) {
     if (!info) { if (cb) cb(); return; }
     if (unitModelRecord(info)) { if (cb) cb(); return; }
-    const stateKey = info.bag || info.key;
-    if (UNIT_MODEL_STATE[stateKey] === 'loading') {
-      (UNIT_MODEL_WAITERS[stateKey] = UNIT_MODEL_WAITERS[stateKey] || []).push(cb);
-      return;
-    }
-    if (UNIT_MODEL_STATE[stateKey] === 'error') { if (cb) cb(); return; }
-    UNIT_MODEL_STATE[stateKey] = 'loading';
-    UNIT_MODEL_WAITERS[stateKey] = [cb];
-    // 先保证索引到了，再按单位拿单个文件（拿不到就退回整包，保证不会缺模型）
     ensureUnitIndex(function () {
       const idx = window.ARMORY_UNIT_FILES;
-      const src = idx && idx[info.key] ? idx[info.key] : ('armory-models/' + info.file);
-      const s = document.createElement('script');
-      s.src = withBuild(src);
-      s.async = true;
-      s.onload = function () {
-        UNIT_MODEL_STATE[stateKey] = 'ready';
-        const q = UNIT_MODEL_WAITERS[stateKey] || [];
-        UNIT_MODEL_WAITERS[stateKey] = null;
-        q.forEach(function (fn) { try { if (fn) fn(); } catch (e) { /* ignore */ } });
-        if (B3) scheduleUnitModelRefresh();
-        scheduleDraw();
-      };
-      s.onerror = function () {
-        UNIT_MODEL_STATE[stateKey] = 'error';
-        const q = UNIT_MODEL_WAITERS[stateKey] || [];
-        UNIT_MODEL_WAITERS[stateKey] = null;
-        q.forEach(function (fn) { try { if (fn) fn(); } catch (e) { /* ignore */ } });
-        scheduleDraw();
-      };
-      document.head.appendChild(s);
+      const src = idx && idx[info.key];
+      // 有单文件索引就只下这一个单位（约 235KB），失败也只影响它自己
+      if (src) { loadModelScript(UNIT_FILE_STATE, info.key, src, cb); return; }
+      // 没有索引：退回整个兵种包（按包去重，避免同一包重复下载）
+      loadModelScript(UNIT_BAG_STATE, info.bag || info.key, 'armory-models/' + info.file, cb);
     });
   }
 
@@ -715,8 +762,10 @@
       const faction = sideFaction(side);
       (state.decks[side] || []).forEach(function (name) {
         const info = unitModelInfo(name, faction);
-        if (!info || seen[info.bag]) return;
-        seen[info.bag] = 1;
+        // 模型已按单位分包，去重要按单位 key；按兵种包去重会让同兵种只有第一个被预取，
+        // 其余要等棋子第一次画出来才下载（表现成“卡一下、动一下”）。
+        if (!info || seen[info.key]) return;
+        seen[info.key] = 1;
         loadUnitModelBag(info, null);
       });
     });
@@ -2951,8 +3000,7 @@
 
     const loading = el('online-battle-loading');
     if (loading) {
-      const loadingSome = Object.keys(UNIT_MODEL_STATE).some(function (k) { return UNIT_MODEL_STATE[k] === 'loading'; });
-      loading.classList.toggle('hidden', !loadingSome);
+      loading.classList.toggle('hidden', !unitModelsLoading());
     }
     view.classList.toggle('is-battle', !deploy);
   }

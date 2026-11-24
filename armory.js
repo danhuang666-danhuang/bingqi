@@ -566,13 +566,85 @@
     return unitKey(state.country, state.era, state.cat, u.name);
   }
 
-  /* ---------------- 模型文件按兵种分包 ----------------
-   * armory.js 只放单位数据；模型放在 armory-models/<国家>-<年代>-<兵种>.js，
-   * 点开哪个兵种才加载哪个，单文件大概 1~2MB。
+  /* ---------------- 模型文件 ----------------
+   * 两级：
+   *   1) 按单位分包 armory-models/unit/u-XXXX.js（每个 ~230KB，索引 armory-models/unit-index.js）
+   *      —— 军械库和对战都用这个，点开哪个单位只下那一个；
+   *   2) 按兵种分包 armory-models/<国家>-<年代>-<兵种>.js（1~2.6MB）
+   *      —— 没有单文件索引时退回这里，保证不会缺模型。
    */
   const MODEL_DIR = 'armory-models/';
   const modelState = {};      // bag key -> 'loading' | 'ready' | 'error'
   const modelWaiters = {};    // bag key -> [cb]
+  const unitState = {};       // unit key -> 'loading' | 'ready' | 'error'
+  const unitWaiters = {};     // unit key -> [cb]
+
+  /* 打包时 index.html 注入 window.__BUILD__；动态加载的模型文件也带上，
+   * 否则 GitHub Pages 的 max-age=600 会让改过的模型一直是旧的。 */
+  function withStamp(url) {
+    const v = window.__BUILD__;
+    if (!v) return url;
+    return url + (url.indexOf('?') >= 0 ? '&' : '?') + 'v=' + encodeURIComponent(v);
+  }
+
+  function unitModelRecord(key) {
+    const per = window.ARMORY_UNIT_MODELS;
+    if (per && per[key]) return per[key];
+    const bag = modelBag(modelBagKey());
+    return bag ? bag[key] : null;
+  }
+
+  let unitIndexState = '';
+  let unitIndexWaiters = [];
+
+  function ensureUnitIndex(cb) {
+    if (window.ARMORY_UNIT_FILES) { cb(); return; }
+    if (unitIndexState === 'loading') { unitIndexWaiters.push(cb); return; }
+    if (unitIndexState === 'error') { cb(); return; }
+    unitIndexState = 'loading';
+    unitIndexWaiters = [cb];
+    const flush = function () {
+      const q = unitIndexWaiters;
+      unitIndexWaiters = [];
+      q.forEach(function (fn) { try { fn(); } catch (e) { /* ignore */ } });
+    };
+    const s = document.createElement('script');
+    s.src = withStamp(MODEL_DIR + 'unit-index.js');
+    s.async = true;
+    s.onload = function () { unitIndexState = window.ARMORY_UNIT_FILES ? 'ready' : 'error'; flush(); };
+    s.onerror = function () { unitIndexState = 'error'; flush(); };
+    document.head.appendChild(s);
+  }
+
+  /* 按单位加载：先查索引，没有再退回按兵种包 */
+  function loadUnitModel(key, cb) {
+    if (unitModelRecord(key)) { cb(); return; }
+    ensureUnitIndex(function () {
+      const files = window.ARMORY_UNIT_FILES;
+      const src = files && files[key];
+      if (!src) { cb(); return; }
+      if (unitState[key] === 'loading') { (unitWaiters[key] = unitWaiters[key] || []).push(cb); return; }
+      if (unitState[key] === 'error') { cb(); return; }
+      unitState[key] = 'loading';
+      unitWaiters[key] = [cb];
+      const s = document.createElement('script');
+      s.src = withStamp(src);
+      s.async = false;
+      s.onload = function () {
+        unitState[key] = 'ready';
+        const q = unitWaiters[key] || [];
+        unitWaiters[key] = null;
+        q.forEach(function (fn) { try { fn(); } catch (e) { /* ignore */ } });
+      };
+      s.onerror = function () {
+        unitState[key] = 'error';
+        const q = unitWaiters[key] || [];
+        unitWaiters[key] = null;
+        q.forEach(function (fn) { try { fn(); } catch (e) { /* ignore */ } });
+      };
+      document.head.appendChild(s);
+    });
+  }
 
   function modelBagKey() {
     return state.country + '|' + state.era + '|' + state.cat;
@@ -596,7 +668,7 @@
     modelState[key] = 'loading';
     modelWaiters[key] = [cb];
     const s = document.createElement('script');
-    s.src = modelFile(key);
+    s.src = withStamp(modelFile(key));
     s.async = false;
     s.onload = function () {
       modelState[key] = 'ready';
@@ -618,20 +690,28 @@
     if (el) el.textContent = text;
   }
 
-  /* 先保证模型文件在，再画 */
+  /* 先保证模型文件在，再画：优先单个单位的文件（~230KB），没有再退回按兵种包 */
   function showModelFor(unit) {
     if (!unit) { showModel(null); setViewHint('按住右键拖动旋转 · 滚轮缩放'); return; }
-    if (modelBag(modelBagKey())) { applyModel(unit); return; }
-    var bag = modelBagKey();
+    const key = unitKeyOf(unit);
+    if (unitModelRecord(key)) { applyModel(unit); return; }
     setViewHint('模型加载中…');
-    loadModels(bag, function () {
+    loadUnitModel(key, function () {
       if (!state.open || state.view !== 'country') return;
-      if (!modelBag(modelBagKey())) {
-        showModel(null);
-        setViewHint('模型文件没找到（' + modelFile(bag) + '）');
-        return;
-      }
-      applyModel(currentUnit() || unit);
+      if (unitModelRecord(key)) { applyModel(currentUnit() || unit); return; }
+
+      // 单文件索引里没有（或索引没加载到）：退回整个兵种包
+      const bag = modelBagKey();
+      if (modelBag(bag)) { applyModel(currentUnit() || unit); return; }
+      loadModels(bag, function () {
+        if (!state.open || state.view !== 'country') return;
+        if (!modelBag(modelBagKey()) && !unitModelRecord(key)) {
+          showModel(null);
+          setViewHint('模型文件没找到（' + modelFile(bag) + '）');
+          return;
+        }
+        applyModel(currentUnit() || unit);
+      });
     });
   }
 
@@ -653,8 +733,7 @@
 
     if (!unit) { drawViewer(v); return false; }
 
-    const models = modelBag(modelBagKey()) || {};
-    const rec = models[unitKeyOf(unit)];
+    const rec = unitModelRecord(unitKeyOf(unit));
     if (!rec || !window.THREE) { drawViewer(v); return false; }
 
     const geo = decodeGeometry(rec.b64);
