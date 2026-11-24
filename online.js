@@ -4572,6 +4572,29 @@
 
   let battleAirSupCache = null;
 
+  function battleGroundAirMod(attacker, target) {
+    if (!attacker || !target || battleIsAir(attacker) || battleIsAir(target)) return 1;
+    const sup = battleAirSuperiorSide();
+    if (!sup) return 1;
+    if (sup === target.side) return 0.5;
+    if (sup === attacker.side) return 1.5;
+    return 1;
+  }
+
+  function battleAirSuperiorSide() {
+    const sides = ['attacker', 'defender'];
+    for (let i = 0; i < sides.length; i++) {
+      const side = sides[i], enemy = otherSide(side);
+      const ownAir = battleAliveUnits().some(function (u) { return u.side === side && battleIsAir(u); });
+      const enemyAir = battleAliveUnits().some(function (u) { return u.side === enemy && battleIsAir(u); });
+      const enemyAA = battleAliveUnits().some(function (u) {
+        return u.side === enemy && !!battleTrait(u, 'antiAir');
+      });
+      if (ownAir && !enemyAir && !enemyAA) return side;
+    }
+    return null;
+  }
+
   function battleAirSuperiorityFor(air, target) {
     if (!air || !battleIsAir(air) || !target) return false;
     // 只有本次出击的飞机才谈制空；目标方有可拦截飞机或防空支援时不成立。
@@ -4816,17 +4839,18 @@
       b3AddDamageFloat(alive[0], spec.damage, '#ff6b57');
       b.log.push(aa.name + ' 参战支援，防空射击 ' + alive[0].name + '：' + spec.damage);
     });
-    // 护航战斗机先与拦截机交战；轰炸机/攻击机本身不参与空战。
+    // 护航战斗机先与所有拦截机交战；护航不触发速度决胜。
     attackers.forEach(function (escort) {
       if (escort.id === ai.attackerIds[0] || !escort.alive || battleAirIntercept(escort) <= 0) return;
-      const enemy = interceptors.filter(function (it) { return it.alive && !aborted[it.id]; })[0];
-      if (!enemy) return;
-      let dmg = battleAirIntercept(escort);
-      if (battleHighAltitude(enemy) && !battleHighAltitude(escort)) dmg *= 0.2;
-      if (dmg <= 0) return;
-      battleDamageUnit(enemy, dmg);
-      b3AddDamageFloat(enemy, dmg, '#ff6b57');
-      b.log.push(escort.name + ' 护航，攻击 ' + enemy.name + '：' + battleFmt(dmg));
+      interceptors.forEach(function (enemy) {
+        if (!enemy.alive || aborted[enemy.id]) return;
+        let dmg = battleAirIntercept(escort);
+        if (battleHighAltitude(enemy) && !battleHighAltitude(escort)) dmg *= 0.2;
+        if (dmg <= 0) return;
+        battleDamageUnit(enemy, dmg);
+        b3AddDamageFloat(enemy, dmg, '#ff6b57');
+        b.log.push(escort.name + ' 护航，攻击 ' + enemy.name + '：' + battleFmt(dmg));
+      });
     });
     const maxAttackerSpeed = attackers.reduce(function (m, a) { return Math.max(m, battleAirSpeed(a)); }, 0);
     interceptors.forEach(function (it) {
@@ -4836,12 +4860,19 @@
       const base = battleAirIntercept(it);
       if (base <= 0) return;
       const fast = battleAirSpeed(it) > maxAttackerSpeed;
+      const primary = aliveAttackers[0];
+      const escorts = aliveAttackers.filter(function (a) {
+        return a.id !== ai.attackerIds[0] && battleAirIntercept(a) > 0;
+      });
       const hits = [];
       if (fast && aliveAttackers.length === 1) {
-        hits.push({ u: aliveAttackers[0], d: base * 1.5, extra: true });
+        hits.push({ u: primary, d: base * 1.5, extra: true });
+      } else if (fast) {
+        hits.push({ u: primary, d: base, extra: false });
+        hits.push({ u: aliveAttackers[1], d: base, extra: true });
       } else {
-        hits.push({ u: aliveAttackers[0], d: base, extra: false });
-        if (fast && aliveAttackers.length > 1) hits.push({ u: aliveAttackers[1], d: base, extra: true });
+        // 没有速度决胜时，拦截只伤护航机；没有护航才打主机。
+        hits.push({ u: escorts[0] || primary, d: base, extra: false });
       }
       hits.forEach(function (h) {
         if (battleHighAltitude(h.u) && !battleHighAltitude(it)) h.d *= 0.2;
@@ -4949,7 +4980,7 @@
   function battleAirActionCost(air, target, role) {
     if (!air) return 2;
     if (role === 'intercept' || battleIsAir(target)) return 2;
-    return battleHeavyBomber(air) ? 2 : 1;
+    return 1;
   }
 
   function battleAntiAirCover(side, target) {
@@ -5088,10 +5119,11 @@
       const protect = arty.rocket
         ? (targetBld && targetBld.t === 'bunker' ? 0.9 : 0)
         : battleProtectAt(target.c, target.r);
+      const airMod = battleGroundAirMod(attacker, target);
       return {
-        raw: base * pen * (1 - protect),
+        raw: base * pen * (1 - protect) * airMod,
         base: base, ap: 0, av: battleArmorValue(ti), pen: pen,
-        protect: protect, night: 1, key: key, indirect: true, rocket: arty.rocket,
+        protect: protect, night: 1, key: key, indirect: true, rocket: arty.rocket, airMod: airMod,
       };
     }
     const zone = facing == null ? 'front' : battleFacingZone(facing, battleDirectionIndex(target.c, target.r, attacker.c, attacker.r));
@@ -5103,10 +5135,11 @@
     const pen = useSoft ? 1 : (penOverride != null ? penOverride : battlePenMod(ap, av));
     const protect = battleProtectAt(target.c, target.r);
     const night = battleIsNight() ? 0.5 : 1;
+    const airMod = battleGroundAirMod(attacker, target);
     return {
-      raw: base * pen * (1 - protect) * night,
+      raw: base * pen * (1 - protect) * night * airMod,
       base: base, ap: ap, av: av, pen: pen, zone: zone,
-      protect: protect, night: night, key: key, airMod: 1,
+      protect: protect, night: night, key: key, airMod: airMod,
     };
   }
 
@@ -5168,10 +5201,11 @@
     const protect = battleProtectAt(target.c, target.r);
     const night = battleIsNight() ? 0.75 : 1;
     const coef = ai && isFinite(ai.counter) ? Number(ai.counter) : 1;
+    const airMod = battleGroundAirMod(counterUnit, target);
     return {
-      raw: base * coef * pen * (1 - protect) * night * battleCounterScale(target) * battleHeartbreakMod(target),
+      raw: base * coef * pen * (1 - protect) * night * battleCounterScale(target) * battleHeartbreakMod(target) * airMod,
       base: base, coef: coef, ap: ap, av: av, pen: pen,
-      protect: protect, night: night, key: key, zone: zone,
+      protect: protect, night: night, key: key, zone: zone, airMod: airMod,
     };
   }
 
@@ -5195,9 +5229,11 @@
     const defProtect = battleProtectAt(attacker.c, attacker.r);
     const defNight = battleIsNight() ? 0.75 : 1;
     const coef = ti && isFinite(ti.counter) ? Number(ti.counter) : 1;
+    const atkAirMod = battleGroundAirMod(attacker, target);
+    const defAirMod = battleGroundAirMod(target, attacker);
     return {
-      attackRaw: atkBase * atkPen * (1 - atkProtect) * atkNight,
-      counterRaw: defBase * coef * defPen * (1 - defProtect) * defNight * battleCounterScale(attacker) * battleHeartbreakMod(attacker),
+      attackRaw: atkBase * atkPen * (1 - atkProtect) * atkNight * atkAirMod,
+      counterRaw: defBase * coef * defPen * (1 - defProtect) * defNight * battleCounterScale(attacker) * battleHeartbreakMod(attacker) * defAirMod,
       attackPen: atkPen, counterPen: defPen,
     };
   }
