@@ -611,7 +611,10 @@
     const key = UNIT_MODEL_ALIASES[name] || name;
     const prepModels = (state.prepData && state.prepData.modelIndex) ||
       (window.PREP_DATA && window.PREP_DATA.modelIndex) || null;
-    const entry = UNIT_MODEL_INDEX[key] || (prepModels && prepModels[key]);
+    const prepEntry = prepModels && prepModels[key];
+    const hardEntry = UNIT_MODEL_INDEX[key];
+    // 同名单位（工兵营、医疗连等）优先用本阵营自己的模型，避免回退到美军模型。
+    const entry = (prepEntry && prepEntry[faction]) ? prepEntry : (hardEntry || prepEntry);
     if (!entry) return null;
     const pair = entry[faction] || entry.us || entry.de;
     if (!pair) return null;
