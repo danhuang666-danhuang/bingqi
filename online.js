@@ -12609,6 +12609,12 @@
       const s = unitModelSprite(name, faction);
       return s ? s.toDataURL('image/png') : '';
     },
+    battleLog: function () {
+      return state.battle && state.battle.log ? state.battle.log.slice() : [];
+    },
+    battleLogText: function () {
+      return (state.battle && state.battle.log ? state.battle.log : []).join('\n');
+    },
   };
 })();
 
