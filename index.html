@@ -1,15 +1,15 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-<script>window.__BUILD__="20261124211434";</script>
+<script>window.__BUILD__="20261124212308";</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>兵棋 · 线上战术桌</title>
 <meta name="description" content="兵棋线上战术桌：3D 打印六角图块地图编辑器与对局工具。">
-<link rel="stylesheet" href="style.css?v=20261124211434">
-<link rel="stylesheet" href="armory.css?v=20261124211434">
-<link rel="stylesheet" href="codex.css?v=20261124211434">
-<link rel="stylesheet" href="online.css?v=20261124211434">
+<link rel="stylesheet" href="style.css?v=20261124212308">
+<link rel="stylesheet" href="armory.css?v=20261124212308">
+<link rel="stylesheet" href="codex.css?v=20261124212308">
+<link rel="stylesheet" href="online.css?v=20261124212308">
 </head>
 <body class="view3d menu-open">
 
@@ -27,7 +27,15 @@
         <h1 class="menu-title">兵棋<span>线上战术桌</span></h1>
 
         <nav class="menu-list" aria-label="功能区块">
-          <button type="button" class="menu-item" data-module="online" data-name="线上对战">
+          <button type="button" class="menu-item" data-module="tutorial" data-name="教程" data-shortcut="0">
+            <span class="mi-no">00</span>
+            <span class="mi-text">
+              <span class="mi-title">教程<em>TUTORIAL</em></span>
+            </span>
+            <span class="mi-arrow" aria-hidden="true">→</span>
+          </button>
+
+          <button type="button" class="menu-item" data-module="online" data-name="线上对战" data-shortcut="1">
             <span class="mi-no">01</span>
             <span class="mi-text">
               <span class="mi-title">线上对战<em>ONLINE BATTLE</em></span>
@@ -35,7 +43,7 @@
             <span class="mi-arrow" aria-hidden="true">→</span>
           </button>
 
-          <button type="button" class="menu-item" data-module="armory" data-name="军械库">
+          <button type="button" class="menu-item" data-module="armory" data-name="军械库" data-shortcut="2">
             <span class="mi-no">02</span>
             <span class="mi-text">
               <span class="mi-title">军械库<em>ARMORY</em></span>
@@ -43,7 +51,7 @@
             <span class="mi-arrow" aria-hidden="true">→</span>
           </button>
 
-          <button type="button" class="menu-item" data-module="codex" data-name="百科">
+          <button type="button" class="menu-item" data-module="codex" data-name="百科" data-shortcut="3">
             <span class="mi-no">03</span>
             <span class="mi-text">
               <span class="mi-title">百科<em>CODEX</em></span>
@@ -51,7 +59,7 @@
             <span class="mi-arrow" aria-hidden="true">→</span>
           </button>
 
-          <button type="button" class="menu-item" data-module="editor" data-name="地图编辑器">
+          <button type="button" class="menu-item" data-module="editor" data-name="地图编辑器" data-shortcut="4">
             <span class="mi-no">04</span>
             <span class="mi-text">
               <span class="mi-title">地图编辑器<em>MAP EDITOR</em></span>
@@ -61,7 +69,7 @@
         </nav>
 
         <p class="menu-note">
-          <kbd>↑</kbd><kbd>↓</kbd> 选择 <span>·</span> <kbd>Enter</kbd> 进入 <span>·</span> <kbd>1</kbd>–<kbd>4</kbd> 直达
+          <kbd>↑</kbd><kbd>↓</kbd> 选择 <span>·</span> <kbd>Enter</kbd> 进入 <span>·</span> <kbd>0</kbd>–<kbd>4</kbd> 直达
         </p>
       </section>
 
@@ -81,6 +89,18 @@
   </div>
   <div id="menu-toast" class="menu-toast" role="status" aria-live="polite"></div>
 </div>
+
+<!-- ================= 教程窗口（UI 静态结构；关卡数据在 tutorial-data.js，战斗逻辑在 online.js） ================= -->
+<section id="tutorial-screen" class="tutorial-screen hidden" role="dialog" aria-modal="true" aria-label="新手教程" tabindex="-1">
+  <div class="tutorial-shell">
+    <header class="tutorial-head">
+      <div><b>新手教程</b><span>TUTORIAL</span></div>
+      <button type="button" class="btn small" data-tutorial-close="1">关闭</button>
+    </header>
+    <p class="tutorial-intro">从基础攻击开始，逐步学习地形、射程、巷战和反击。</p>
+    <div id="tutorial-list" class="tutorial-list"></div>
+  </div>
+</section>
 
 <!-- ================= 军械库（内容由 armory.js 渲染） ================= -->
 <div id="armory" class="armory hidden" role="dialog" aria-modal="true" aria-label="军械库" tabindex="-1"></div>
@@ -367,18 +387,19 @@
 
 <input type="file" id="file" accept=".json,application/json" hidden>
 
-<script src="lib/three.min.js?v=20261124211434"></script>
-<script src="terrain.js?v=20261124211434"></script>
-<script src="hexgrid.js?v=20261124211434"></script>
-<script src="mapio.js?v=20261124211434"></script>
-<script src="markers.js?v=20261124211434"></script>
-<script src="models3d.js?v=20261124211434"></script>
-<script src="lib/mqtt.min.js?v=20261124211434"></script>
-<script src="home.js?v=20261124211434"></script>
-<script src="online-net.js?v=20261124211434"></script>
-<script src="online.js?v=20261124211434"></script>
-<script src="armory.js?v=20261124211434"></script>
-<script src="codex.js?v=20261124211434"></script>
-<script src="app3d.js?v=20261124211434"></script>
+<script src="lib/three.min.js?v=20261124212308"></script>
+<script src="terrain.js?v=20261124212308"></script>
+<script src="hexgrid.js?v=20261124212308"></script>
+<script src="mapio.js?v=20261124212308"></script>
+<script src="markers.js?v=20261124212308"></script>
+<script src="models3d.js?v=20261124212308"></script>
+<script src="lib/mqtt.min.js?v=20261124212308"></script>
+<script src="home.js?v=20261124212308"></script>
+<script src="online-net.js?v=20261124212308"></script>
+<script src="tutorial-data.js?v=20261124212308"></script>
+<script src="online.js?v=20261124212308"></script>
+<script src="armory.js?v=20261124212308"></script>
+<script src="codex.js?v=20261124212308"></script>
+<script src="app3d.js?v=20261124212308"></script>
 </body>
 </html>

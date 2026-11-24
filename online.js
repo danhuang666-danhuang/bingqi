@@ -12786,22 +12786,9 @@
     document.head.appendChild(s);
   }
 
-  function ensureTutorialScreen() {
-    let screen = el('tutorial-screen');
-    if (screen) return screen;
-    screen = document.createElement('section');
-    screen.id = 'tutorial-screen';
-    screen.className = 'tutorial-screen hidden';
-    screen.setAttribute('role', 'dialog');
-    screen.setAttribute('aria-modal', 'true');
-    screen.innerHTML =
-      '<div class="tutorial-shell">' +
-        '<header class="tutorial-head"><div><b>新手教程</b><span>TUTORIAL</span></div>' +
-          '<button type="button" class="btn small" data-tutorial-close="1">关闭</button></header>' +
-        '<p class="tutorial-intro">从基础攻击开始，逐步学习地形、射程、巷战和反击。</p>' +
-        '<div id="tutorial-list" class="tutorial-list"></div>' +
-      '</div>';
-    document.body.appendChild(screen);
+  function bindTutorialScreen(screen) {
+    if (!screen || screen.__tutorialBound) return screen;
+    screen.__tutorialBound = true;
     screen.addEventListener('click', function (e) {
       if (e.target.closest && e.target.closest('[data-tutorial-close]')) {
         closeTutorialScreen();
@@ -12814,6 +12801,27 @@
       }
     });
     return screen;
+  }
+
+  function ensureTutorialScreen() {
+    let screen = el('tutorial-screen');
+    if (!screen) {
+      // 兼容旧 index：没有静态窗口时才建一个，正常发布走 index.html 里的静态结构。
+      screen = document.createElement('section');
+      screen.id = 'tutorial-screen';
+      screen.className = 'tutorial-screen hidden';
+      screen.setAttribute('role', 'dialog');
+      screen.setAttribute('aria-modal', 'true');
+      screen.innerHTML =
+        '<div class="tutorial-shell">' +
+          '<header class="tutorial-head"><div><b>新手教程</b><span>TUTORIAL</span></div>' +
+            '<button type="button" class="btn small" data-tutorial-close="1">关闭</button></header>' +
+          '<p class="tutorial-intro">从基础攻击开始，逐步学习地形、射程、巷战和反击。</p>' +
+          '<div id="tutorial-list" class="tutorial-list"></div>' +
+        '</div>';
+      document.body.appendChild(screen);
+    }
+    return bindTutorialScreen(screen);
   }
 
   function openTutorialScreen() {
@@ -12847,7 +12855,8 @@
   function tutorialGuideHtml(level, step) {
     const stepDef = level && level.steps ? level.steps[step] : null;
     const text = typeof stepDef === 'string' ? stepDef : ((stepDef && stepDef.text) || '');
-    const locked = !!(stepDef && (stepDef.allow || stepDef.blocked || stepDef.auto));
+    const autoPending = !!(stepDef && stepDef.auto && !(state.tutorial && state.tutorial.enemyDone));
+    const locked = autoPending || !!(stepDef && (stepDef.allow || stepDef.blocked));
     return '<div class="tutorial-guide-head"><b>' + battleReinforceEsc(level ? level.title : '教程') +
       '</b><span>' + (step + 1) + ' / ' + ((level && level.steps && level.steps.length) || 1) + '</span></div>' +
       '<p>' + battleReinforceEsc(text) + '</p>' +
@@ -12873,6 +12882,7 @@
       if ((state.tutorial.step || 0) + 1 >= steps.length) {
         hideEl('tutorial-guide', true);
         state.tutorial = null;
+        refreshTutorialFocus();
         toast('教程完成');
         return;
       }
@@ -12905,6 +12915,7 @@
       return;
     }
     t.step = (t.step || 0) + 1;
+    t.enemyDone = false;
     renderTutorialGuide();
     refreshTutorialFocus();
     if (B3) B3.need = true;
@@ -12920,6 +12931,10 @@
     if (action.type === 'counter' || action.type === 'counterSkip') return true;
     const step = tutorialCurrentStep();
     if (!step) return true;
+    if (step.auto) {
+      toast('请阅读提示后点「下一步」继续');
+      return false;
+    }
     if (step.blocked) {
       if (!step.allow || action.type !== step.allow.type) {
         toast('教程步骤：请先尝试攻击被房区遮挡的德军');
@@ -12974,7 +12989,7 @@
       if (b.activeSide !== 'defender') return;
       battleApply({
         type: 'move', side: 'defender', unitId: 'tutorial-de-inf',
-        c: 4, r: 3, id: 'tutorial-script-' + Date.now().toString(36),
+        c: 6, r: 2, id: 'tutorial-script-' + Date.now().toString(36),
       });
       if (state.battle.activeSide === 'defender') {
         battleApply({
@@ -12985,7 +13000,7 @@
     } finally {
       state.tutorialScripting = false;
     }
-    tutorialAdvance();
+    if (state.tutorial) state.tutorial.enemyDone = true;
     renderTutorialGuide();
   }
 
@@ -13039,7 +13054,7 @@
         state.battle = initBattleState();
         state.battle.buildings = [];
         state.battle.history = [];
-        state.tutorial = { level: level, step: 0 };
+        state.tutorial = { level: level, step: 0, enemyDone: false };
         state.battleSeenAction = '';
         ensureDeployModels();
         setView('room');
@@ -13092,6 +13107,8 @@
     },
     open: open,
     close: close,
+    openTutorial: openTutorialScreen,
+    closeTutorial: closeTutorialScreen,
     leaveRoom: leaveRoom,
     isOpen: function () { return state.open; },
     roomCode: function () { return state.roomCode; },

@@ -114,6 +114,7 @@
   function activate(item) {
     if (!item) return;
     const mod = item.getAttribute('data-module');
+    if (mod === 'tutorial' && window.Online && window.Online.openTutorial) { window.Online.openTutorial(); return; }
     if (mod === 'editor') { enterEditor(); return; }
     if (mod === 'online' && window.Online) { window.Online.open(); return; }
     if (mod === 'armory' && window.Armory) { window.Armory.open(); return; }
@@ -133,7 +134,7 @@
   if (homeBtn) homeBtn.addEventListener('click', function () { show(); });
 
   /* ---------------- 键盘 ----------------
-   * 菜单打开时：↑↓ / ←→ 换焦点，数字 1–4 直达，Enter 进入；
+   * 菜单打开时：↑↓ / ←→ 换焦点，数字 0–4 直达，Enter 进入；
    * 然后把事件截住，防止穿透给编辑器的全局快捷键。
    * 编辑器里：Esc 回主菜单。 */
   function focusItem(i) {
@@ -147,6 +148,17 @@
   }
 
   window.addEventListener('keydown', function (e) {
+    // 教程窗口是 UI 静态层：打开时挡住菜单快捷键，Esc 交给教程关闭。
+    const tutorialScreen = document.getElementById('tutorial-screen');
+    if (tutorialScreen && !tutorialScreen.classList.contains('hidden')) {
+      if (e.key === 'Escape' && window.Online && window.Online.closeTutorial) {
+        e.preventDefault();
+        window.Online.closeTutorial();
+      }
+      e.stopImmediatePropagation();
+      return;
+    }
+
     // 线上对战开着时，按键交给它自己处理；这里只兜住焦点跑到页面上时的情况，
     // 别让编辑器的 1–0 / WASD 在联机界面背后生效。
     if (document.body.classList.contains('online-open') ||
@@ -170,9 +182,10 @@
       } else if (e.key === 'End') {
         e.preventDefault();
         focusItem(items.length - 1);
-      } else if (/^[1-4]$/.test(e.key)) {
+      } else if (/^[0-4]$/.test(e.key)) {
         e.preventDefault();
-        if (items[Number(e.key) - 1]) items[Number(e.key) - 1].click();
+        const target = menu.querySelector('.menu-item[data-shortcut="' + e.key + '"]');
+        if (target) target.click();
       }
       e.stopImmediatePropagation();
       return;
@@ -192,6 +205,37 @@
     }
     if (menuOpen) e.stopImmediatePropagation();
   });
+
+  /* ---------------- 教程窗口的模态行为 ----------------
+   * 窗口结构在 index.html，开关在 online.js；这里只负责菜单 inert / 焦点。 */
+  const tutorialScreen = document.getElementById('tutorial-screen');
+  if (tutorialScreen) {
+    let tutorialWasOpen = !tutorialScreen.classList.contains('hidden');
+    const syncTutorialModal = function () {
+      const isOpen = !tutorialScreen.classList.contains('hidden');
+      if (isOpen === tutorialWasOpen) return;
+      tutorialWasOpen = isOpen;
+      if (isOpen) {
+        menu.setAttribute('inert', '');
+        try { tutorialScreen.focus({ preventScroll: true }); } catch (e) { /* ignore */ }
+        return;
+      }
+      // 从教程关卡直接进对战时，online 会接管菜单 inert，这里不要抢回来。
+      if (window.Online && window.Online.isOpen && window.Online.isOpen()) return;
+      menu.removeAttribute('inert');
+      const btn = menu.querySelector('.menu-item[data-module="tutorial"]');
+      if (btn) {
+        try { btn.focus({ preventScroll: true }); } catch (e) { btn.focus(); }
+      }
+    };
+    if (window.MutationObserver) {
+      new MutationObserver(syncTutorialModal).observe(tutorialScreen, {
+        attributes: true,
+        attributeFilter: ['class'],
+      });
+    }
+    syncTutorialModal();
+  }
 
   /* ---------------- 初始状态 ---------------- */
   menu.setAttribute('aria-hidden', 'false');
