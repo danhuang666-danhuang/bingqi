@@ -40,13 +40,19 @@
   }
 
   /* ---------------- 主菜单里的轻提示 ---------------- */
-  function toast(msg) {
+  function toast(msg, ms) {
     const el = document.getElementById('menu-toast');
     if (!el) return;
     el.textContent = msg;
     el.classList.add('show');
     if (toastTimer) clearTimeout(toastTimer);
-    toastTimer = setTimeout(function () { el.classList.remove('show'); }, 2400);
+    toastTimer = setTimeout(function () { el.classList.remove('show'); }, ms || 2400);
+  }
+
+  function clearToast() {
+    const el = document.getElementById('menu-toast');
+    if (el) el.classList.remove('show');
+    if (toastTimer) { clearTimeout(toastTimer); toastTimer = 0; }
   }
 
   /* ---------------- 本地草稿摘要 ---------------- */
@@ -68,6 +74,7 @@
   /* ---------------- 显示主菜单 ---------------- */
   function show(options) {
     if (menuOpen && !(options && options.force)) return;
+    cancelPending();
     menuOpen = true;
 
     // 收起编辑器里的帮助浮层，免得回到编辑器时还开着
@@ -91,6 +98,8 @@
 
   /* ---------------- 进入地图编辑器 ---------------- */
   function enterEditor() {
+    cancelPending();
+    clearToast();
     lastMenuFocus = document.activeElement && document.activeElement.classList &&
       document.activeElement.classList.contains('menu-item') ? document.activeElement : null;
 
@@ -111,17 +120,87 @@
     }
   }
 
+  /* ---------------- 模块统一入口 ----------------
+   * 编辑器是 home 自己的函数；其余窗口由各自脚本在末尾挂到 window 上。
+   * 页面还没加载完就点击时，先排队，等 API 出现后自动打开，不要误报“施工中”。 */
+  const MODULE_ENTRIES = {
+    tutorial: { global: 'Online', api: 'openTutorial', name: '教程' },
+    online: { global: 'Online', api: 'open', name: '线上对战' },
+    armory: { global: 'Armory', api: 'open', name: '军械库' },
+    codex: { global: 'Codex', api: 'open', name: '百科' },
+  };
+  const MODULE_WAIT_MS = 12000;
+  let pendingModule = '';
+  let pendingTimer = 0;
+  let pendingSince = 0;
+
+  function cancelPending() {
+    if (pendingTimer) clearInterval(pendingTimer);
+    pendingTimer = 0;
+    pendingModule = '';
+    pendingSince = 0;
+  }
+
+  function moduleOpen(mod) {
+    if (mod === 'editor') {
+      cancelPending();
+      enterEditor();
+      return true;
+    }
+    const def = MODULE_ENTRIES[mod];
+    if (!def) return false;
+    const host = window[def.global];
+    if (!host || typeof host[def.api] !== 'function') return false;
+    try {
+      host[def.api]();
+      clearToast();
+    } catch (e) {
+      toast('打开「' + def.name + '」失败：' + (e && e.message ? e.message : '未知错误'));
+    }
+    return true;
+  }
+
+  function checkPending() {
+    if (!pendingModule) { cancelPending(); return; }
+    if (moduleOpen(pendingModule)) {
+      cancelPending();
+      return;
+    }
+    if (Date.now() - pendingSince > MODULE_WAIT_MS) {
+      const def = MODULE_ENTRIES[pendingModule];
+      const name = def ? def.name : '这个区块';
+      cancelPending();
+      toast('「' + name + '」加载失败，请刷新页面重试。');
+    }
+  }
+
   function activate(item) {
     if (!item) return;
     const mod = item.getAttribute('data-module');
-    if (mod === 'tutorial' && window.Online && window.Online.openTutorial) { window.Online.openTutorial(); return; }
-    if (mod === 'editor') { enterEditor(); return; }
-    if (mod === 'online' && window.Online) { window.Online.open(); return; }
-    if (mod === 'armory' && window.Armory) { window.Armory.open(); return; }
-    if (mod === 'codex' && window.Codex) { window.Codex.open(); return; }
-
-    const name = item.getAttribute('data-name') || '这个区块';
-    toast('「' + name + '」还在施工中，先来拼张地图？');
+    if (mod === 'editor') {
+      cancelPending();
+      enterEditor();
+      return;
+    }
+    if (moduleOpen(mod)) {
+      cancelPending();
+      return;
+    }
+    const def = MODULE_ENTRIES[mod];
+    if (!def) {
+      const name = item.getAttribute('data-name') || '这个区块';
+      toast('「' + name + '」还没有接入。');
+      return;
+    }
+    pendingModule = mod;
+    pendingSince = Date.now();
+    toast('正在载入「' + def.name + '」…', 5000);
+    if (!pendingTimer) {
+      pendingTimer = setInterval(function () {
+        if (!pendingModule) { cancelPending(); return; }
+        checkPending();
+      }, 80);
+    }
   }
 
   /* ---------------- 鼠标 ---------------- */
