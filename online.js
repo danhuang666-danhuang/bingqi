@@ -6154,7 +6154,7 @@
         return u && u.alive && battleIsAir(u);
       }).length;
       if (airLocks >= 2) return;
-      const cost = 2;
+      const cost = 1;
       if (unit.mp < cost) return;
       target.lockedBy = (target.lockedBy || []).concat(unit.id);
       target.lockCosts = target.lockCosts || {};
@@ -6186,6 +6186,11 @@
             (battleAirCanLock(battleUnitById(a)) ? 1 : 0);
         });
       }
+      const focusGround = (action.focus && !battleIsAir(target))
+        ? (target.lockedBy || []).map(battleUnitById).filter(function (u) {
+          return u && u.alive && u.side === unit.side && !battleIsAir(u);
+        })
+        : [];
       const group = attackerIds.map(battleUnitById).filter(function (u) {
         return u && u.alive && u.side === unit.side && battleIsAir(u);
       });
@@ -6255,7 +6260,9 @@
         b.log.push(intercept.aa.name + ' 拦截 ' + unit.name + '：' + intercept.spec.damage +
           '，重轰强行突破，继续轰炸');
       }
-      const participants = action.focus && group.length > 1 ? group.slice(0, 2) : [unit];
+      const participants = (action.focus && group.length > 1 ? group.slice(0, 2) : [unit])
+        .concat(focusGround)
+        .filter(function (u, i, arr) { return arr.map(function (x) { return x.id; }).indexOf(u.id) === i; });
       const facingInfo = battleAutoFacing(target, participants);
       const facing = facingInfo.facing;
       target.facing = facing;
@@ -6272,7 +6279,8 @@
             // 空中压制只增强参与本次行动的地面单位，不给飞机本体加伤。
             raw += base * (1 - battleProtectAt(tgt.c, tgt.r));
           } else {
-            raw += battleAttackRawOne(p, tgt, battleDistanceKey(p, tgt), null, facing).raw;
+            const groundRaw = battleAttackRawOne(p, tgt, battleDistanceKey(p, tgt), null, facing).raw;
+            raw += groundRaw * (battleAirSuperiorityFor(unit, tgt) ? 1.5 : 1);
           }
         });
         const dmg = battleRollDamage(raw);
@@ -7411,8 +7419,8 @@
     const escortOnly = !canBomb && bomberLock && !battleIsAir(target);
     if (!battleIsAir(target) && battleAirCanLock(air) &&
         (target.lockedBy || []).indexOf(air.id) === -1) {
-      add('锁定 · 2 行动力', 'airLock', false,
-        mismatch || air.mp < 2 || !canNormalAir);
+      add('锁定 · 1 行动力', 'airLock', false,
+        mismatch || air.mp < 1 || !canNormalAir);
     }
     if (escortOnly) {
       const heavyLock = (target.lockedBy || []).map(battleUnitById).filter(function (u) {
