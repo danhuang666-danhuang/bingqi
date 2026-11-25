@@ -1512,5 +1512,524 @@ window.TUTORIAL_LEVELS = [
         }
       }
     ]
+  },
+  {
+    "id": "t04",
+    "title": "第四关 · 炮兵、警戒与反炮兵",
+    "subtitle": "锁定视野 · 曲射 · 警戒 · 推进 · 反炮兵",
+    "map": {
+      "format": "bingqi-map",
+      "version": 3,
+      "app": "bingqi-map-editor",
+      "savedAt": "2026-11-24T13:42:33.864Z",
+      "cols": 8,
+      "rows": 6,
+      "mode": "attack",
+      "terrains": [
+        "plain",
+        "road",
+        "rail",
+        "house",
+        "city",
+        "forest",
+        "hill",
+        "mountain",
+        "river",
+        "swamp"
+      ],
+      "cells": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "rules": {
+        "plain": {
+          "move": 1,
+          "moveMech": 1,
+          "protect": 0,
+          "blocksSight": false,
+          "urban": false,
+          "riverReset": false,
+          "chaos": 0
+        },
+        "road": {
+          "move": 1,
+          "moveMech": 0.5,
+          "protect": 0,
+          "blocksSight": false,
+          "urban": false,
+          "riverReset": false,
+          "chaos": 0
+        },
+        "rail": {
+          "move": 1,
+          "moveMech": 0.5,
+          "protect": 0,
+          "blocksSight": false,
+          "urban": false,
+          "riverReset": false,
+          "chaos": 0
+        },
+        "house": {
+          "move": 1,
+          "moveMech": 1,
+          "protect": 0.3,
+          "blocksSight": true,
+          "urban": true,
+          "riverReset": false,
+          "chaos": 0
+        },
+        "city": {
+          "move": 1,
+          "moveMech": 1,
+          "protect": 0.5,
+          "blocksSight": true,
+          "urban": true,
+          "riverReset": false,
+          "chaos": 0
+        },
+        "forest": {
+          "move": 1,
+          "moveMech": 2,
+          "protect": 0.2,
+          "blocksSight": true,
+          "urban": false,
+          "riverReset": false,
+          "chaos": 0
+        },
+        "hill": {
+          "move": 2,
+          "moveMech": 2,
+          "protect": 0.25,
+          "blocksSight": true,
+          "urban": false,
+          "riverReset": false,
+          "chaos": 0
+        },
+        "mountain": {
+          "move": 3,
+          "moveMech": 3,
+          "protect": 0.4,
+          "blocksSight": true,
+          "urban": false,
+          "riverReset": false,
+          "chaos": 0
+        },
+        "river": {
+          "move": 1,
+          "moveMech": 1,
+          "protect": 0,
+          "blocksSight": false,
+          "urban": false,
+          "riverReset": true,
+          "chaos": 0
+        },
+        "swamp": {
+          "move": 2,
+          "moveMech": 2,
+          "protect": 0,
+          "blocksSight": false,
+          "urban": false,
+          "riverReset": false,
+          "chaos": 1
+        }
+      },
+      "grid": {
+        "move": [
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1
+        ],
+        "moveMech": [
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1
+        ],
+        "protect": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0.5,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      "phases": {
+        "a": 1,
+        "b": null,
+        "c": null
+      },
+      "facing": 0,
+      "deploy": {
+        "spawn": null,
+        "hqA": null,
+        "hqD": null,
+        "zone": []
+      }
+    },
+    "firstSide": "defender",
+    "factions": {
+      "attacker": "us",
+      "defender": "de"
+    },
+    "units": [
+      {
+        "side": "attacker",
+        "name": "游骑兵营",
+        "c": 2,
+        "r": 2,
+        "id": "t4-us-ranger"
+      },
+      {
+        "side": "defender",
+        "name": "步兵营",
+        "c": 3,
+        "r": 3,
+        "id": "t4-de-inf1"
+      },
+      {
+        "side": "defender",
+        "name": "步兵营",
+        "c": 3,
+        "r": 1,
+        "id": "t4-de-inf2"
+      },
+      {
+        "side": "defender",
+        "name": "105炮兵营",
+        "c": 6,
+        "r": 2,
+        "id": "t4-de-arty"
+      }
+    ],
+    "steps": [
+      {
+        "text": "德军先行动。用 D4 德军步兵锁定 C3 美军游骑兵，为炮兵提供目标视野。",
+        "allow": {
+          "type": "lock",
+          "unitId": "t4-de-inf1",
+          "targetId": "t4-us-ranger"
+        },
+        "focus": {
+          "c": 2,
+          "r": 2,
+          "label": "锁定游骑兵"
+        }
+      },
+      {
+        "text": "G3 的 105 炮兵对已锁定的游骑兵集火曲射。炮兵射程很远，曲射不会被反击，但必须依赖其他单位提供视野或锁定。",
+        "allow": {
+          "type": "focus",
+          "unitId": "t4-de-arty",
+          "targetId": "t4-us-ranger"
+        },
+        "focus": {
+          "c": 2,
+          "r": 2,
+          "label": "炮兵曲射"
+        }
+      },
+      {
+        "text": "观察这次曲射：炮兵射程长、无法被反击，但极其依赖其他单位提供视野。炮兵完成射击后，回合自动交给美军。",
+        "focus": {
+          "c": 6,
+          "r": 2,
+          "label": "G3 · 德军炮兵"
+        }
+      },
+      {
+        "text": "现在轮到美军。让游骑兵从 C3 移动到 D3，靠近德军步兵。",
+        "allow": {
+          "type": "move",
+          "unitId": "t4-us-ranger",
+          "c": 3,
+          "r": 2
+        },
+        "focus": {
+          "c": 3,
+          "r": 2,
+          "label": "D3 · 警戒边缘"
+        }
+      },
+      {
+        "text": "游骑兵进入 D3 后不能再移动：德军主战单位周围有警戒区，进入警戒格会强制停止移动，但仍可攻击、集火或锁定。",
+        "focus": {
+          "c": 3,
+          "r": 2,
+          "label": "警戒停止"
+        }
+      },
+      {
+        "text": "重新开始这一段，并增加一名美军步兵。先让步兵创造机会，再让游骑兵攻击后方炮兵。",
+        "auto": "stage4Push",
+        "focus": {
+          "c": 2,
+          "r": 1,
+          "label": "C2 · 美军步兵"
+        }
+      },
+      {
+        "text": "把 C2 美军步兵移动到 D1。",
+        "allow": {
+          "type": "move",
+          "unitId": "t4-us-inf",
+          "c": 3,
+          "r": 0
+        },
+        "focus": {
+          "c": 3,
+          "r": 0,
+          "label": "D1"
+        }
+      },
+      {
+        "text": "从 D1 推进 D2 德军步兵，把它推离原位，打开通往炮兵的道路。",
+        "allow": {
+          "type": "push",
+          "unitId": "t4-us-inf",
+          "targetId": "t4-de-inf2"
+        },
+        "focus": {
+          "c": 3,
+          "r": 1,
+          "label": "推进 D2"
+        }
+      },
+      {
+        "text": "德军 D2 被推开。游骑兵从 C3 移动到 E2，接近 G3 德军炮兵。",
+        "allow": {
+          "type": "move",
+          "unitId": "t4-us-ranger",
+          "c": 4,
+          "r": 1
+        },
+        "focus": {
+          "c": 4,
+          "r": 1,
+          "label": "E2 · 攻击位置"
+        }
+      },
+      {
+        "text": "游骑兵从 E2 攻击 G3 的德军炮兵。炮兵是高价值但脆弱的单位，推进创造出的这条路线就是用来抓它的。",
+        "allow": {
+          "type": "attack",
+          "unitId": "t4-us-ranger",
+          "targetId": "t4-de-arty"
+        },
+        "focus": {
+          "c": 6,
+          "r": 2,
+          "label": "G3 · 德军炮兵"
+        }
+      },
+      {
+        "text": "回到德军刚开完炮的状态：移除美军步兵，在 B4、B2 放两个美军反炮兵小组，B3 放美军炮兵。观察德军炮兵位置上的反炮兵标记。",
+        "auto": "stage4Counter",
+        "focus": {
+          "c": 6,
+          "r": 2,
+          "label": "反炮兵标记"
+        }
+      },
+      {
+        "text": "反炮兵小组已经记录德军炮位，红圈和红色准星标出 G3。选中 B3 的美军炮兵，右键标记格执行反炮兵炮击。",
+        "allow": {
+          "type": "counterBatteryStrike",
+          "unitId": "t4-us-arty",
+          "c": 6,
+          "r": 2
+        },
+        "focus": {
+          "c": 6,
+          "r": 2,
+          "label": "G3 · 反炮兵目标"
+        }
+      },
+      {
+        "text": "反炮兵炮击完成。反炮兵小组负责发现炮位，炮兵负责执行打击；这就是反炮兵作战的基本分工。",
+        "focus": {
+          "c": 6,
+          "r": 2,
+          "label": "教程完成"
+        }
+      }
+    ]
   }
 ];

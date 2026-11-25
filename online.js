@@ -13406,6 +13406,10 @@
         setTimeout(function () { tutorial3Stage('maus'); }, 300);
       } else if (nextStep && nextStep.auto === 'enemyRiver') {
         setTimeout(tutorialEnemyRiver, 500);
+      } else if (nextStep && nextStep.auto === 'stage4Push') {
+        setTimeout(function () { tutorial4Stage('push'); }, 300);
+      } else if (nextStep && nextStep.auto === 'stage4Counter') {
+        setTimeout(function () { tutorial4Stage('counter'); }, 300);
       }
       return;
     }
@@ -13471,6 +13475,10 @@
       setTimeout(function () { tutorial3Stage('plain'); }, 300);
     } else if (step && step.auto === 'stageMaus') {
       setTimeout(function () { tutorial3Stage('maus'); }, 300);
+    } else if (step && step.auto === 'stage4Push') {
+      setTimeout(function () { tutorial4Stage('push'); }, 300);
+    } else if (step && step.auto === 'stage4Counter') {
+      setTimeout(function () { tutorial4Stage('counter'); }, 300);
     }
   }
 
@@ -13508,6 +13516,10 @@
       return false;
     }
     if (allow.facing != null) action.facing = allow.facing;
+    if (state.tutorial.level && state.tutorial.level.id === 't04' && action.type === 'push') {
+      const pusher = battleUnitById(action.unitId);
+      if (pusher) pusher.guardStop = false;
+    }
     if (allow.unitId && action.unitId !== allow.unitId) {
       toast('教程步骤：请使用指定单位');
       return false;
@@ -13542,6 +13554,16 @@
     if (state.tutorial.level && state.tutorial.level.id === 't03' && action.type === 'focus') {
       tutorial3RestoreAttackers();
     }
+    if (state.tutorial.level && state.tutorial.level.id === 't04' && action.type === 'focus') {
+      state.battle.activeSide = 'attacker';
+      const usSeat = state.testSeats.filter(function (s) { return s.side === 'attacker'; })[0];
+      if (usSeat) { state.activeSeat = usSeat.id; syncActiveSeat(); }
+      battleResetMp(state.battle, 'attacker');
+      renderRoom();
+    }
+    if (state.tutorial.level && state.tutorial.level.id === 't04' && action.type === 'counterBatteryStrike') {
+      state.battle.counterBatteryMarks = [];
+    }
     if (!step.allow) return;
     if (action.type === step.allow.type &&
         (!step.allow.unitId || action.unitId === step.allow.unitId) &&
@@ -13563,6 +13585,55 @@
       u.pushLocked = false;
       u.mp = battleMaxMp(u);
     });
+  }
+
+  function tutorial4Unit(id, side, name, c, r, faction) {
+    const f = faction || (side === 'attacker' ? 'us' : 'de');
+    const hp = prepUnitHp(name, f) || 6;
+    return {
+      id: id, side: side, name: name, c: c, r: r, faction: f,
+      hp: hp, maxHp: hp, mp: prepUnitMove(name, f), maxMp: prepUnitMove(name, f),
+      alive: true, lockedBy: [], actionLocked: false, pushLocked: false, guardStop: false,
+    };
+  }
+
+  function tutorial4Stage(stage) {
+    if (!state.tutorial || !state.battle) return;
+    const b = state.battle;
+    const units = [];
+    units.push(tutorial4Unit('t4-us-ranger', 'attacker', '游骑兵营', 2, 2, 'us'));
+    units.push(tutorial4Unit('t4-de-inf1', 'defender', '步兵营', 3, 3, 'de'));
+    units.push(tutorial4Unit('t4-de-inf2', 'defender', '步兵营', 3, 1, 'de'));
+    units.push(tutorial4Unit('t4-de-arty', 'defender', '105炮兵营', 6, 2, 'de'));
+    if (stage === 'push') {
+      units.push(tutorial4Unit('t4-us-inf', 'attacker', '步兵营', 2, 1, 'us'));
+    }
+    if (stage === 'counter') {
+      units.push(tutorial4Unit('t4-us-cb1', 'attacker', '反炮兵小组', 1, 3, 'us'));
+      units.push(tutorial4Unit('t4-us-cb2', 'attacker', '反炮兵小组', 1, 1, 'us'));
+      units.push(tutorial4Unit('t4-us-arty', 'attacker', '105炮兵营', 1, 2, 'us'));
+    }
+    b.units = units;
+    b.buildings = [];
+    b.counter = null;
+    b.choice = null;
+    b.selectedId = null;
+    b.history = [];
+    b.counterBatteryMarks = [];
+    b.round = 1;
+    b.activeSide = stage === 'initial' ? 'defender' : 'attacker';
+    const seat = state.testSeats.filter(function (s) { return s.side === b.activeSide; })[0];
+    if (seat) { state.activeSeat = seat.id; syncActiveSeat(); }
+    if (stage === 'counter') {
+      b.counterBatteryMarks.push({ c: 6, r: 2, forSide: 'attacker', round: 1, source: 'acoustic' });
+    }
+    battleResetMp(b, b.activeSide);
+    state.tutorial.stage = stage;
+    state.tutorial.enemyDone = true;
+    renderRoom();
+    renderTutorialGuide();
+    refreshTutorialFocus();
+    if (B3) B3.need = true;
   }
 
   function tutorial3Stage(stage) {    if (!state.tutorial || !state.battle || !state.map) return;
