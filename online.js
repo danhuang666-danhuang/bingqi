@@ -13355,7 +13355,9 @@
     const autoPending = !!(stepDef && stepDef.auto && stepDef.auto !== 'rewind' &&
       !(state.tutorial && state.tutorial.enemyDone));
     const quizLocked = !!(stepDef && stepDef.quiz && !(state.tutorial && state.tutorial.quizCorrect));
-    const locked = autoPending || quizLocked ||
+    const lastStep = step + 1 >= ((level && level.steps && level.steps.length) || 1);
+    const finalLocked = !!(lastStep && stepDef && stepDef.allow && !(state.tutorial && state.tutorial.finalReady));
+    const locked = autoPending || quizLocked || finalLocked ||
       !!(stepDef && (stepDef.allow || stepDef.blocked || stepDef.expectCounter));
     let media = '';
     if (stepDef && Array.isArray(stepDef.images) && stepDef.images.length) {
@@ -13467,6 +13469,7 @@
       }
       state.tutorial.step = (state.tutorial.step || 0) + 1;
       state.tutorial.enemyDone = false;
+      state.tutorial.finalReady = false;
       state.tutorial.quizCorrect = false;
       state.tutorial.quizChoice = null;
       if (state.tutorial.level && state.tutorial.level.id === 't03' && state.tutorial.step === 12) {
@@ -13532,11 +13535,13 @@
     if (!t || !t.level) return;
     const steps = t.level.steps || [];
     if ((t.step || 0) + 1 >= steps.length) {
+      t.finalReady = true;
       renderTutorialGuide();
       return;
     }
     t.step = (t.step || 0) + 1;
     t.enemyDone = false;
+    t.finalReady = false;
     t.quizCorrect = false;
     t.quizChoice = null;
     if (t.level.id === 't03' && t.step === 12) tutorial3RestoreAttackers();
@@ -13640,6 +13645,11 @@
       if (usSeat) { state.activeSeat = usSeat.id; syncActiveSeat(); }
       battleResetMp(state.battle, 'attacker');
       renderRoom();
+    }
+    if (state.tutorial.level && state.tutorial.level.id === 't04' &&
+        action.unitId === 't4-us-arty' && (state.tutorial.step || 0) >= 11) {
+      tutorialAdvance();
+      return;
     }
     if (!step.allow) return;
     const allowedTypes = step.allow.types || (step.allow.type ? [step.allow.type] : []);
@@ -13848,7 +13858,7 @@
         }
         state.battle.buildings = [];
         state.battle.history = [];
-        state.tutorial = { level: level, step: 0, enemyDone: false, tutorialGuideCollapsed: false };
+        state.tutorial = { level: level, step: 0, enemyDone: false, finalReady: false, tutorialGuideCollapsed: false };
         state.tutorialGuideCollapsed = false;
         hideEl('sandbox-dock', true);
         hideEl('sandbox-panel', true);
