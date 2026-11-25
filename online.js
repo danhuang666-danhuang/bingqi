@@ -6208,7 +6208,7 @@
             (battleAirCanLock(battleUnitById(a)) ? 1 : 0);
         });
       }
-      const focusGround = (action.focus && !battleIsAir(target))
+      const focusGround = !battleIsAir(target)
         ? (target.lockedBy || []).map(battleUnitById).filter(function (u) {
           return u && u.alive && u.side === unit.side && !battleIsAir(u);
         })
@@ -7512,7 +7512,8 @@
         });
         focusPreview = ' · 总预计 -' + battleFmt(raw);
       }
-      add((role === 'intercept' ? '攻击 · 空战' : '攻击 · 对地轰炸') + airPreview + ' · ' + airCost + ' 行动力',
+      const displayPreview = targetLocked ? focusPreview : airPreview;
+      add((role === 'intercept' ? '攻击 · 空战' : '攻击 · 对地轰炸') + displayPreview + ' · ' + airCost + ' 行动力',
         'airAttack', false, mismatch || air.mp < airCost || !canNormalAir || fighterNeedsLock);
       if (targetLocked) {
         add('集火 · ' + (role === 'intercept' ? '空战' : '对地轰炸') + focusPreview + ' · ' + airCost + ' 行动力',
