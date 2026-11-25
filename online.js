@@ -3299,6 +3299,7 @@
   const BATTLE_MAX_MP = 6;
   const BATTLE_RANGE = 2;
   const BATTLE_VISION = 2;
+  const AIRFIELD_CAPACITY = 7;
 
   function battleHexAxial(c, r) {
     return { x: c - ((r - (r & 1)) / 2), z: r };
@@ -3697,6 +3698,12 @@
     return radius;
   }
 
+  function airBaseCount(side) {
+    return battleAliveUnits().filter(function (u) {
+      return u.side === side && u.airBase;
+    }).length;
+  }
+
   function airPadCells(side, count) {
     const center = airPadCenter(side);
     const radius = airPadRadius(count);
@@ -3729,7 +3736,8 @@
       if (existing) return;
       const airNames = (state.decks[side] || []).filter(function (name) {
         return battleIsAirUnit(name, side);
-      });
+      }).slice(0, AIRFIELD_CAPACITY);
+      if (!airNames.length) return;
       const slots = airPadCells(side, airNames.length);
       airNames.forEach(function (name, i) {
         if (!slots[i]) return;
@@ -3765,14 +3773,21 @@
     battleAliveUnits().forEach(function (u) {
       if (u.side === side && u.airBase) occupied[u.c + ',' + u.r] = true;
     });
-    const slots = airPadCells(side, total + Object.keys(occupied).length).filter(function (p) {
-      return !occupied[p.c + ',' + p.r];
-    });
+    const capacityLeft = Math.max(0, AIRFIELD_CAPACITY - Object.keys(occupied).length);
+    if (!capacityLeft) {
+      toast('机场已满：最多容纳 ' + AIRFIELD_CAPACITY + ' 架飞机');
+      return;
+    }
+    const slots = airPadCells(side, Object.keys(occupied).length + Math.min(remaining, capacityLeft))
+      .filter(function (p) {
+        return !occupied[p.c + ',' + p.r];
+      });
     let idx = 0;
+    let placedNow = 0;
     const faction = sideFaction(side);
     airNames.forEach(function (name) {
       const want = Math.max(0, Number(pick.units[name] || 0) - (placedBy[name] || 0));
-      for (let i = 0; i < want; i++) {
+      for (let i = 0; i < want && placedNow < capacityLeft; i++) {
         const slot = slots[idx++];
         if (!slot) break;
         const hp = prepUnitHp(name, faction);
@@ -3783,9 +3798,13 @@
           alive: true, lockedBy: [], reinforceNew: true, cooldownRound: b.round, airBase: true,
         });
         r.placed[side] = (r.placed[side] || []).concat([{ id: id, name: name, c: slot.c, r: slot.r }]);
+        placedNow++;
       }
     });
     if (r.placed[side].length) b.log.push(sideName(side) + ' 空军进入机场');
+    if (remaining > capacityLeft) {
+      toast('机场已满：' + (remaining - capacityLeft) + ' 架飞机未能进入机场');
+    }
   }
 
   function initBattleState() {
@@ -10703,6 +10722,10 @@
       battleAliveUnits().forEach(function (u) {
         if (u.side === side && u.airBase) occupied[u.c + ',' + u.r] = true;
       });
+      if (Object.keys(occupied).length >= AIRFIELD_CAPACITY) {
+        toast('机场已满：最多容纳 ' + AIRFIELD_CAPACITY + ' 架飞机');
+        return;
+      }
       const slots = airPadCells(side, Object.keys(occupied).length + 2).filter(function (p) {
         return !occupied[p.c + ',' + p.r];
       });
