@@ -5625,6 +5625,7 @@
       unit.hp = 0;
       unit.alive = false;
       if (wasAlive) battleRecordKill(unit);
+      battleCheckHQVictory();
       if (cargo && cargo.embarked) battleDamageUnit(cargo, n);
       if (cargo && cargo.alive) {
         cargo.embarked = false;
@@ -5656,9 +5657,9 @@
     }
     if (unit.isHQ) {
       if (unit.alive && unit.hp <= 6) unit.mp = Math.max(Number(unit.mp) || 0, 2);
-      battleCheckHQVictory();
     }
     if (wasAlive && !unit.alive) battleRecordKill(unit);
+    battleCheckHQVictory();
     return n;
   }
 
