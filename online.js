@@ -4087,8 +4087,10 @@
     dist[start] = 0;
     const occupied = {};
     battleAliveUnits().forEach(function (u) {
-      // 友军可以被跨过，只有敌军阻挡路线；终点仍不能落在任何单位上。
-      if (u.id !== unit.id && u.side !== unit.side) occupied[u.r * map.cols + u.c] = true;
+      // 友军可以被跨过；敌军阻挡路线，但隐蔽单位不阻挡通行。终点仍不能落在任何单位上。
+      if (u.id !== unit.id && u.side !== unit.side && !battleTrait(u, 'hidden')) {
+        occupied[u.r * map.cols + u.c] = true;
+      }
     });
     const guardMap = battleGuardCells(otherSide(unit.side));
     for (let loop = 0; loop < n; loop++) {
@@ -4710,7 +4712,8 @@
   });
 
   function battleCounterScale(unit) {
-    return unit && battleTrait(unit, 'hidden') ? 0 : 1;
+    // 隐蔽只影响反击目标选择，不对任何攻击伤害提供减免或加成。
+    return 1;
   }
 
   function battleAirGroundStats(unit) {
