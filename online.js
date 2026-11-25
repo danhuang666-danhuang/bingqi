@@ -8815,6 +8815,15 @@
     return c.attacker > 0 && c.defender > 0;
   }
 
+  function bothSidesReady() {
+    const roster = onlineRoster().filter(function (p) { return !!p.side; });
+    const attacker = roster.filter(function (p) { return p.side === 'attacker'; });
+    const defender = roster.filter(function (p) { return p.side === 'defender'; });
+    if (!attacker.length || !defender.length) return false;
+    function ready(p) { return p.role === 'host' || !!p.ready; }
+    return attacker.every(ready) && defender.every(ready);
+  }
+
   function applyRoomStage() {
     const prep = state.phase === 'prepare' && state.view === 'room';
     const deploy = state.phase === 'deploy' && state.view === 'room';
@@ -8852,12 +8861,13 @@
     }
     if (state.phase !== 'lobby') state.factionView = false;
     const both = bothSidesHavePlayers();
+    const bothReady = bothSidesReady();
     const attackMap = !!state.map && state.map.mode === 'attack';
-    if (state.phase === 'battle' || !attackMap || !both) {
+    if (state.phase === 'battle' || !attackMap || !both || !bothReady) {
       state.factionView = false;
     }
-    if (!both || !attackMap) state.factionPrompted = false;
-    if (!state.factionView && state.phase === 'lobby' && both && attackMap &&
+    if (!both || !attackMap || !bothReady) state.factionPrompted = false;
+    if (!state.factionView && state.phase === 'lobby' && both && bothReady && attackMap &&
         !!state.side && !factionsReady() && !state.factionPrompted) {
       state.factionView = true;
       state.factionPrompted = true;
@@ -8958,6 +8968,7 @@
   function maybePrepare() {
     if (state.phase !== 'lobby') return;
     if (!factionsReady() || !bothFactionsConfirmed()) return;
+    if (!state.test && !bothSidesReady()) return;
     // 沙盒模式没有配卡/师配置：双方国家确认后直接生成空战场。
     if (state.test) {
       state.factionView = false;
@@ -13368,6 +13379,7 @@
     renderSidePick();
     renderFlow();
     renderPhaseNote();
+    refreshRoom();
   });
 
   el('online-start').addEventListener('click', async function () {
