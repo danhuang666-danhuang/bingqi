@@ -2019,5 +2019,534 @@ window.TUTORIAL_LEVELS = [
         }
       }
     ]
+  },
+  {
+    "id": "t05",
+    "title": "第五关 · 空军侦察与拦截",
+    "subtitle": "固定航线 · 侦察视野 · 防空拦截 · 战斗机拦截",
+    "map": {
+      "format": "bingqi-map",
+      "version": 3,
+      "app": "bingqi-map-editor",
+      "savedAt": "2026-11-25T07:06:33.013Z",
+      "cols": 8,
+      "rows": 7,
+      "mode": "attack",
+      "terrains": [
+        "plain",
+        "road",
+        "rail",
+        "house",
+        "city",
+        "forest",
+        "hill",
+        "mountain",
+        "river",
+        "swamp"
+      ],
+      "cells": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "rules": {
+        "plain": {
+          "move": 1,
+          "moveMech": 1,
+          "protect": 0,
+          "blocksSight": false,
+          "urban": false,
+          "riverReset": false,
+          "chaos": 0
+        },
+        "road": {
+          "move": 1,
+          "moveMech": 0.5,
+          "protect": 0,
+          "blocksSight": false,
+          "urban": false,
+          "riverReset": false,
+          "chaos": 0
+        },
+        "rail": {
+          "move": 1,
+          "moveMech": 0.5,
+          "protect": 0,
+          "blocksSight": false,
+          "urban": false,
+          "riverReset": false,
+          "chaos": 0
+        },
+        "house": {
+          "move": 1,
+          "moveMech": 1,
+          "protect": 0.3,
+          "blocksSight": true,
+          "urban": true,
+          "riverReset": false,
+          "chaos": 0
+        },
+        "city": {
+          "move": 1,
+          "moveMech": 1,
+          "protect": 0.5,
+          "blocksSight": true,
+          "urban": true,
+          "riverReset": false,
+          "chaos": 0
+        },
+        "forest": {
+          "move": 1,
+          "moveMech": 2,
+          "protect": 0.2,
+          "blocksSight": true,
+          "urban": false,
+          "riverReset": false,
+          "chaos": 0
+        },
+        "hill": {
+          "move": 2,
+          "moveMech": 2,
+          "protect": 0.25,
+          "blocksSight": true,
+          "urban": false,
+          "riverReset": false,
+          "chaos": 0
+        },
+        "mountain": {
+          "move": 3,
+          "moveMech": 3,
+          "protect": 0.4,
+          "blocksSight": true,
+          "urban": false,
+          "riverReset": false,
+          "chaos": 0
+        },
+        "river": {
+          "move": 1,
+          "moveMech": 1,
+          "protect": 0,
+          "blocksSight": false,
+          "urban": false,
+          "riverReset": true,
+          "chaos": 0
+        },
+        "swamp": {
+          "move": 2,
+          "moveMech": 2,
+          "protect": 0,
+          "blocksSight": false,
+          "urban": false,
+          "riverReset": false,
+          "chaos": 1
+        }
+      },
+      "grid": {
+        "move": [
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1
+        ],
+        "moveMech": [
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1
+        ],
+        "protect": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      "phases": {
+        "a": 1,
+        "b": null,
+        "c": null
+      },
+      "facing": 0,
+      "deploy": {
+        "spawn": null,
+        "hqA": null,
+        "hqD": null,
+        "zone": [],
+        "airA": [
+          [
+            0,
+            0
+          ]
+        ],
+        "airD": [
+          [
+            7,
+            6
+          ]
+        ]
+      }
+    },
+    "firstSide": "attacker",
+    "factions": {
+      "attacker": "us",
+      "defender": "de"
+    },
+    "units": [
+      {
+        "side": "attacker",
+        "name": "F5侦察机",
+        "c": 0,
+        "r": 0,
+        "id": "t5-f5",
+        "airBase": true
+      },
+      {
+        "side": "attacker",
+        "name": "P47战斗轰炸机",
+        "c": 0,
+        "r": 0,
+        "id": "t5-p47",
+        "airBase": true
+      },
+      {
+        "side": "defender",
+        "name": "步兵营",
+        "c": 5,
+        "r": 5,
+        "id": "t5-de-inf"
+      }
+    ],
+    "steps": [
+      {
+        "text": "让 F5 侦察机从机场起飞，前往 G4 侦察。飞机路线固定，只能从进场点直线飞向目标点。",
+        "allow": {
+          "type": "airRecon",
+          "unitId": "t5-f5",
+          "c": 6,
+          "r": 3
+        },
+        "focus": {
+          "c": 6,
+          "r": 3,
+          "label": "G4 · 侦察"
+        }
+      },
+      {
+        "text": "F5 已提供 G4 视野。让 P47 对 F6 德军步兵执行对地攻击；飞机出击需要队友提供目标视野，并且只能沿固定航线飞行。",
+        "allow": {
+          "type": "airAttack",
+          "unitId": "t5-p47",
+          "targetId": "t5-de-inf"
+        },
+        "focus": {
+          "c": 5,
+          "r": 5,
+          "label": "F6 · 对地攻击"
+        }
+      },
+      {
+        "text": "现在重置，并在 D4 增加一门德军 20 防空炮。侦察后再次让 P47 出击，观察防空拦截。",
+        "auto": "stage5AA",
+        "focus": {
+          "c": 3,
+          "r": 3,
+          "label": "D4 · 20防空炮"
+        }
+      },
+      {
+        "text": "F5 再次侦察 G4，为 P47 提供视野。",
+        "allow": {
+          "type": "airRecon",
+          "unitId": "t5-f5",
+          "c": 6,
+          "r": 3
+        },
+        "focus": {
+          "c": 6,
+          "r": 3,
+          "label": "G4 · 侦察"
+        }
+      },
+      {
+        "text": "P47 沿固定航线攻击 F6。航线经过德军防空范围时会被拦截：飞机会受到伤害并强制返航，任务中止。",
+        "allow": {
+          "type": "airAttack",
+          "unitId": "t5-p47",
+          "targetId": "t5-de-inf"
+        },
+        "focus": {
+          "c": 5,
+          "r": 5,
+          "label": "防空拦截航线"
+        }
+      },
+      {
+        "text": "再重置，移除 20 防空炮，给德军增加 Bf109 战斗机。先让 F5 侦察，然后切换到德军视角。",
+        "auto": "stage5Fighter",
+        "focus": {
+          "c": 7,
+          "r": 6,
+          "label": "Bf109 · 德军机场"
+        }
+      },
+      {
+        "text": "F5 侦察 G4。侦察完成后会自动切换到德军视角。",
+        "allow": {
+          "type": "airRecon",
+          "unitId": "t5-f5",
+          "c": 6,
+          "r": 3
+        },
+        "focus": {
+          "c": 6,
+          "r": 3,
+          "label": "G4 · 侦察"
+        }
+      },
+      {
+        "text": "操作德军 Bf109 拦截 F5。战斗机拦截可以打出伤害，但无法把目标逼退返航；只有防空火力能强制返航。",
+        "allow": {
+          "type": "airAttack",
+          "unitId": "t5-bf",
+          "targetId": "t5-f5"
+        },
+        "focus": {
+          "c": 6,
+          "r": 3,
+          "label": "拦截 F5"
+        }
+      },
+      {
+        "text": "Bf109 本回合已经执行过拦截。现在让 P47 再次轰炸 F6——德军战斗机一回合只能拦截一次，所以这次无法再拦。",
+        "allow": {
+          "type": "airAttack",
+          "unitId": "t5-p47",
+          "targetId": "t5-de-inf"
+        },
+        "focus": {
+          "c": 5,
+          "r": 5,
+          "label": "P47 · 再次轰炸"
+        }
+      },
+      {
+        "text": "各型号飞机功能丰富，价格高昂，但能提供十分强力的支援。是否出动、什么时候出动、让谁去拦截，都需要谨慎考虑。",
+        "center": true,
+        "focus": {
+          "c": 4,
+          "r": 3,
+          "label": "空军使用总结"
+        }
+      }
+    ]
   }
 ];

@@ -13499,6 +13499,10 @@
         setTimeout(function () { tutorial4Stage('push'); }, 300);
       } else if (nextStep && nextStep.auto === 'stage4Counter') {
         setTimeout(function () { tutorial4Stage('counter'); }, 300);
+      } else if (nextStep && nextStep.auto === 'stage5AA') {
+        setTimeout(function () { tutorial5Stage('aa'); }, 300);
+      } else if (nextStep && nextStep.auto === 'stage5Fighter') {
+        setTimeout(function () { tutorial5Stage('fighter'); }, 300);
       }
       return;
     }
@@ -13570,6 +13574,10 @@
       setTimeout(function () { tutorial4Stage('push'); }, 300);
     } else if (step && step.auto === 'stage4Counter') {
       setTimeout(function () { tutorial4Stage('counter'); }, 300);
+    } else if (step && step.auto === 'stage5AA') {
+      setTimeout(function () { tutorial5Stage('aa'); }, 300);
+    } else if (step && step.auto === 'stage5Fighter') {
+      setTimeout(function () { tutorial5Stage('fighter'); }, 300);
     }
   }
 
@@ -13662,6 +13670,22 @@
       tutorialAdvance();
       return;
     }
+    if (state.tutorial.level && state.tutorial.level.id === 't05' && action.type === 'airRecon' &&
+        (state.tutorial.step || 0) === 6) {
+      state.battle.activeSide = 'defender';
+      const deSeat = state.testSeats.filter(function (s) { return s.side === 'defender'; })[0];
+      if (deSeat) { state.activeSeat = deSeat.id; syncActiveSeat(); }
+      battleResetMp(state.battle, 'defender');
+      renderRoom();
+    }
+    if (state.tutorial.level && state.tutorial.level.id === 't05' && action.type === 'airAttack' &&
+        action.unitId === 't5-bf') {
+      state.battle.activeSide = 'attacker';
+      const usSeat = state.testSeats.filter(function (s) { return s.side === 'attacker'; })[0];
+      if (usSeat) { state.activeSeat = usSeat.id; syncActiveSeat(); }
+      battleResetMp(state.battle, 'attacker');
+      renderRoom();
+    }
     if (!step.allow) return;
     const allowedTypes = step.allow.types || (step.allow.type ? [step.allow.type] : []);
     if ((!allowedTypes.length || allowedTypes.indexOf(action.type) !== -1) &&
@@ -13684,6 +13708,48 @@
       u.pushLocked = false;
       u.mp = battleMaxMp(u);
     });
+  }
+
+  function tutorial5Unit(id, side, name, c, r, faction, air) {
+    const f = faction || (side === 'attacker' ? 'us' : 'de');
+    const hp = prepUnitHp(name, f) || 4;
+    return {
+      id: id, side: side, name: name, c: c, r: r, faction: f,
+      hp: hp, maxHp: hp, mp: prepUnitMove(name, f), maxMp: prepUnitMove(name, f),
+      alive: true, lockedBy: [], actionLocked: false, airBase: !!air,
+    };
+  }
+
+  function tutorial5Stage(stage) {
+    if (!state.tutorial || !state.battle) return;
+    const b = state.battle;
+    b.units = [
+      tutorial5Unit('t5-f5', 'attacker', 'F5侦察机', 0, 0, 'us', true),
+      tutorial5Unit('t5-p47', 'attacker', 'P47战斗轰炸机', 0, 0, 'us', true),
+      tutorial5Unit('t5-de-inf', 'defender', '步兵营', 5, 5, 'de', false),
+    ];
+    if (stage === 'aa') {
+      b.units.push(tutorial5Unit('t5-aa', 'defender', '20防空炮营', 3, 3, 'de', false));
+    }
+    if (stage === 'fighter') {
+      b.units.push(tutorial5Unit('t5-bf', 'defender', 'Bf109战斗机', 7, 6, 'de', true));
+    }
+    b.buildings = [];
+    b.counter = null;
+    b.choice = null;
+    b.selectedId = null;
+    b.history = [];
+    b.counterBatteryMarks = [];
+    b.activeSide = 'attacker';
+    const seat = state.testSeats.filter(function (s) { return s.side === 'attacker'; })[0];
+    if (seat) { state.activeSeat = seat.id; syncActiveSeat(); }
+    battleResetMp(b, 'attacker');
+    state.tutorial.stage = stage;
+    state.tutorial.enemyDone = true;
+    renderRoom();
+    renderTutorialGuide();
+    refreshTutorialFocus();
+    if (B3) B3.need = true;
   }
 
   function tutorial4Unit(id, side, name, c, r, faction) {
