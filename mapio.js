@@ -18,6 +18,7 @@
  *     },
  *     "phases": { "a": 1, "b": 4, "c": 9 },  // 阶段开始的大回合；b/c 为 null 表示没有该阶段
  *     "facing": 0,                            // 默认朝向 0–5（东/东北/西北/西/西南/东南）
+ *     "roundLimit": 10,                       // 回合上限：打到第 10 回合结束就收场；null / 缺省 = 不限
  *     "holes": [37, 38]                       // 不存在的格子下标（行优先）；没有挖空时不写这个字段
  *   }
  *
@@ -305,6 +306,26 @@
     return false;
   }
 
+  /* ---------- 回合上限 ----------
+   * roundLimit：打到第几大回合结束时游戏结束。null = 不限。
+   * 可选字段，老地图没有就当"不限"。 */
+
+  const MAX_ROUND_LIMIT = 999;
+
+  function normalizeRoundLimit(v) {
+    if (v == null || v === '') return null;
+    const n = Math.floor(Number(v));
+    if (!isFinite(n) || n < 1) return null;
+    return Math.min(n, MAX_ROUND_LIMIT);
+  }
+
+  /* 第 round 大回合结束之后，游戏是不是该结束了 */
+  function isGameOver(p, roundLimit, round) {
+    const lim = normalizeRoundLimit(roundLimit);
+    if (lim == null) return false;
+    return Math.floor(Number(round) || 1) >= lim;
+  }
+
   /* 规整成合法配置：A 恒为 1；B ≥ 2；C ≥ B+1；C 存在时 B 必须存在 */
   function normalizePhases(p) {
     const out = { a: 1, b: null, c: null };
@@ -356,6 +377,7 @@
       grid: cellGrid(map.cells, terrains),
       phases: serializePhases(map.phases),
       facing: normalizeFacing(map.facing),
+      roundLimit: normalizeRoundLimit(map.roundLimit),
     };
     const holes = absentToHoles(map.absent);
     if (holes.length) out.holes = holes;
@@ -463,12 +485,19 @@
       warnings.push('文件里的格子属性与地形对不上，已按地形重新计算');
     }
 
+    /* 回合上限：非法值当"不限"，给个提示 */
+    const roundLimit = normalizeRoundLimit(raw.roundLimit);
+    if (raw.roundLimit != null && raw.roundLimit !== '' && roundLimit == null) {
+      warnings.push('回合上限不合法，已按「不限」处理');
+    }
+
     /* 地图形状：holes 里的下标表示"这格不存在"，其余都是正常格 */
     const absent = holesToAbsent(raw.holes, cols, rows, warnings);
 
     return {
       cols: cols, rows: rows, cells: cells, mode: mode, deploy: deploy,
       phases: phases, facing: normalizeFacing(raw.facing),
+      roundLimit: roundLimit,
       absent: absent,
       grid: grid, rules: ruleTable(terrains), warnings: warnings,
     };
@@ -508,6 +537,9 @@
     parse: parse,
     DEFAULT_PHASES: DEFAULT_PHASES,
     normalizePhases: normalizePhases,
+    normalizeRoundLimit: normalizeRoundLimit,
+    isGameOver: isGameOver,
+    MAX_ROUND_LIMIT: MAX_ROUND_LIMIT,
     phaseOfRound: phaseOfRound,
     DEFAULT_FACING: DEFAULT_FACING,
     FACING_NAMES: FACING_NAMES,

@@ -1855,17 +1855,47 @@
     g.userData.b3Unit = unit;
     g.userData.b3BaseY = unitLift;
 
-    // 不再额外加整块托盘：模型自带六边形底座，直接落在地图格凹槽里。
-    const model = b3UnitMesh(unit.name, faction, unit.hp);
+    // 指挥部：上下两层 HQ 模型叠放，上层 3 血、下层 6 血。
+    let model = null;
     let transportTop = L.TOP + 3.0;
-    if (model) {
-      model.position.y += L.TOP - 0.28;
+    if (unit.isHQ) {
+      model = new THREE.Group();
+      const lower = b3BuildingMesh('hq');
+      const upper = b3BuildingMesh('hq');
+      if (lower) {
+        lower.position.y = lower.userData.b3GroundY || 0;
+        lower.rotation.y = -Math.max(0, 6 - Math.min(6, unit.hp)) * Math.PI / 3;
+        lower.visible = unit.hp > 0;
+        lower.userData.b3Model = true;
+        model.add(lower);
+      }
+      if (upper && lower) {
+        lower.updateMatrixWorld(true);
+        let lowerH = L.HEXR;
+        try {
+          const lb = new THREE.Box3().setFromObject(lower);
+          lowerH = Math.max(0.1, lb.max.y - lb.min.y);
+        } catch (e) { /* ignore */ }
+        upper.position.y = lower.position.y + lowerH;
+        upper.rotation.y = -Math.max(0, 3 - Math.max(0, Math.min(3, unit.hp - 6))) * Math.PI / 3;
+        upper.visible = unit.hp > 6;
+        upper.userData.b3Model = true;
+        model.add(upper);
+      }
+      model.userData.b3Model = true;
       g.add(model);
-      try {
-        const box = new THREE.Box3().setFromObject(model);
-        if (isFinite(box.max.y)) transportTop = Math.max(L.TOP + 2.2, box.max.y + 0.15);
-      } catch (err) { /* keep fallback */ }
     } else {
+      model = b3UnitMesh(unit.name, faction, unit.hp);
+      if (model) {
+        model.position.y += L.TOP - 0.28;
+        g.add(model);
+        try {
+          const box = new THREE.Box3().setFromObject(model);
+          if (isFinite(box.max.y)) transportTop = Math.max(L.TOP + 2.2, box.max.y + 0.15);
+        } catch (err) { /* keep fallback */ }
+      }
+    }
+    if (!model) {
       const fbMat = new THREE.MeshStandardMaterial({
         color: faction === 'us' ? 0x163fb7 : (faction === 'ussr' ? 0x6f2d29 : 0x50565e), roughness: 0.8,
       });
@@ -2892,7 +2922,9 @@
         ? (battle.reinforce.stage === 'pick' ? '双方配卡中' : '双方部署增援')
         : (counterMine
           ? '请选择反击单位'
-          : (battle ? (battle.activeSide === side ? '你的回合' : sideName(battle.activeSide) + '行动中') : '—'))));
+          : (battle ? (battle.winner
+            ? (battle.winner === 'attacker' ? '进攻方胜利 · 守方指挥部被摧毁' : '防守方胜利')
+            : (battle.activeSide === side ? '你的回合' : sideName(battle.activeSide) + '行动中')) : '—'))));
     setText('online-battle-side', side
       ? (battle
         ? ('你方 ' + sideName(side) + ' · ' + factionName(faction) + (captain ? ' · 队长' : '') +
@@ -3766,6 +3798,19 @@
         alive: true, lockedBy: [], airBase: !!u.airBase,
       };
     });
+    const hqD = state.map && state.map.deploy ? state.map.deploy.hqD : null;
+    if (hqD) {
+      const hc = Array.isArray(hqD) ? hqD[0] : hqD.c;
+      const hr = Array.isArray(hqD) ? hqD[1] : hqD.r;
+      if (isFinite(hc) && isFinite(hr)) {
+        units.push({
+          id: 'hq-defender', side: 'defender', name: '守方指挥部',
+          c: Number(hc), r: Number(hr), faction: 'de',
+          hp: 9, maxHp: 9, mp: 0, maxMp: 0,
+          alive: true, lockedBy: [], isHQ: true, hqInitial: true, airBase: false,
+        });
+      }
+    }
     const battle = {
       round: 1,
       phase: 'a',
@@ -3922,6 +3967,7 @@
 
   function battleMaxMp(unit) {
     if (unit && unit.airBase) return 2;
+    if (unit && unit.isHQ) return unit.alive && unit.hp <= 6 ? 2 : 0;
     return unit.maxMp || BATTLE_MAX_MP;
   }
 
@@ -4412,6 +4458,14 @@
 
   function battleInfoFor(unit) {
     if (!unit) return null;
+    if (unit.isHQ) {
+      return {
+        price: 0, hp: 9, cat: 'hq', move: 0,
+        ap: { urban: 0, r1: 0, r2: 0 }, av: { front: 0, side: 0, rear: 0 },
+        attack: { urban: [0, 0], r1: [0, 0], r2: [0, 0] },
+        counter: 0, traits: '指挥部',
+      };
+    }
     const f = state.prepData && state.prepData.factions ? state.prepData.factions[battleUnitFaction(unit)] : null;
     return f && f.units ? (f.units[unit.name] || null) : null;
   }
@@ -5490,6 +5544,17 @@
     return whole + (Math.random() < frac ? 1 : 0);
   }
 
+  function battleCheckHQVictory() {
+    const b = state.battle;
+    if (!b || b.winner) return;
+    const hqUnits = b.units.filter(function (u) { return u.isHQ; });
+    if (!hqUnits.length) return;
+    if (hqUnits.some(function (u) { return u.alive; })) return;
+    b.winner = 'attacker';
+    b.log.push('守方指挥部被摧毁，进攻方获得胜利');
+    toast('进攻方胜利：守方指挥部被摧毁');
+  }
+
   function battleDamageUnit(unit, dmg) {
     if (!unit || !unit.alive) return 0;
     const n = Math.max(0, Number(dmg) || 0);
@@ -5525,6 +5590,10 @@
     if (!unit.alive && state.battle && state.battle.engineerProject &&
         state.battle.engineerProject.engineerId === unit.id) {
       state.battle.engineerProject = null;
+    }
+    if (unit.isHQ) {
+      if (unit.alive && unit.hp <= 6) unit.mp = Math.max(Number(unit.mp) || 0, 2);
+      battleCheckHQVictory();
     }
     return n;
   }
@@ -5666,7 +5735,7 @@
   }
 
   function battleCounterTargets(counterUnit, ids) {
-    if (!counterUnit) return [];
+    if (!counterUnit || counterUnit.isHQ) return [];
     const lethal = !counterUnit.alive;
     const units = (ids || []).map(battleUnitById).filter(Boolean);
     // 有隐蔽单位参与时，非隐蔽参与者已经暴露，不能再因为视野判定被一起排除。
@@ -5972,11 +6041,17 @@
   function battleApply(action) {
     if (!state.battle || !action) return;
     const b = state.battle;
+    if (b.winner) return;
     if (String(action.type || '').indexOf('reinforce') === 0) {
       battleApplyReinforce(action);
       return;
     }
     let unit = battleUnitById(action.unitId);
+    if (unit && unit.isHQ) {
+      // 指挥部只能移动，不能攻击/锁定/推进；上层3血未打空时不能移动。
+      if (action.type !== 'move') return;
+      if (unit.hp > 6) { toast('指挥部上层装甲未击穿，暂时无法移动'); return; }
+    }
     if (action.type === 'endTurn') {      if (battleValidateSide(action.side)) battleNextTurn();
       return;
     }
@@ -6359,6 +6434,7 @@
     if (action.type === 'demolition') {
       const target = battleUnitById(action.targetId);
       if (!target || !target.alive || target.side === unit.side) return;
+      if (target.isHQ) { toast('指挥部不能被爆破直接摧毁'); return; }
       if (!battleTrait(unit, 'demolition') || unit.mp < 2) return;
       if (battleHexDistance(unit.c, unit.r, target.c, target.r) !== 1) return;
       if (!battleUnitCanSee(unit, target)) return;

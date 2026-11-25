@@ -35,6 +35,7 @@
     viewMode: 'terrain',      // terrain 地形色 / move 行动力消耗 / protect 伤害抗性
     phases: { a: 1, b: null, c: null },   // A 阶段固定第 1 回合起；B/C 由地图设置
     facing: 0,                            // 默认朝向 0–5（东/东北/西北/西/西南/东南）
+    roundLimit: null,                     // 回合上限：打到这回合结束就收场；null = 不限
     absent: null,                         // Uint8Array：1 = 这格不存在（非矩形地图）
     shapeMode: false,                     // 形状编辑：点格子 = 删掉 / 补回
     undo: [],
@@ -946,6 +947,7 @@
       deploy: MK.cloneDeploy(state.deploy),
       phases: { a: 1, b: state.phases.b, c: state.phases.c },
       facing: state.facing,
+      roundLimit: state.roundLimit,
       absent: state.absent ? state.absent.slice() : null,
     };
   }
@@ -972,6 +974,7 @@
     if (snap.deploy) state.deploy = MK.cloneDeploy(snap.deploy);
     if (snap.phases) state.phases = MAPIO.normalizePhases(snap.phases);
     if (snap.facing != null) state.facing = MAPIO.normalizeFacing(snap.facing);
+    if (snap.roundLimit !== undefined) state.roundLimit = MAPIO.normalizeRoundLimit(snap.roundLimit);
     if (snap.absent) state.absent = snap.absent.slice();
     showHover(0, 0, false);
     syncSizeInputs();
@@ -1651,6 +1654,9 @@
       '<input id="phase-b" type="number" min="2" max="99" step="1" placeholder="—"><span class="ph-desc">回合起</span></div>' +
       '<div class="phase-row"><span class="ph-name">C</span>' +
       '<input id="phase-c" type="number" min="2" max="99" step="1" placeholder="—"><span class="ph-desc">回合起</span></div>' +
+      '<div class="phase-row phase-limit"><span class="ph-name">限</span>' +
+      '<input id="phase-limit" type="number" min="1" max="999" step="1" placeholder="不限">' +
+      '<span class="ph-desc">回合上限</span></div>' +
       '<div class="phase-summary" id="phase-summary"></div>';
     host.appendChild(box);
 
@@ -1659,6 +1665,8 @@
     const onEdit = function () { applyPhasesFromInputs(); };
     if (bEl) bEl.addEventListener('change', onEdit);
     if (cEl) cEl.addEventListener('change', onEdit);
+    const lEl = document.getElementById('phase-limit');
+    if (lEl) lEl.addEventListener('change', function () { applyRoundLimitFromInput(); });
     renderPhaseUI();
   }
 
@@ -1672,6 +1680,8 @@
     bEl.value = b == null ? '' : b;
     cEl.value = c == null ? '' : c;
     cEl.disabled = (b == null);
+    const limitEl = document.getElementById('phase-limit');
+    if (limitEl) limitEl.value = state.roundLimit == null ? '' : state.roundLimit;
 
     let text;
     if (b == null) {
@@ -1681,6 +1691,9 @@
     } else {
       text = '<b>A</b> 第 1–' + (b - 1) + ' 回合 · <b>B</b> 第 ' + b + '–' + (c - 1) +
         ' 回合 · <b>C</b> 第 ' + c + ' 回合起。';
+    }
+    if (state.roundLimit != null) {
+      text += '<br>第 <b>' + state.roundLimit + '</b> 回合结束即收场（共 ' + state.roundLimit + ' 回合）。';
     }
     sum.innerHTML = text;
   }
@@ -1707,6 +1720,28 @@
 
     if (rawB != null && next.b == null) flash('B 阶段起始回合要在 2–99 之间');
     else if (rawB != null && rawC != null && next.c == null) flash('C 阶段要晚于 B（且 ≤ 99）');
+  }
+
+  function applyRoundLimitFromInput() {
+    const el = document.getElementById('phase-limit');
+    if (!el) return;
+    const raw = el.value === '' ? null : Number(el.value);
+    const next = MAPIO.normalizeRoundLimit(raw);
+    if (next !== state.roundLimit) {
+      beginAction();
+      state.roundLimit = next;
+      commitAction();
+    }
+    renderPhaseUI();
+    if (raw != null && next == null) flash('回合上限要 ≥ 1');
+    else if (next != null && state.phases.c != null && next < state.phases.c) {
+      flash('上限比 C 阶段还早，C 阶段将不会出现');
+    }
+  }
+
+  /* 这一回合结束后游戏是否结束 —— 供对战逻辑用 */
+  function isLastRound(round) {
+    return MAPIO.isGameOver(state.phases, state.roundLimit, round);
   }
 
   /* 第 n 回合属于哪个阶段 —— 供后续对战逻辑使用 */
@@ -2075,6 +2110,7 @@
       deploy: state.deploy,
       phases: state.phases,
       facing: state.facing,
+      roundLimit: state.roundLimit,
       absent: state.absent,
     };
   }
@@ -2093,6 +2129,7 @@
     state.deploy = r.deploy || MK.createDeploy();
     state.phases = MAPIO.normalizePhases(r.phases);
     state.facing = MAPIO.normalizeFacing(r.facing);
+    state.roundLimit = MAPIO.normalizeRoundLimit(r.roundLimit);
     state.absent = r.absent || new Uint8Array(state.cols * state.rows);
     state.undo.length = 0;
     state.redo.length = 0;
@@ -2213,6 +2250,7 @@
     state.deploy = MK.createDeploy();
     state.phases = { a: 1, b: null, c: null };
     state.facing = 0;
+    state.roundLimit = null;
     state.undo.length = 0;
     state.redo.length = 0;
     state.hover = -1;
@@ -2345,6 +2383,7 @@
       setViewMode: setViewMode,
       cellAttrs: cellAttrs,
       phaseAt: phaseAt,
+      isLastRound: isLastRound,
       setFacing: setFacing,
       toggleCell: toggleCell,
       applyBuildingAt: applyBuildingAt,
