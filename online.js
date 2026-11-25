@@ -4391,26 +4391,63 @@
     const t = state.tutorial;
     const step = t && t.level && t.level.steps ? t.level.steps[t.step || 0] : null;
     const focus = step && step.focus;
-    if (!focus) { B3.need = true; return; }
-    const w = L.cell(Number(focus.c), Number(focus.r));
-    const mat = new THREE.MeshBasicMaterial({
-      color: 0xffd166, transparent: true, opacity: 0.9,
-      depthTest: false, depthWrite: false, side: THREE.DoubleSide,
-    });
-    mat._b3Dispose = true;
-    const ring = new THREE.Mesh(
-      new THREE.RingGeometry(L.HEXR * 0.62, L.HEXR * 0.92, 40),
-      mat
-    );
-    ring.rotation.x = -Math.PI / 2;
-    ring.position.set(w[0], L.TOP + 0.28, w[1]);
-    ring.renderOrder = 42;
-    B3.tutorialFocusGroup.add(ring);
-    const label = b3CostSprite(focus.label || '教程目标', { color: '#ffe09a' });
-    if (label) {
-      label.position.set(w[0], L.TOP + L.HEXR * 3.1, w[1]);
-      label.renderOrder = 43;
-      B3.tutorialFocusGroup.add(label);
+    const focusUnitId = step && (step.focusUnit || (step.allow && step.allow.unitId));
+    const focusUnit = focusUnitId ? battleUnitById(focusUnitId) : null;
+    if (!focus && !focusUnit) { B3.need = true; return; }
+    if (focus) {
+      const w = L.cell(Number(focus.c), Number(focus.r));
+      const mat = new THREE.MeshBasicMaterial({
+        color: 0xffd166, transparent: true, opacity: 0.9,
+        depthTest: false, depthWrite: false, side: THREE.DoubleSide,
+      });
+      mat._b3Dispose = true;
+      const ring = new THREE.Mesh(
+        new THREE.RingGeometry(L.HEXR * 0.62, L.HEXR * 0.92, 40),
+        mat
+      );
+      ring.rotation.x = -Math.PI / 2;
+      ring.position.set(w[0], L.TOP + 0.28, w[1]);
+      ring.renderOrder = 42;
+      B3.tutorialFocusGroup.add(ring);
+      const label = b3CostSprite(focus.label || '教程目标', { color: '#ffe09a' });
+      if (label) {
+        label.position.set(w[0], L.TOP + L.HEXR * 3.1, w[1]);
+        label.renderOrder = 43;
+        B3.tutorialFocusGroup.add(label);
+      }
+    }
+    if (focusUnit && focusUnit.alive) {
+      const uw = focusUnit.airBase
+        ? (airPadWorld(focusUnit.side, focusUnit.c, focusUnit.r) || L.cell(focusUnit.c, focusUnit.r))
+        : L.cell(focusUnit.c, focusUnit.r);
+      const baseY = focusUnit.airBase ? L.TOP + L.HEXR * 2.2 : L.TOP + 0.42;
+      const uMat = new THREE.MeshBasicMaterial({
+        color: 0xffb43c, transparent: true, opacity: 0.95,
+        depthTest: false, depthWrite: false, side: THREE.DoubleSide,
+      });
+      uMat._b3Dispose = true;
+      const uRing = new THREE.Mesh(
+        new THREE.RingGeometry(L.HEXR * 0.78, L.HEXR * 1.05, 40),
+        uMat
+      );
+      uRing.rotation.x = -Math.PI / 2;
+      uRing.position.set(uw[0], baseY, uw[1]);
+      uRing.renderOrder = 44;
+      B3.tutorialFocusGroup.add(uRing);
+      const arrow = new THREE.Mesh(
+        new THREE.ConeGeometry(L.HEXR * 0.20, L.HEXR * 0.62, 8),
+        uMat
+      );
+      arrow.rotation.x = Math.PI;
+      arrow.position.set(uw[0], baseY + L.HEXR * 2.0, uw[1]);
+      arrow.renderOrder = 45;
+      B3.tutorialFocusGroup.add(arrow);
+      const unitLabel = b3CostSprite('行动单位', { color: '#ffd166' });
+      if (unitLabel) {
+        unitLabel.position.set(uw[0], baseY + L.HEXR * 2.7, uw[1]);
+        unitLabel.renderOrder = 46;
+        B3.tutorialFocusGroup.add(unitLabel);
+      }
     }
     B3.need = true;
   }
