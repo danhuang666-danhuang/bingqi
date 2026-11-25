@@ -2625,7 +2625,7 @@
     B3.flightGroup.add(clone);
     src.visible = false;
     const start0 = battleAirTakeoffWorld(unit.side, target) || [src.position.x, src.position.z];
-    const from = [start0[0], src.position.y, start0[1]];
+    const from = [src.position.x, src.position.y, src.position.z];
     const dest0 = hit ? hit.point : L.cell(target.c, target.r);
     const dest = [dest0[0], from[1], dest0[1]];
     clone.position.set(from[0], from[1], from[2]);
@@ -6088,6 +6088,7 @@
         return;
       }
       unit.mp = Math.max(0, unit.mp - 1);
+      b3StartAirFlight(unit, { c: c, r: r }, null, 0);
       battleSetReconMission(unit, c, r);
       battleCheckAutoEnd();
       return;
