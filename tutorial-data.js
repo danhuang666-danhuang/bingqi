@@ -1329,7 +1329,8 @@ window.TUTORIAL_LEVELS = [
           "c": 4,
           "r": 3,
           "label": "预计伤害 0.17"
-        }
+        },
+        "previewText": "无法有效击穿正面装甲"
       },
       {
         "text": "把步兵移动到 E3 城区。城区提供额外防护，同时让步兵攻击相邻目标时采用巷战数值，穿深更高。",
@@ -2461,7 +2462,8 @@ window.TUTORIAL_LEVELS = [
           "r": 5,
           "label": "F6 · 步兵直接攻击"
         },
-        "auto": "stage5Support"
+        "auto": "stage5Support",
+        "previewText": "步兵直接攻击预计伤害"
       },
       {
         "text": "让 E6 美军步兵锁定 F6 德军步兵，为之后的空中集火提供目标和视野。",

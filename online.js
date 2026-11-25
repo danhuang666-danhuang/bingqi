@@ -4761,11 +4761,7 @@
   let battleAirSupCache = null;
 
   function battleGroundAirMod(attacker, target) {
-    if (!attacker || !target || battleIsAir(attacker) || battleIsAir(target)) return 1;
-    const sup = battleAirSuperiorSide();
-    if (!sup) return 1;
-    if (sup === target.side) return 0.5;
-    if (sup === attacker.side) return 1.5;
+    // 空中压制只在具体联合行动中结算，不再给全场地面单位常驻加成。
     return 1;
   }
 
@@ -7571,7 +7567,8 @@
     if (previewOnly) {
       const bar = document.createElement('div');
       bar.className = 'tutorial-preview-bar';
-      bar.innerHTML = '攻击预计伤害 <b>' + battleFmt(one.raw) + '</b><span>无法有效击穿正面装甲</span>';
+      bar.innerHTML = '攻击预计伤害 <b>' + battleFmt(one.raw) + '</b>' +
+        (tPreview.previewText ? '<span>' + battleReinforceEsc(tPreview.previewText) + '</span>' : '');
       box.appendChild(bar);
     }
     const lockCost = battleAttackCost(attacker, defender);
