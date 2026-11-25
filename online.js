@@ -13564,6 +13564,10 @@
     if (state.tutorial.level && state.tutorial.level.id === 't04' && action.type === 'counterBatteryStrike') {
       state.battle.counterBatteryMarks = [];
     }
+    if (state.tutorial.level && state.tutorial.level.id === 't04' &&
+        action.type === 'attack' && action.targetId === 't4-de-arty') {
+      state.battle.counterBatteryMarks = [];
+    }
     if (!step.allow) return;
     if (action.type === step.allow.type &&
         (!step.allow.unitId || action.unitId === step.allow.unitId) &&
