@@ -2897,6 +2897,9 @@
     const selectedLocal = !!(selected && side && selected.side === side);
     const activeCan = battle ? battleCanControl(activeSide) : false;
     const counterMine = !!(battle && battle.counter && battleCanControl(battle.counter.chooserSide));
+    const activePlayer = battle && battle.turnOrder
+      ? battle.turnOrder.filter(function (p) { return p.id === battle.activePlayerId; })[0]
+      : null;
 
     setText('online-battle-title', deploy
       ? 'A 阶段 · 部署'
@@ -2924,7 +2927,9 @@
           ? '请选择反击单位'
           : (battle ? (battle.winner
             ? (battle.winner === 'attacker' ? '进攻方胜利 · 守方指挥部被摧毁' : '防守方胜利')
-            : (battle.activeSide === side ? '你的回合' : sideName(battle.activeSide) + '行动中')) : '—'))));
+            : (activePlayer
+              ? (activePlayer.id === state.selfId ? '你的回合 · ' + activePlayer.name : activePlayer.name + ' 行动中')
+              : (battle.activeSide === side ? '你的回合' : sideName(battle.activeSide) + '行动中'))) : '—'))));
     setText('online-battle-side', side
       ? (battle
         ? ('你方 ' + sideName(side) + ' · ' + factionName(faction) + (captain ? ' · 队长' : '') +
@@ -3842,7 +3847,8 @@
       zoneOwners: {},
       usedDivisions: battleInitialUsedDivisions(),
     };
-    battleResetMp(battle, 'attacker');
+    battleInitTurnQueue(battle);
+    battleResetMp(battle, battle.activeSide || 'attacker');
     battleUpdateZoneOwners(battle);
     return battle;
   }
@@ -3937,6 +3943,8 @@
 
   function battleCanControl(side) {
     if (!state.battle || state.phase !== 'battle') return false;
+    if (!state.test && state.battle.activePlayerId && state.selfId &&
+        state.battle.activePlayerId !== state.selfId) return false;
     const mine = battleMySide();
     if (!mine || mine !== side) return false;
     if (state.battle.counter && state.battle.counter.chooserSide === side) return true;
@@ -5836,6 +5844,7 @@
     if (!state.battle) return;
     action = action || {};
     if (!tutorialCheck(action)) return;
+    action.playerId = state.selfId;
     action.id = String(state.selfId || 'local') + '-' + Date.now().toString(36) + '-' + (++state.battleSeq);
     if (state.test || state.role === 'host') {
       battleApply(action);
@@ -6050,6 +6059,8 @@
     if (!state.battle || !action) return;
     const b = state.battle;
     if (b.winner) return;
+    if (!state.test && b.turnOrder && b.activePlayerId && action.playerId &&
+        action.playerId !== b.activePlayerId) return;
     if (String(action.type || '').indexOf('reinforce') === 0) {
       battleApplyReinforce(action);
       return;
@@ -6873,6 +6884,57 @@
     }
   }
 
+  function battleInitTurnQueue(battle) {
+    if (!battle || state.test) return;
+    const teams = (state.hostTeams && state.hostTeams.length ? state.hostTeams : onlineRoster())
+      .filter(function (p) { return p && p.side; });
+    if (teams.length < 2) return;
+    const attackers = teams.filter(function (p) { return p.side === 'attacker'; });
+    const defenders = teams.filter(function (p) { return p.side === 'defender'; });
+    const order = attackers.concat(defenders);
+    let skipId = '';
+    if (defenders.length > attackers.length && defenders.length) {
+      skipId = defenders[defenders.length - 1].id;
+    }
+    battle.turnOrder = order.map(function (p) {
+      return { id: p.id, name: p.name || '玩家', side: p.side };
+    });
+    battle.turnIndex = 0;
+    battle.activePlayerId = battle.turnOrder[0].id;
+    battle.activeSide = battle.turnOrder[0].side;
+    battle.firstRoundSkipId = skipId;
+  }
+
+  function battleNextPlayer(b) {
+    if (!b || !b.turnOrder || !b.turnOrder.length) return;
+    const order = b.turnOrder;
+    let idx = (Number(b.turnIndex) || 0);
+    let next = idx;
+    let wrapped = false;
+    for (let guard = 0; guard < order.length * 3; guard++) {
+      next++;
+      if (next >= order.length) { next = 0; wrapped = true; }
+      const candidate = order[next];
+      if (b.round === 1 && b.firstRoundSkipId && candidate.id === b.firstRoundSkipId) {
+        continue;
+      }
+      break;
+    }
+    b.turnIndex = next;
+    b.activePlayerId = order[next].id;
+    b.activeSide = order[next].side;
+    if (wrapped) {
+      const prevPhase = b.phase;
+      b.round += 1;
+      b.phase = battlePhaseOfRound(b.round);
+      b.log.push('第 ' + b.round + ' 回合 · ' + battlePhaseLabel(b.phase) + ' 阶段');
+      if (b.phase !== prevPhase && (b.phase === 'b' || b.phase === 'c')) {
+        battleReinforceBegin(b, b.phase);
+      }
+    }
+    battleResetMp(b, b.activeSide);
+  }
+
   function battleNextTurn() {
     const b = state.battle;
     if (!b || b.counter || b.reinforce || b.facingChoice) return;
@@ -6903,6 +6965,17 @@
     });
     battleClearTransient();
     b.units.forEach(function (u) { u.lockedBy = []; u.lockCosts = {}; });
+    if (!state.test && b.turnOrder && b.turnOrder.length) {
+      battleNextPlayer(b);
+      if (b.engineerProject && b.engineerProject.round < b.round - 1) {
+        b.engineerProject = null;
+        b.log.push('碉堡工程因超过连续回合而失效');
+      }
+      b.selectedId = null;
+      b.ghost = null;
+      battleRefresh();
+      return;
+    }
     if (b.activeSide === 'attacker') {
       b.activeSide = 'defender';
       battleResetMp(b, 'defender');
