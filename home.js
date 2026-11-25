@@ -71,6 +71,24 @@
     }
   }
 
+  /* ---------------- 构建版本 ----------------
+   * pack-release 会在发布目录 head 注入 window.__BUILD__="yyyyMMddHHmmss"；
+   * 源文件直接打开没有这个值，显示 BUILD LOCAL。 */
+  function refreshBuildLabel() {
+    const el = document.getElementById('menu-build');
+    if (!el) return;
+    const raw = window.__BUILD__ == null ? '' : String(window.__BUILD__);
+    if (!/^\d{14}$/.test(raw)) {
+      el.textContent = 'BUILD LOCAL';
+      el.title = '本地运行，没有发布构建时间戳';
+      return;
+    }
+    const date = raw.slice(0, 4) + '-' + raw.slice(4, 6) + '-' + raw.slice(6, 8);
+    const time = raw.slice(8, 10) + ':' + raw.slice(10, 12) + ':' + raw.slice(12, 14);
+    el.textContent = 'BUILD ' + date + ' ' + time;
+    el.title = '发布构建时间 ' + date + ' ' + time + ' · ' + raw;
+  }
+
   /* ---------------- 显示主菜单 ---------------- */
   function show(options) {
     if (menuOpen && !(options && options.force)) return;
@@ -321,6 +339,7 @@
   document.body.classList.add('menu-open');
   setEditorInert(true);
   refreshLocalDraft();
+  refreshBuildLabel();
   requestAnimationFrame(function () {
     try { menu.focus({ preventScroll: true }); } catch (e) { menu.focus(); }
   });
