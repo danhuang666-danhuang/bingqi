@@ -5410,8 +5410,16 @@
     return unit && battleTrait(unit, 'heartbreak') ? 2 : 1;
   }
 
+  function battleCounterKey(counterUnit, target) {
+    const d = battleHexDistance(counterUnit.c, counterUnit.r, target.c, target.r);
+    if (d > 1) return 'r2';
+    // 反击按反击单位所在格的地形判定；平原反击就是 r1，房屋/城区才是 urban。
+    const rule = battleTerrainRule(counterUnit.c, counterUnit.r);
+    return rule && rule.urban ? 'urban' : 'r1';
+  }
+
   function battleCounterRaw(counterUnit, target, facing) {
-    const key = battleDistanceKey(counterUnit, target);
+    const key = battleCounterKey(counterUnit, target);
     const ai = battleInfoFor(counterUnit);
     const ti = battleInfoFor(target);
     const zone = facing == null ? 'front' : battleFacingZone(facing, battleDirectionIndex(target.c, target.r, counterUnit.c, counterUnit.r));
@@ -5444,8 +5452,9 @@
     const atkProtect = battleProtectAt(target.c, target.r, attacker);
     const atkNight = battleIsNight() ? 0.5 : 1;
     const defSoft = battleIsTransportTarget(attacker) || !battleHasArmor(ai);
-    const defBase = battleAttackBase(ti, ai, 'urban', defSoft);
-    const defAP = battleAttackAP(ti, 'urban');
+    const defKey = battleCounterKey(target, attacker);
+    const defBase = battleAttackBase(ti, ai, defKey, defSoft);
+    const defAP = battleAttackAP(ti, defKey);
     const defAV = battleArmorValue(ai);
     const defPen = defSoft ? 1 : battlePenMod(defAP, defAV);
     const defProtect = battleProtectAt(attacker.c, attacker.r);
