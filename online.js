@@ -2611,7 +2611,7 @@
     B3.need = true;
   }
 
-  function b3StartAirFlight(unit, target, hit, delay) {
+  function b3StartAirFlight(unit, target, hit, delay, stay) {
     if (!B3 || !B3.flightGroup || !unit || !target) return;
     const L = b3Layout();
     if (!L) return;
@@ -2632,12 +2632,21 @@
     B3.flights.push({
       clone: clone, from: from, dest: dest,
       aa: hit ? hit.aa : null, spec: hit ? hit.spec : null,
-      warningShown: false,
+      warningShown: false, stay: !!stay,
       started: performance.now() + Math.max(0, Number(delay) || 0) * 1000,
       out: hit ? 0.55 : 0.8,
       hold: hit ? 1.1 : 0,
       back: hit ? 0.55 : 0.8,
     });
+    B3.need = true;
+  }
+
+  function b3ClearAirFlights() {
+    if (!B3 || !B3.flights) return;
+    B3.flights.forEach(function (f) {
+      if (f.clone && f.clone.parent) f.clone.parent.remove(f.clone);
+    });
+    B3.flights = [];
     B3.need = true;
   }
 
@@ -2663,6 +2672,11 @@
           f.warningShown = true;
           b3ShowAntiAirRange(f.aa, f.spec);
         }
+      } else if (f.stay) {
+        if (f.clone) f.clone.position.set(f.dest[0], f.dest[1], f.dest[2]);
+        keep.push(f);
+        B3.need = true;
+        return;
       } else if (t <= f.out + (f.hold || 0) + f.back) {
         if (f.warningShown) {
           f.warningShown = false;
@@ -6070,8 +6084,17 @@
       if (c < 0 || r < 0 || c >= state.map.cols || r >= state.map.rows) return;
       if (unit.mp < 1) return;
       unit.reconUsedRound = Number(b.round) || 1;
-      const aaHit = battleAirPathIntercept(unit, { c: c, r: r });
+      let aaHit = battleAirPathIntercept(unit, { c: c, r: r });
+      if (!aaHit && state.tutorial && state.tutorial.level && state.tutorial.level.id === 't05' &&
+          state.tutorial.stage === 'aa') {
+        const tutorialAA = battleUnitById('t5-aa');
+        const spec = battleAntiAirSpec(tutorialAA);
+        if (tutorialAA && spec) {
+          aaHit = { aa: tutorialAA, spec: spec, point: [c, r] };
+        }
+      }
       if (aaHit) {
+        b3StartAirFlight(unit, { c: c, r: r }, aaHit, 0, false);
         battleDamageUnit(unit, aaHit.spec.damage);
         b3AddDamageFloat(unit, aaHit.spec.damage, '#ffb36b');
         b.log.push(aaHit.aa.name + ' 拦截侦察机 ' + unit.name + '：' + aaHit.spec.damage +
@@ -6088,7 +6111,7 @@
         return;
       }
       unit.mp = Math.max(0, unit.mp - 1);
-      b3StartAirFlight(unit, { c: c, r: r }, null, 0);
+      b3StartAirFlight(unit, { c: c, r: r }, null, 0, true);
       battleSetReconMission(unit, c, r);
       battleCheckAutoEnd();
       return;
@@ -6712,6 +6735,7 @@
   function battleNextTurn() {
     const b = state.battle;
     if (!b || b.counter || b.reinforce || b.facingChoice) return;
+    b3ClearAirFlights();
     const leavingSide = b.activeSide;
     const occupied = {};
     b.units.forEach(function (u) {
@@ -13731,6 +13755,7 @@
 
   function tutorial5Stage(stage) {
     if (!state.tutorial || !state.battle) return;
+    b3ClearAirFlights();
     const b = state.battle;
     b.units = [
       tutorial5Unit('t5-f5', 'attacker', 'F5侦察机', 0, 0, 'us', true),
