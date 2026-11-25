@@ -6370,7 +6370,6 @@
       const airLocks = (target.lockedBy || []).map(battleUnitById).filter(function (u) {
         return u && u.alive && battleIsAir(u);
       }).length;
-      if (airLocks >= 2) return;
       const cost = 1;
       if (unit.mp < cost) return;
       target.lockedBy = (target.lockedBy || []).concat(unit.id);
@@ -6397,8 +6396,7 @@
           return u && u.alive && u.side === unit.side && battleIsAir(u);
         });
         attackerIds = attackerIds.concat(lockedAir.map(function (u) { return u.id; }))
-          .filter(function (id, i, arr) { return arr.indexOf(id) === i; })
-          .slice(0, 2);
+          .filter(function (id, i, arr) { return arr.indexOf(id) === i; });
         // 轰炸机/攻击机放在编队第一位，战斗机作为护航。
         attackerIds.sort(function (a, b) {
           return (battleAirCanLock(battleUnitById(b)) ? 1 : 0) -
@@ -6480,7 +6478,7 @@
         b.log.push(intercept.aa.name + ' 拦截 ' + unit.name + '：' + intercept.spec.damage +
           '，重轰强行突破，继续轰炸');
       }
-      const participants = (action.focus && group.length > 1 ? group.slice(0, 2) : [unit])
+      const participants = (action.focus && group.length > 1 ? group : [unit])
         .concat(focusGround)
         .filter(function (u, i, arr) { return arr.map(function (x) { return x.id; }).indexOf(u.id) === i; });
       const facingInfo = battleAutoFacing(target, participants);
@@ -8002,8 +8000,7 @@
           return u && u.alive && u.side === air.side;
         });
         const airIds = [air.id].concat(locked.filter(battleIsAir).map(function (u) { return u.id; }))
-          .filter(function (id, i, arr) { return arr.indexOf(id) === i; })
-          .slice(0, 2);
+          .filter(function (id, i, arr) { return arr.indexOf(id) === i; });
         let raw = 0;
         const ti = battleInfoFor(target);
         airIds.forEach(function (id) {
