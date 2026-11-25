@@ -7073,7 +7073,7 @@
       const artyTarget = battleArtilleryCanTarget(selected, clicked);
       const tStep = tutorialCurrentStep();
       if (state.tutorial && clicked && tStep && tStep.blocked && tStep.allow &&
-          clicked.id === tStep.allow.targetId) {
+          clicked.id === tStep.allow.targetId && !battleUnitCanSee(selected, clicked)) {
         tutorialCheck({
           type: tStep.allow.type, unitId: selected.id, targetId: clicked.id,
         });
@@ -10430,7 +10430,7 @@
   }
 
   function renderSandboxPanel() {
-    if (!state.test || (state.phase !== 'battle' && state.phase !== 'lobby')) {
+    if (!state.test || state.tutorial || (state.phase !== 'battle' && state.phase !== 'lobby')) {
       hideEl('sandbox-panel', true);
       hideEl('sandbox-toggle', true);
       return;
@@ -10686,7 +10686,7 @@
   }
 
   function renderSandboxDock() {
-    if (!state.test) { hideEl('sandbox-dock', true); return; }
+    if (!state.test || state.tutorial) { hideEl('sandbox-dock', true); return; }
     const dock = ensureSandboxDock();
     if (state.phase !== 'battle' || !state.battle) {
       dock.classList.add('hidden');
@@ -13637,6 +13637,9 @@
         state.battle.history = [];
         state.tutorial = { level: level, step: 0, enemyDone: false, tutorialGuideCollapsed: false };
         state.tutorialGuideCollapsed = false;
+        hideEl('sandbox-dock', true);
+        hideEl('sandbox-panel', true);
+        hideEl('sandbox-toggle', true);
         ensureTutorialGuideToggle();
         state.battleSeenAction = '';
         ensureDeployModels();
