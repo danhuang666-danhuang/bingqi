@@ -6781,10 +6781,24 @@
           !battleUnitHasOwnVision(unit, target) &&
           !battleArtilleryHasOwnVision(unit, target)) return;
       const indirect = battleArtilleryIsIndirect(unit, target);
+      const artyRemoteLock = !!(action.type === 'lock' && battleArtillerySpec(unit) && targetLocked);
       if (!battleUnitCanSee(unit, target) && !indirect) return;
       if (battleHexDistance(unit.c, unit.r, target.c, target.r) > BATTLE_RANGE && !indirect) return;
-      if (indirect && action.type !== 'attack' && action.type !== 'focus') return;
+      if (indirect && action.type !== 'attack' && action.type !== 'focus' && !artyRemoteLock) return;
       if (indirect) {
+        if (artyRemoteLock) {
+          const lockCost = battleAttackCost(unit, target);
+          if (unit.mp < lockCost) return;
+          target.lockedBy = (target.lockedBy || []).concat(unit.id);
+          target.lockCosts = target.lockCosts || {};
+          target.lockCosts[unit.id] = lockCost;
+          unit.mp -= lockCost;
+          b.selectedId = unit.id;
+          b.log.push(unit.name + ' 远程锁定 ' + target.name + '（' + lockCost + ' 行动力，可继续集火）');
+          battleRefresh();
+          battleCheckAutoEnd();
+          return;
+        }
         if (!battleArtilleryCanFire(unit)) return;
         const spec = battleArtillerySpec(unit);
         const cost = 1;
@@ -8140,6 +8154,11 @@
         const focus = battleAttackRaw(attacker, defender,
           [attacker.id].concat(otherLocked), chosenFacing);
         add('集火曲射 · 总伤害 -' + battleFmt(battleAttackTotal(focus)) + ' · 1 行动力（目标已锁定）', 'focus', !canFire);
+        if (!ownLocked) {
+          add('远程锁定 · 1 行动力（加入其他锁定）', 'lock', attacker.mp < 1);
+        } else {
+          add('取消锁定 · 返还 ' + ownLockRefund + ' 行动力', 'unlock', false);
+        }
       }
       const hint = document.createElement('div');
       hint.className = 'battle-choice-hint';
