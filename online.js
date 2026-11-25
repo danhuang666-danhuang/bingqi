@@ -4105,7 +4105,7 @@
       // 上河后行动力清零；有桥的河流格可以当作普通过路格。
       if (cur !== start && battleRiverResetAt(cc, cr)) continue;
       // 进入警戒格必须停下，不能从警戒格继续往外走。
-      if (cur !== start && guardMap[cur]) continue;
+      if (cur !== start && guardMap[cur] && !battleTrait(unit, 'hidden')) continue;
       const nb = HG.neighbors(cc, cr);
       for (let k = 0; k < nb.length; k++) {
         const nc = nb[k][0], nr = nb[k][1];
@@ -4156,7 +4156,7 @@
       const cc = cur % map.cols, cr = Math.floor(cur / map.cols);
       if (cur !== start && !battleUnitAt(cc, cr)) out[cur] = best;
       if (cur !== start && battleRiverResetAt(cc, cr)) continue;
-      if (cur !== start && guardMap[cur]) continue;
+      if (cur !== start && guardMap[cur] && !battleTrait(unit, 'hidden')) continue;
       const nb = HG.neighbors(cc, cr);
       for (let k = 0; k < nb.length; k++) {
         const nc = nb[k][0], nr = nb[k][1];
@@ -5271,17 +5271,14 @@
     });
   }
 
-  function battleProtectAt(c, r, attacker) {
+  function battleProtectAt(c, r, attacker, ignoreProtect) {
+    if (ignoreProtect) return 0;
     const rule = battleTerrainRule(c, r);
     let protect = rule && isFinite(rule.protect) ? Number(rule.protect) : 0;
     const b = battleBuildingAt(c, r);
     if (b) {
-      if (b.t === 'bunker') {
-        // 爆破单位攻击碉堡时无视碉堡本格抗性。
-        protect = (attacker && battleTrait(attacker, 'demolition')) ? protect : Math.max(protect, 0.9);
-      } else if (b.t === 'trench') {
-        protect = (attacker && battleTrait(attacker, 'demolition')) ? protect : protect + 0.2;
-      }
+      if (b.t === 'bunker') protect = Math.max(protect, 0.9);
+      else if (b.t === 'trench') protect = protect + 0.2;
     }
     return Math.max(0, Math.min(1, protect));
   }
@@ -5295,7 +5292,7 @@
     return !!state.battle && ((Math.max(1, state.battle.round) - 1) % 3 === 2);
   }
 
-  function battleAttackRawOne(attacker, target, key, penOverride, facing) {
+  function battleAttackRawOne(attacker, target, key, penOverride, facing, ignoreProtect) {
     const ai = battleInfoFor(attacker);
     const ti = battleInfoFor(target);
     const arty = battleArtillerySpec(attacker);
@@ -5325,7 +5322,7 @@
     const av = battleArmorValue(ti, zone);
     // 软攻不走穿透；只有打装甲目标、使用硬攻时才计算 AP/AV 穿透。
     const pen = useSoft ? 1 : (penOverride != null ? penOverride : battlePenMod(ap, av));
-    const protect = battleProtectAt(target.c, target.r, attacker);
+    const protect = battleProtectAt(target.c, target.r, attacker, ignoreProtect);
     const night = battleIsNight() ? 0.5 : 1;
     const airMod = battleGroundAirMod(attacker, target);
     return {
@@ -5994,8 +5991,10 @@
       unit.c = action.c; unit.r = action.r;
       battleSyncCargo(unit);
       unit.mp = Math.max(0, unit.mp - cost);
-      unit.guardStop = !!guard;
+      const ignoreGuard = battleTrait(unit, 'hidden');
+      unit.guardStop = !!guard && !ignoreGuard;
       unit.guardBy = guard || [];
+      if (guard && ignoreGuard) b.log.push(unit.name + ' 隐蔽，无视警戒区继续移动');
       if (battleRiverResetAt(action.c, action.r)) {
         unit.mp = 0;
         b.log.push(unit.name + ' 上河，行动力清零');
@@ -6273,6 +6272,51 @@
       unit.mp -= 1;
       b.selectedId = null;
       b.log.push(unit.name + ' 防空炮击 ' + target.name + '：' + spec.damage);
+      battleRefresh();
+      battleCheckAutoEnd();
+      return;
+    }
+    if (action.type === 'demolition') {
+      const target = battleUnitById(action.targetId);
+      if (!target || !target.alive || target.side === unit.side) return;
+      if (!battleTrait(unit, 'demolition') || unit.mp < 2) return;
+      if (battleHexDistance(unit.c, unit.r, target.c, target.r) !== 1) return;
+      if (!battleUnitCanSee(unit, target)) return;
+      unit.mp -= 2;
+      battleActionLockUnit(unit);
+      const calc = battleAttackRawOne(unit, target, battleDistanceKey(unit, target), null, null, true);
+      const dmg = battleRollDamage(calc.raw);
+      battleDamageUnit(target, dmg);
+      b3AddDamageFloat(target, dmg, '#ff6b57');
+      battleHistoryAdd({
+        attackers: [unit.name], target: target.name, targetId: target.id,
+        damage: Number(dmg) || 0, cell: { c: target.c, r: target.r }, side: unit.side,
+      });
+      b.log.push(unit.name + ' 爆破 ' + target.name + '：' + battleFmt(dmg) + '（无视地形抗性）');
+      if (target.alive && !target.confused && battleUnitCanSee(target, unit)) {
+        const counter = battleCounterRaw(target, unit);
+        const counterDmg = battleRollDamage(counter.raw * 2);
+        battleDamageUnit(unit, counterDmg);
+        b3AddDamageFloat(unit, counterDmg, '#ffb36b');
+        b.log.push(target.name + ' 反击爆破手：' + battleFmt(counterDmg) + '（爆破反击双倍）');
+      }
+      b.selectedId = unit.alive ? unit.id : null;
+      battleRefresh();
+      battleCheckAutoEnd();
+      return;
+    }
+    if (action.type === 'demolishBuilding') {
+      const c = Number(action.c), r = Number(action.r);
+      if (!battleTrait(unit, 'demolition') || unit.mp < 4) return;
+      if (!isFinite(c) || !isFinite(r) || battleHexDistance(unit.c, unit.r, c, r) !== 1) return;
+      if (battleUnitAt(c, r)) return;
+      const bld = battleBuildingAt(c, r);
+      if (!bld) return;
+      unit.mp -= 4;
+      battleActionLockUnit(unit);
+      b.buildings = (b.buildings || []).filter(function (x) { return !(x.c === c && x.r === r); });
+      b.log.push(unit.name + ' 爆破拆除 ' + c + ',' + r + ' 的 ' + (bld.t || '建筑'));
+      b.selectedId = unit.id;
       battleRefresh();
       battleCheckAutoEnd();
       return;
@@ -7114,6 +7158,12 @@
       battleRequest({ type: 'transportUnload', side: selected.side, unitId: selected.id, c: c, r: r });
       return;
     }
+    if (!clicked && selected && battleTrait(selected, 'demolition') &&
+        battleBuildingAt(c, r) && !battleUnitAt(c, r) &&
+        battleHexDistance(selected.c, selected.r, c, r) === 1) {
+      battleRequest({ type: 'demolishBuilding', side: selected.side, unitId: selected.id, c: c, r: r });
+      return;
+    }
     if (!clicked && selected && battleCounterBatteryMarkAt(selected.side, c, r)) {
       const spec = battleArtillerySpec(selected);
       if (spec && battleHexDistance(selected.c, selected.r, c, r) <= spec.range) {
@@ -7509,6 +7559,11 @@
       ' · ' + atkCost + ' 行动力';
     if (canNormal) add(attackLabel, 'attack', availMp < atkCost || needFacing);
     else add('仅靠锁定共享视野 · 只能集火', 'attack', true);
+    if (!targetLocked && !guardMode && battleHexDistance(attacker.c, attacker.r, defender.c, defender.r) === 1 &&
+        battleTrait(attacker, 'demolition')) {
+      const demoRaw = battleAttackRawOne(attacker, defender, battleDistanceKey(attacker, defender), null, chosenFacing, true).raw;
+      add('爆破 · -' + battleFmt(demoRaw) + ' · 2 行动力（无视地形，反击双倍）', 'demolition', attacker.mp < 2);
+    }
     if (!targetLocked && !guardMode && battleHexDistance(attacker.c, attacker.r, defender.c, defender.r) === 1) {
       const pd = battlePushDestination(attacker, defender);
       const pc = battlePushRaw(attacker, defender);
