@@ -5694,6 +5694,8 @@
 
   function battleTryConfusion(target, attackers, facing, canPen) {
     if (!target || !target.alive || !attackers || attackers.length < 2) return false;
+    // 指挥部永远不会混乱。
+    if (target.isHQ) return false;
     if (target.tutorialForceConfusion) {
       target.confused = true;
       return true;
