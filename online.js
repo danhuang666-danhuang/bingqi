@@ -10688,13 +10688,44 @@
       battleRefresh();
       return;
     }
-    if (at) { toast('该格已有单位'); return; }
     const name = state.sandbox.unit;
     if (!name) { toast('先选择一个单位'); return; }
     const side = sandboxSide();
     const faction = sandboxFaction();
+    const info = state.prepData && state.prepData.factions &&
+      state.prepData.factions[faction] && state.prepData.factions[faction].units
+      ? state.prepData.factions[faction].units[name] : null;
+    const isAir = prepUnitClass(info) === 'air';
     const hp = prepUnitHp(name, faction);
     const id = 'sandbox-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 5);
+    if (isAir) {
+      const occupied = {};
+      battleAliveUnits().forEach(function (u) {
+        if (u.side === side && u.airBase) occupied[u.c + ',' + u.r] = true;
+      });
+      const slots = airPadCells(side, Object.keys(occupied).length + 2).filter(function (p) {
+        return !occupied[p.c + ',' + p.r];
+      });
+      const slot = slots[0];
+      if (!slot) { toast('机场没有空余停机位'); return; }
+      const unit = {
+        id: id, side: side, name: name, c: slot.c, r: slot.r, faction: faction,
+        hp: hp, maxHp: hp, mp: prepUnitMove(name, faction),
+        maxMp: prepUnitMove(name, faction), alive: true, lockedBy: [], airBase: true,
+      };
+      b.units.push(unit);
+      if (state.deploy) {
+        state.deploy.units = state.deploy.units || [];
+        state.deploy.units.push({ id: id, side: side, name: name, c: slot.c, r: slot.r, faction: faction, airBase: true });
+      }
+      state.sandbox.place = false;
+      b.selectedId = id;
+      battleRefresh();
+      renderSandboxDock();
+      toast('空军已进入机场停机位');
+      return;
+    }
+    if (at) { toast('该格已有单位'); return; }
     const unit = {
       id: id, side: side, name: name, c: c, r: r, faction: faction,
       hp: hp, maxHp: hp, mp: prepUnitMove(name, faction),
@@ -10705,8 +10736,10 @@
       state.deploy.units = state.deploy.units || [];
       state.deploy.units.push({ id: id, side: side, name: name, c: c, r: r, faction: faction });
     }
+    state.sandbox.place = false;
     b.selectedId = id;
     battleRefresh();
+    renderSandboxDock();
   }
 
   function renderSandboxPanel() {
