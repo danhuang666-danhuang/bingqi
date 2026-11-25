@@ -3014,6 +3014,7 @@
     }
     view.classList.toggle('is-battle', !deploy);
     renderSandboxPanel();
+    renderSandboxDock();
   }
 
   function myDeploySide() {
@@ -10586,12 +10587,159 @@
     });
   }
 
+  function ensureSandboxDock() {
+    let dock = el('sandbox-dock');
+    if (dock) return dock;
+    const view = el('online-battle-view') || document.body;
+    dock = document.createElement('aside');
+    dock.id = 'sandbox-dock';
+    dock.className = 'sandbox-dock hidden';
+    view.appendChild(dock);
+    dock.addEventListener('click', function (e) {
+      const country = e.target.closest ? e.target.closest('[data-sd-country]') : null;
+      if (country) {
+        if (!state.sandbox.factions) state.sandbox.factions = {};
+        state.sandbox.factions[sandboxSide()] = country.getAttribute('data-sd-country');
+        state.sandbox.unit = '';
+        state.sandbox.place = false;
+        renderSandboxDock();
+        return;
+      }
+      const unit = e.target.closest ? e.target.closest('[data-sd-unit]') : null;
+      if (unit) {
+        state.sandbox.unit = unit.getAttribute('data-sd-unit');
+        state.sandbox.place = true;
+        state.sandbox.del = false;
+        renderSandboxDock();
+        toast('已选择 ' + state.sandbox.unit + '：点地图空格放置');
+        return;
+      }
+      if (e.target.closest('[data-sd-place]')) {
+        state.sandbox.place = !state.sandbox.place;
+        state.sandbox.del = false;
+        renderSandboxDock();
+        return;
+      }
+      if (e.target.closest('[data-sd-delete]')) {
+        state.sandbox.del = !state.sandbox.del;
+        state.sandbox.place = false;
+        renderSandboxDock();
+        return;
+      }
+      if (e.target.closest('[data-sd-clear]')) {
+        if (!state.battle) return;
+        state.battle.units = [];
+        if (state.deploy) state.deploy.units = [];
+        state.sandbox.place = state.sandbox.del = false;
+        battleRefresh();
+        renderSandboxDock();
+        return;
+      }
+      if (e.target.closest('[data-sd-turn]')) {
+        if (!state.battle) return;
+        state.battle.activeSide = otherSide(state.battle.activeSide);
+        const seat = state.testSeats.filter(function (s) { return s.side === state.battle.activeSide; })[0];
+        if (seat) { state.activeSeat = seat.id; syncActiveSeat(); }
+        battleResetMp(state.battle, state.battle.activeSide);
+        state.battle.selectedId = null;
+        state.battle.counter = null;
+        state.sandbox.place = state.sandbox.del = false;
+        battleRefresh();
+        renderSandboxDock();
+        return;
+      }
+      if (e.target.closest('[data-sd-import]')) {
+        const f = el('sandbox-dock-file');
+        if (f) f.click();
+      }
+    });
+    const file = document.createElement('input');
+    file.id = 'sandbox-dock-file';
+    file.type = 'file';
+    file.accept = '.json,application/json';
+    file.hidden = true;
+    document.body.appendChild(file);
+    file.addEventListener('change', function () {
+      const f = this.files && this.files[0];
+      this.value = '';
+      if (!f) return;
+      const reader = new FileReader();
+      reader.onload = function () {
+        try {
+          const parsed = parseMap(JSON.parse(String(reader.result || '')));
+          if (!parsed) throw new Error('地图解析失败');
+          state.map = parsed.parsed;
+          state.mapWrapper = { title: f.name.replace(/\.json$/i, ''), map: parsed.map };
+          state.deploy = { units: [], ready: { attacker: true, defender: true } };
+          state.phase = 'lobby';
+          state.battle = null;
+          renderRoom();
+          renderSandboxDock();
+          toast('地图已导入，点「开始沙盒」');
+        } catch (err) {
+          toast('导入失败：' + (err && err.message ? err.message : '地图格式错误'));
+        }
+      };
+      reader.readAsText(f, 'utf-8');
+    });
+    return dock;
+  }
+
+  function renderSandboxDock() {
+    if (!state.test) { hideEl('sandbox-dock', true); return; }
+    const dock = ensureSandboxDock();
+    if (state.phase !== 'battle' || !state.battle) {
+      dock.classList.add('hidden');
+      return;
+    }
+    hideEl('sandbox-panel', true);
+    hideEl('sandbox-toggle', true);
+    const side = sandboxSide();
+    const faction = sandboxFaction();
+    const data = state.prepData && state.prepData.factions ? state.prepData.factions[faction] : null;
+    const units = data && data.units ? data.units : {};
+    const names = Object.keys(units).sort();
+    const factionNameOf = { us: '美国', de: '德国', ussr: '苏联', uk: '英国', cn: '中国' };
+    const countries = ['us', 'de', 'ussr'].map(function (id) {
+      return '<button type="button" class="sd-country' + (id === faction ? ' is-on' : '') +
+        '" data-sd-country="' + id + '">' + (factionNameOf[id] || id.toUpperCase()) + '</button>';
+    }).join('');
+    const unitHtml = names.map(function (n) {
+      const info = units[n] || {};
+      const on = n === state.sandbox.unit;
+      const slot = prepSlotClass(info) || '';
+      return '<button type="button" class="sd-unit' + (on ? ' is-on' : '') + '" data-sd-unit="' + battleReinforceEsc(n) + '">' +
+        '<b>' + battleReinforceEsc(n) + '</b>' +
+        '<small><em>' + battleReinforceEsc(slot || '单位') + '</em>' +
+        ' · ' + Number(info.hp || 0) + '血 · ' + Number(info.price || 0) + '点</small>' +
+        (info.traits ? '<i>' + battleReinforceEsc(info.traits) + '</i>' : '') +
+        '</button>';
+    }).join('') || '<p class="sd-empty">该国暂无可放置单位</p>';
+    dock.innerHTML =
+      '<div class="sd-head"><div><b>沙盒部署</b><span>当前 ' + (side === 'attacker' ? '攻方' : '守方') + '</span></div>' +
+        '<button type="button" class="sd-mini" data-sd-turn="1">切换行动方</button></div>' +
+      '<div class="sd-countries">' + countries + '</div>' +
+      '<div class="sd-section">单位</div>' +
+      '<div class="sd-units">' + unitHtml + '</div>' +
+      '<div class="sd-actions">' +
+        '<button type="button" class="sd-action' + (state.sandbox.place ? ' is-on' : '') + '" data-sd-place="1">放置模式</button>' +
+        '<button type="button" class="sd-action' + (state.sandbox.del ? ' is-on' : '') + '" data-sd-delete="1">删除模式</button>' +
+        '<button type="button" class="sd-action" data-sd-clear="1">清空单位</button>' +
+        '<button type="button" class="sd-action" data-sd-import="1">导入地图</button>' +
+      '</div>' +
+      '<p class="sd-hint">选单位后点地图任意空格放置；不受出生点/部署区限制。</p>';
+    dock.classList.remove('hidden');
+  }
+
   function startSandboxBattle() {
     if (!state.test) return;
     if (!state.map) { toast('先选择或导入地图'); return; }
+    ensureSandboxDock();
     ensureSandboxPanel();
     const panel = el('sandbox-panel');
-    if (panel) panel.classList.remove('hidden');
+    if (panel) panel.classList.add('hidden');
+    const toggle = el('sandbox-toggle');
+    if (toggle) toggle.classList.add('hidden');
     state.deploy = { units: [], ready: { attacker: true, defender: true } };
     state.decks = { attacker: [], defender: [] };
     const hf = state.hostFactions || {};
@@ -10610,7 +10758,7 @@
     state.sandbox.place = state.sandbox.del = false;
     ensureDeployModels();
     renderRoom();
-    renderSandboxPanel();
+    renderSandboxDock();
     toast('沙盒已开始');
   }
 
