@@ -2460,7 +2460,8 @@ window.TUTORIAL_LEVELS = [
           "c": 5,
           "r": 5,
           "label": "F6 · 步兵直接攻击"
-        }
+        },
+        "auto": "stage5Support"
       },
       {
         "text": "让 E6 美军步兵锁定 F6 德军步兵，为之后的空中集火提供目标和视野。",
