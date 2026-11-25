@@ -2544,24 +2544,30 @@
     if (!THREE || !L) return null;
     opts = opts || {};
     const cv = document.createElement('canvas');
-    cv.width = 256; cv.height = 96;
+    const font = (opts.big ? '700 44px' : '700 36px') + ' "Consolas", monospace';
+    const measure = document.createElement('canvas').getContext('2d');
+    measure.font = font;
+    const textW = Math.ceil(measure.measureText(String(text || '')).width);
+    cv.width = Math.max(256, textW + 48);
+    cv.height = 96;
     const g = cv.getContext('2d');
-    g.clearRect(0, 0, 256, 96);
-    g.font = (opts.big ? '700 44px' : '700 36px') + ' "Consolas", monospace';
+    g.clearRect(0, 0, cv.width, cv.height);
+    g.font = font;
     g.textAlign = 'center';
     g.textBaseline = 'middle';
     g.lineWidth = 9;
     g.strokeStyle = 'rgba(8, 12, 18, 0.95)';
-    g.strokeText(text, 128, 50);
+    g.strokeText(text, cv.width / 2, 50);
     g.fillStyle = opts.color || '#ffd79a';
-    g.fillText(text, 128, 50);
+    g.fillText(text, cv.width / 2, 50);
     const tex = new THREE.CanvasTexture(cv);
     if (THREE.sRGBEncoding !== undefined) tex.encoding = THREE.sRGBEncoding;
     const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false, depthWrite: false });
     mat._b3Dispose = true;
     const sp = new THREE.Sprite(mat);
-    const w = opts.big ? L.HEXR * 3.0 : L.HEXR * 2.5;
-    sp.scale.set(w, w * 96 / 256, 1);
+    const h = opts.big ? L.HEXR * 1.125 : L.HEXR * 0.9375;
+    const w = h * cv.width / cv.height;
+    sp.scale.set(w, h, 1);
     sp.position.y = opts.big ? L.TOP + L.HEXR * 3.0 : L.TOP + L.HEXR * 2.15;
     sp.userData.b3Dispose = true;
     return sp;
@@ -4420,7 +4426,9 @@
       const uw = focusUnit.airBase
         ? (airPadWorld(focusUnit.side, focusUnit.c, focusUnit.r) || L.cell(focusUnit.c, focusUnit.r))
         : L.cell(focusUnit.c, focusUnit.r);
-      const baseY = focusUnit.airBase ? L.TOP + L.HEXR * 2.2 : L.TOP + 0.42;
+      const baseY = L.TOP + 0.45;
+      const arrowY = baseY + (focusUnit.airBase ? L.HEXR * 0.9 : L.HEXR * 1.25);
+      const labelY = arrowY + L.HEXR * 0.7;
       const uMat = new THREE.MeshBasicMaterial({
         color: 0xffb43c, transparent: true, opacity: 0.95,
         depthTest: false, depthWrite: false, side: THREE.DoubleSide,
@@ -4439,12 +4447,12 @@
         uMat
       );
       arrow.rotation.x = Math.PI;
-      arrow.position.set(uw[0], baseY + L.HEXR * 2.0, uw[1]);
+      arrow.position.set(uw[0], arrowY, uw[1]);
       arrow.renderOrder = 45;
       B3.tutorialFocusGroup.add(arrow);
       const unitLabel = b3CostSprite('行动单位', { color: '#ffd166' });
       if (unitLabel) {
-        unitLabel.position.set(uw[0], baseY + L.HEXR * 2.7, uw[1]);
+        unitLabel.position.set(uw[0], labelY, uw[1]);
         unitLabel.renderOrder = 46;
         B3.tutorialFocusGroup.add(unitLabel);
       }

@@ -2540,11 +2540,7 @@ window.TUTORIAL_LEVELS = [
       {
         "text": "再重置，移除 20 防空炮，给德军增加 Bf109 战斗机。先让 F5 侦察，然后切换到德军视角。",
         "auto": "stage5Fighter",
-        "focus": {
-          "c": 7,
-          "r": 6,
-          "label": "Bf109 · 德军机场"
-        }
+        "focusUnit": "t5-bf"
       },
       {
         "text": "F5 侦察 G4。侦察完成后会自动切换到德军视角。",
