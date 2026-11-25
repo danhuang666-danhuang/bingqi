@@ -7462,10 +7462,34 @@
           (battleHasArmor(ti) ? stats.hard : stats.soft);
         airPreview = ' · 预计 -' + battleFmt(base * (1 - battleProtectAt(target.c, target.r)));
       }
+      let focusPreview = airPreview;
+      if (targetLocked && !battleIsAir(target) && canBomb) {
+        const locked = (target.lockedBy || []).map(battleUnitById).filter(function (u) {
+          return u && u.alive && u.side === air.side;
+        });
+        const airIds = [air.id].concat(locked.filter(battleIsAir).map(function (u) { return u.id; }))
+          .filter(function (id, i, arr) { return arr.indexOf(id) === i; })
+          .slice(0, 2);
+        let raw = 0;
+        const ti = battleInfoFor(target);
+        airIds.forEach(function (id) {
+          const a = battleUnitById(id);
+          if (!a) return;
+          const stats = battleAirGroundStats(a);
+          const base = battleIsTransportTarget(target) ? stats.soft :
+            (battleHasArmor(ti) ? stats.hard : stats.soft);
+          raw += base * (1 - battleProtectAt(target.c, target.r));
+        });
+        locked.filter(function (u) { return !battleIsAir(u); }).forEach(function (u) {
+          const g = battleAttackRawOne(u, target, battleDistanceKey(u, target), null, null).raw;
+          raw += g * (battleAirSuperiorityFor(air, target) ? 1.5 : 1);
+        });
+        focusPreview = ' · 总预计 -' + battleFmt(raw);
+      }
       add((role === 'intercept' ? '攻击 · 空战' : '攻击 · 对地轰炸') + airPreview + ' · ' + airCost + ' 行动力',
         'airAttack', false, mismatch || air.mp < airCost || !canNormalAir || fighterNeedsLock);
       if (targetLocked) {
-        add('集火 · ' + (role === 'intercept' ? '空战' : '对地轰炸') + airPreview + ' · ' + airCost + ' 行动力',
+        add('集火 · ' + (role === 'intercept' ? '空战' : '对地轰炸') + focusPreview + ' · ' + airCost + ' 行动力',
           'airAttack', true, mismatch || air.mp < airCost || fighterNeedsLock);
       }
     }
