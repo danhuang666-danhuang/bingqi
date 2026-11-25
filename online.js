@@ -2918,6 +2918,7 @@
     setText('online-battle-round', '第 ' + clockRound + ' 回合');
     setText('online-battle-daynight', clockNight ? '夜晚' : '白天');
     setText('online-battle-day', '第 ' + battleDayOfRound(clockRound) + ' 天');
+    setText('online-battle-time', ['上午', '下午', '晚上'][(Math.max(1, clockRound) - 1) % 3]);
     setText('online-battle-next', clockNext.label
       ? ('下一阶段 ' + clockNext.label + ' · 还有 ' + clockNext.left + ' 回合')
       : (battle ? '最终阶段' : '下一阶段 —'));
@@ -12039,7 +12040,7 @@
                 '<b id="online-battle-round">第 1 回合</b>' +
                 '<span id="online-battle-daynight" class="online-battle-daynight">白天</span>' +
               '</div>' +
-              '<div id="online-battle-day" class="online-battle-day">第 1 天</div>' +
+              '<div id="online-battle-day" class="online-battle-day">第 1 天 <span id="online-battle-time" class="online-battle-time">上午</span></div>' +
               '<div id="online-battle-next" class="online-battle-next">下一阶段 —</div>' +
             '</div>' +
             '<div id="online-battle-title" class="online-battle-title">A 阶段 · 部署</div>' +

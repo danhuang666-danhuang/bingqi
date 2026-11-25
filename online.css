@@ -3219,3 +3219,5 @@ body.online-open { overflow: hidden; }
 .battle-turn-banner b { font-size:44px; letter-spacing:.05em; color:#ffd58a; white-space:nowrap; }
 .battle-turn-banner span { font:14px var(--mono); letter-spacing:.18em; color:#aebfd1; }
 @keyframes turnBannerIn { 0%{opacity:0; transform:translate(-50%,-50%) scale(.82);} 18%{opacity:1; transform:translate(-50%,-50%) scale(1);} 75%{opacity:1;} 100%{opacity:0; transform:translate(-50%,-50%) scale(1.04);} }
+.online-battle-time { margin-left:6px; padding:1px 5px; border:1px solid rgba(224,164,88,.55); border-radius:4px; color:#ffd28a; font-size:10px; }
+.online-battle-clock.is-night .online-battle-time { border-color:rgba(150,180,230,.55); color:#bcd2f7; }
