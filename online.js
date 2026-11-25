@@ -6747,6 +6747,11 @@
         }
         unit.mp -= cost;
         unit.artyShots = Number(unit.artyShots || 0) + 1;
+        if (!spec.rocket && unit.artyShots >= 2) {
+          unit.mp = 0;
+          unit.actionLocked = true;
+          b.log.push(unit.name + ' 已完成两次炮击，本回合不能再行动');
+        }
         if (spec.rocket) unit.rocketReloadRound = b.round + 1;
         battleCounterBatteryRecord(unit);
         if (action.type === 'focus') {
