@@ -5237,7 +5237,7 @@
       t = Math.max(0, Math.min(1, t));
       const px = from[0] + dx * t, pz = from[1] + dz * t;
       const dist = Math.hypot(px - p[0], pz - p[1]);
-      if (dist <= battleAAEffectiveRadius(spec, unit) * L.PITCH * 1.05 && (!best || t < best.t)) {
+      if (dist <= battleAAEffectiveRadius(spec, unit) * L.PITCH * 1.25 && (!best || t < best.t)) {
         best = { aa: aa, spec: spec, t: t, point: [px, pz], target: to, from: from };
       }
     });
