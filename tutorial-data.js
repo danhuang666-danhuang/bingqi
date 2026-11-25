@@ -2550,9 +2550,7 @@ window.TUTORIAL_LEVELS = [
       },
       {
         "text": "操作德军 Bf109 拦截 F5。战斗机拦截可以打出伤害，但无法把目标逼退返航；只有防空火力能强制返航。",
-        "allow": {
-          "unitId": "t5-bf"
-        },
+        "allow": {},
         "focus": {
           "c": 6,
           "r": 3,
