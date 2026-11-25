@@ -2904,6 +2904,10 @@
       battle.turnBannerShown = true;
       setTimeout(function () { battleShowTurnBanner(activePlayer.name, battle.round); }, 120);
     }
+    if (battle && battle.ended && !battle.endScreenShown) {
+      battle.endScreenShown = true;
+      setTimeout(function () { battleShowEndScreen(); }, 220);
+    }
 
     setText('online-battle-title', deploy
       ? 'A 阶段 · 部署'
@@ -2931,7 +2935,9 @@
         : (counterMine
           ? '请选择反击单位'
           : (battle ? (battle.winner
-            ? (battle.winner === 'attacker' ? '进攻方胜利 · 守方指挥部被摧毁' : (battle.winReason || '防守方胜利'))
+            ? (battle.winner === 'attacker'
+              ? (battle.outcome ? '攻方 ' + battle.outcome.attacker + ' · 守方 ' + battle.outcome.defender : '进攻方胜利')
+              : (battle.outcome ? '攻方 ' + battle.outcome.attacker + ' · 守方 ' + battle.outcome.defender : (battle.winReason || '防守方胜利')))
             : (activePlayer
               ? (activePlayer.id === state.selfId ? '你的回合 · ' + activePlayer.name : activePlayer.name + ' 行动中')
               : (battle.activeSide === side ? '你的回合' : sideName(battle.activeSide) + '行动中'))) : '—'))));
@@ -3846,6 +3852,11 @@
       ghost: null,
       counter: null,
       choice: null,
+      lossCost: { attacker: 0, defender: 0 },
+      killLog: [],
+      playerStats: {},
+      actionPlayerId: '',
+      currentAttackers: [],
       lastAction: '',
       log: [],
       history: [],
@@ -5572,18 +5583,48 @@
     const hqUnits = b.units.filter(function (u) { return u.isHQ; });
     if (!hqUnits.length) return;
     if (hqUnits.some(function (u) { return u.alive; })) return;
-    b.winner = 'attacker';
+    battleFinishBattle(b, {
+      attacker: '大获全胜', defender: '完全失败', winner: 'attacker',
+    });
     b.log.push('守方指挥部被摧毁，进攻方获得胜利');
     toast('进攻方胜利：守方指挥部被摧毁');
   }
 
+  function battleRecordKill(unit) {
+    const b = state.battle;
+    if (!b || !unit) return;
+    const info = battleInfoFor(unit);
+    const cost = Number(info && info.price) || 0;
+    const victimSide = unit.side;
+    const killerSide = otherSide(victimSide);
+    b.lossCost = b.lossCost || { attacker: 0, defender: 0 };
+    b.lossCost[victimSide] = (Number(b.lossCost[victimSide]) || 0) + cost;
+    const killers = (b.currentAttackers || []).filter(Boolean);
+    const playerId = b.actionPlayerId || '';
+    b.killLog = b.killLog || [];
+    b.killLog.push({
+      round: Number(b.round) || 1,
+      victimId: unit.id, victimName: unit.name, victimSide: victimSide, cost: cost,
+      killers: killers.length ? killers.slice() : ['战场'],
+      killerSide: killerSide, playerId: playerId,
+    });
+    if (playerId) {
+      b.playerStats = b.playerStats || {};
+      const p = b.playerStats[playerId] || { kills: 0, losses: 0 };
+      p.kills += cost;
+      b.playerStats[playerId] = p;
+    }
+  }
+
   function battleDamageUnit(unit, dmg) {
     if (!unit || !unit.alive) return 0;
+    const wasAlive = unit.alive;
     const n = Math.max(0, Number(dmg) || 0);
     const cargo = unit.carryingId ? battleUnitById(unit.carryingId) : null;
     if (unit.confused) {
       unit.hp = 0;
       unit.alive = false;
+      if (wasAlive) battleRecordKill(unit);
       if (cargo && cargo.embarked) battleDamageUnit(cargo, n);
       if (cargo && cargo.alive) {
         cargo.embarked = false;
@@ -5617,6 +5658,7 @@
       if (unit.alive && unit.hp <= 6) unit.mp = Math.max(Number(unit.mp) || 0, 2);
       battleCheckHQVictory();
     }
+    if (wasAlive && !unit.alive) battleRecordKill(unit);
     return n;
   }
 
@@ -6072,6 +6114,8 @@
       return;
     }
     let unit = battleUnitById(action.unitId);
+    b.actionPlayerId = action.playerId || b.activePlayerId || '';
+    b.currentAttackers = unit ? [unit.name] : [];
     if (unit && unit.isHQ) {
       // 指挥部只能移动，不能攻击/锁定/推进；上层3血未打空时不能移动。
       if (action.type !== 'move') return;
@@ -6911,6 +6955,158 @@
     battle.firstRoundSkipId = skipId;
   }
 
+  function battleScoreState(b) {
+    const losses = b.lossCost || { attacker: 0, defender: 0 };
+    return {
+      attackerKills: Number(losses.defender) || 0,
+      attackerLosses: Number(losses.attacker) || 0,
+      defenderKills: Number(losses.attacker) || 0,
+      defenderLosses: Number(losses.defender) || 0,
+    };
+  }
+
+  function battleOutcomeLabels(b) {
+    const s = battleScoreState(b);
+    const ratio = function (kills, losses) {
+      if (losses <= 0) return kills > 0 ? 99 : 1;
+      return kills / losses;
+    };
+    const ar = ratio(s.attackerKills, s.attackerLosses);
+    const dr = ratio(s.defenderKills, s.defenderLosses);
+    const adv = dr <= 0 ? (ar > 0 ? 99 : 1) : ar / dr;
+    if (adv > 2) return { attacker: '大获全胜', defender: '完全失败', winner: 'attacker', adv: adv };
+    if (adv >= 1.5) return { attacker: '酣畅大捷', defender: '血战惜败', winner: 'attacker', adv: adv };
+    if (adv > 1.2) return { attacker: '略占上风', defender: '略占下风', winner: 'attacker', adv: adv };
+    if (adv >= 1 / 1.2) return { attacker: '平局', defender: '平局', winner: 'draw', adv: adv };
+    if (adv >= 1 / 1.5) return { attacker: '略占下风', defender: '略占上风', winner: 'defender', adv: adv };
+    if (adv >= 1 / 2) return { attacker: '血战惜败', defender: '酣畅大捷', winner: 'defender', adv: adv };
+    return { attacker: '完全失败', defender: '大获全胜', winner: 'defender', adv: adv };
+  }
+
+  function battleFinishBattle(b, labels) {
+    if (!b || b.ended) return;
+    b.ended = true;
+    b.outcome = {
+      attacker: labels.attacker,
+      defender: labels.defender,
+      winner: labels.winner,
+      score: battleScoreState(b),
+    };
+    b.winner = labels.winner;
+    setTimeout(function () { battleShowEndScreen(); }, 500);
+  }
+
+  function battleEndTeamHtml(b) {
+    const players = b.turnOrder && b.turnOrder.length
+      ? b.turnOrder
+      : (state.hostTeams || []).filter(function (p) { return p.side; });
+    const counts = {
+      attacker: players.filter(function (p) { return p.side === 'attacker'; }).length || 1,
+      defender: players.filter(function (p) { return p.side === 'defender'; }).length || 1,
+    };
+    let html = '<div class="end-table"><div class="end-tr end-th"><span>玩家</span><span>阵营</span><span>击杀</span><span>损失</span></div>';
+    players.forEach(function (p) {
+      const st = (b.playerStats || {})[p.id] || { kills: 0 };
+      const lossShare = (Number((b.lossCost || {})[p.side]) || 0) / counts[p.side];
+      html += '<div class="end-tr"><b>' + battleReinforceEsc(p.name || '玩家') + '</b>' +
+        '<span>' + (p.side === 'attacker' ? '攻方' : '守方') + '</span>' +
+        '<span>' + battleFmt(st.kills || 0) + '</span>' +
+        '<span>' + battleFmt(lossShare) + '</span></div>';
+    });
+    if (!players.length) html += '<p class="end-empty">没有玩家记录</p>';
+    return html + '</div>';
+  }
+
+  function battleEndHistoryHtml(b) {
+    const rows = (b.history || []).slice().reverse();
+    if (!rows.length) return '<p class="end-empty">还没有战斗记录</p>';
+    return '<div class="end-list">' + rows.map(function (h) {
+      const killed = (b.killLog || []).some(function (k) {
+        return k.victimId === h.targetId && Number(k.round) === Number(h.round);
+      });
+      return '<div class="end-item"><div class="end-meta">第 ' + h.round + ' 回合 · ' +
+        (h.side === 'attacker' ? '攻方' : '守方') + '</div>' +
+        '<div><b>' + battleReinforceEsc((h.attackers || []).join('、')) + '</b> → ' +
+        battleReinforceEsc(h.target || '目标') + '：伤害 ' + battleFmt(h.damage || 0) +
+        (killed ? ' <em>击毁</em>' : '') + '</div>' +
+        (h.counter && h.counter.damage ? '<small>反击 ' + battleFmt(h.counter.damage) + '</small>' : '') +
+        '</div>';
+    }).join('') + '</div>';
+  }
+
+  function battleEndKillsHtml(b, side) {
+    const rows = (b.killLog || []).filter(function (k) { return k.killerSide === side; });
+    if (!rows.length) return '<p class="end-empty">没有击毁记录</p>';
+    return '<div class="end-list">' + rows.map(function (k) {
+      return '<div class="end-item"><b>' + battleReinforceEsc((k.killers || []).join('、')) + '</b>' +
+        ' 击毁 ' + battleReinforceEsc(k.victimName) +
+        ' <small>+' + battleFmt(k.cost || 0) + ' 经费</small></div>';
+    }).join('') + '</div>';
+  }
+
+  function battleEndLossesHtml(b, side) {
+    const rows = (b.killLog || []).filter(function (k) { return k.victimSide === side; });
+    if (!rows.length) return '<p class="end-empty">没有损失记录</p>';
+    return '<div class="end-list">' + rows.map(function (k) {
+      return '<div class="end-item"><b>' + battleReinforceEsc(k.victimName) + '</b>' +
+        ' 被 ' + battleReinforceEsc((k.killers || []).join('、')) + ' 击毁' +
+        ' <small>-' + battleFmt(k.cost || 0) + ' 经费</small></div>';
+    }).join('') + '</div>';
+  }
+
+  function battleShowEndScreen() {
+    const b = state.battle;
+    if (!b || !b.outcome || state.view !== 'room') return;
+    let screen = el('battle-end-screen');
+    if (!screen) {
+      screen = document.createElement('section');
+      screen.id = 'battle-end-screen';
+      screen.className = 'battle-end-screen';
+      document.body.appendChild(screen);
+    }
+    const side = battleMySide();
+    const title = side === 'attacker' ? b.outcome.attacker :
+      (side === 'defender' ? b.outcome.defender : '战斗结束');
+    const score = b.outcome.score || battleScoreState(b);
+    const mapTitle = state.mapWrapper && state.mapWrapper.title ? state.mapWrapper.title : '作战地图';
+    screen.innerHTML =
+      '<div class="end-card">' +
+        '<div class="end-kicker">' + battleReinforceEsc(mapTitle) + ' · 第 ' + b.round + ' 回合</div>' +
+        '<h1>' + battleReinforceEsc(title) + '</h1>' +
+        '<div class="end-vs">攻方 ' + battleReinforceEsc(b.outcome.attacker) + ' · 守方 ' + battleReinforceEsc(b.outcome.defender) + '</div>' +
+        '<div class="end-score">攻方击毁 ' + battleFmt(score.attackerKills) + ' / 损失 ' + battleFmt(score.attackerLosses) +
+          ' · 守方击毁 ' + battleFmt(score.defenderKills) + ' / 损失 ' + battleFmt(score.defenderLosses) + '</div>' +
+        '<div class="end-tabs">' +
+          '<button type="button" data-end-tab="team" class="is-on">队伍</button>' +
+          '<button type="button" data-end-tab="history">历史</button>' +
+          '<button type="button" data-end-tab="kills">歼灭</button>' +
+          '<button type="button" data-end-tab="losses">损失</button>' +
+        '</div>' +
+        '<div id="end-body" class="end-body"></div>' +
+        '<button type="button" class="end-exit" data-end-exit="1">退出</button>' +
+      '</div>';
+    function renderTab(tab) {
+      screen.querySelectorAll('[data-end-tab]').forEach(function (btn) {
+        btn.classList.toggle('is-on', btn.getAttribute('data-end-tab') === tab);
+      });
+      const body = el('end-body');
+      if (!body) return;
+      if (tab === 'history') body.innerHTML = battleEndHistoryHtml(b);
+      else if (tab === 'kills') body.innerHTML = battleEndKillsHtml(b, side || 'attacker');
+      else if (tab === 'losses') body.innerHTML = battleEndLossesHtml(b, side || 'attacker');
+      else body.innerHTML = battleEndTeamHtml(b);
+    }
+    screen.onclick = function (ev) {
+      const tab = ev.target.closest && ev.target.closest('[data-end-tab]');
+      if (tab) { renderTab(tab.getAttribute('data-end-tab')); return; }
+      if (ev.target.closest && ev.target.closest('[data-end-exit]')) {
+        screen.remove();
+      }
+    };
+    renderTab('team');
+    screen.classList.remove('hidden');
+  }
+
   function battleCheckRoundLimit(b, finishedRound) {
     const limit = Number(b && b.roundLimit) || 0;
     if (!limit || Number(finishedRound) < limit) return false;
@@ -6918,15 +7114,18 @@
       return u.isHQ && u.side === 'defender' && u.alive;
     });
     if (!hqAlive) {
-      b.winner = 'attacker';
+      battleFinishBattle(b, {
+        attacker: '大获全胜', defender: '完全失败', winner: 'attacker',
+      });
       b.winReason = '守方指挥部已被摧毁';
       b.log.push('第 ' + limit + ' 回合结束：' + b.winReason);
       return true;
     }
-    b.winner = 'defender';
-    b.winReason = '回合上限到达，进攻方未能摧毁守方全部指挥部';
-    b.log.push('第 ' + limit + ' 回合结束：' + b.winReason);
-    toast('进攻方失败：第 ' + limit + ' 回合结束前未摧毁守方全部指挥部');
+    const labels = battleOutcomeLabels(b);
+    battleFinishBattle(b, labels);
+    b.winReason = '第 ' + limit + ' 回合结束，按战损比结算';
+    b.log.push(b.winReason + '：攻方 ' + labels.attacker + ' / 守方 ' + labels.defender);
+    toast('战斗结束：攻方 ' + labels.attacker + ' · 守方 ' + labels.defender);
     return true;
   }
 

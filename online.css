@@ -3221,3 +3221,25 @@ body.online-open { overflow: hidden; }
 @keyframes turnBannerIn { 0%{opacity:0; transform:translate(-50%,-50%) scale(.82);} 18%{opacity:1; transform:translate(-50%,-50%) scale(1);} 75%{opacity:1;} 100%{opacity:0; transform:translate(-50%,-50%) scale(1.04);} }
 .online-battle-time { margin-left:6px; padding:1px 5px; border:1px solid rgba(224,164,88,.55); border-radius:4px; color:#ffd28a; font-size:10px; }
 .online-battle-clock.is-night .online-battle-time { border-color:rgba(150,180,230,.55); color:#bcd2f7; }
+/* ==== 战斗结算 ==== */
+.battle-end-screen { position:fixed; inset:0; z-index:300; display:flex; align-items:center; justify-content:center; padding:24px; background:rgba(5,8,12,.82); backdrop-filter:blur(3px); }
+.battle-end-screen.hidden { display:none; }
+.end-card { width:min(920px,96vw); max-height:92vh; overflow:auto; padding:26px 30px 20px; border:2px solid #b9945e; border-radius:4px; background:linear-gradient(180deg,#d8c39b,#c6ab78); color:#3b2b1d; box-shadow:0 30px 100px rgba(0,0,0,.7); }
+.end-kicker { text-align:center; font:11px var(--mono); letter-spacing:.16em; color:#756044; }
+.end-card h1 { margin:8px 0 4px; text-align:center; font-size:48px; letter-spacing:.12em; color:#8e2c25; font-weight:800; }
+.end-vs { text-align:center; font:14px var(--mono); color:#5c432d; }
+.end-score { margin:10px 0 16px; text-align:center; font:11px var(--mono); color:#6d563b; }
+.end-tabs { display:grid; grid-template-columns:repeat(4,1fr); gap:2px; border-bottom:2px solid #8c6a42; }
+.end-tabs button { border:0; border-radius:6px 6px 0 0; background:rgba(108,82,48,.18); color:#4f3922; font:13px var(--mono); padding:10px 4px; cursor:pointer; }
+.end-tabs button.is-on { background:#8c6a42; color:#f6e8cd; }
+.end-body { min-height:260px; padding:16px 4px; }
+.end-table { display:flex; flex-direction:column; gap:2px; }
+.end-tr { display:grid; grid-template-columns:2fr 1fr 1fr 1fr; gap:8px; padding:9px 10px; background:rgba(255,248,231,.28); font:12px var(--mono); }
+.end-tr.end-th { background:rgba(92,64,32,.25); color:#5c4229; font-weight:700; }
+.end-list { display:flex; flex-direction:column; gap:6px; }
+.end-item { padding:9px 11px; background:rgba(255,248,231,.3); border-left:3px solid #9a7445; font:12px/1.6 var(--mono); }
+.end-item small { margin-left:8px; color:#7b5c39; }
+.end-item em { color:#9b2721; font-style:normal; }
+.end-meta { font-size:10px; color:#7b6347; }
+.end-empty { color:#6d563b; font:12px var(--mono); }
+.end-exit { display:block; margin:6px auto 0; min-width:160px; padding:8px 16px; border:1px solid #7d5b34; border-radius:4px; background:rgba(255,248,231,.2); color:#4f3922; font:12px var(--mono); cursor:pointer; }
