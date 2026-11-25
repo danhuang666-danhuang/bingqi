@@ -2931,7 +2931,7 @@
         : (counterMine
           ? '请选择反击单位'
           : (battle ? (battle.winner
-            ? (battle.winner === 'attacker' ? '进攻方胜利 · 守方指挥部被摧毁' : '防守方胜利')
+            ? (battle.winner === 'attacker' ? '进攻方胜利 · 守方指挥部被摧毁' : (battle.winReason || '防守方胜利'))
             : (activePlayer
               ? (activePlayer.id === state.selfId ? '你的回合 · ' + activePlayer.name : activePlayer.name + ' 行动中')
               : (battle.activeSide === side ? '你的回合' : sideName(battle.activeSide) + '行动中'))) : '—'))));
@@ -3831,6 +3831,7 @@
     }
     const battle = {
       round: 1,
+      roundLimit: state.map && state.map.roundLimit ? state.map.roundLimit : null,
       phase: 'a',
       activeSide: 'attacker',
       units: units,
@@ -6910,6 +6911,25 @@
     battle.firstRoundSkipId = skipId;
   }
 
+  function battleCheckRoundLimit(b, finishedRound) {
+    const limit = Number(b && b.roundLimit) || 0;
+    if (!limit || Number(finishedRound) < limit) return false;
+    const hqAlive = (b.units || []).some(function (u) {
+      return u.isHQ && u.side === 'defender' && u.alive;
+    });
+    if (!hqAlive) {
+      b.winner = 'attacker';
+      b.winReason = '守方指挥部已被摧毁';
+      b.log.push('第 ' + limit + ' 回合结束：' + b.winReason);
+      return true;
+    }
+    b.winner = 'defender';
+    b.winReason = '回合上限到达，进攻方未能摧毁守方全部指挥部';
+    b.log.push('第 ' + limit + ' 回合结束：' + b.winReason);
+    toast('进攻方失败：第 ' + limit + ' 回合结束前未摧毁守方全部指挥部');
+    return true;
+  }
+
   function battleNextPlayer(b) {
     if (!b || !b.turnOrder || !b.turnOrder.length) return;
     const order = b.turnOrder;
@@ -6929,6 +6949,7 @@
     b.activePlayerId = order[next].id;
     b.activeSide = order[next].side;
     if (wrapped) {
+      if (battleCheckRoundLimit(b, b.round)) return;
       const prevPhase = b.phase;
       b.round += 1;
       b.phase = battlePhaseOfRound(b.round);
@@ -7013,6 +7034,12 @@
       b.activeSide = 'defender';
       battleResetMp(b, 'defender');
     } else {
+      if (battleCheckRoundLimit(b, b.round)) {
+        b.selectedId = null;
+        b.ghost = null;
+        battleRefresh();
+        return;
+      }
       const prevPhase = b.phase;
       b.activeSide = 'attacker';
       b.round += 1;
