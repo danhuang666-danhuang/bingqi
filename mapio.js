@@ -319,11 +319,22 @@
     return Math.min(n, MAX_ROUND_LIMIT);
   }
 
-  /* 第 round 大回合结束之后，游戏是不是该结束了 */
-  function isGameOver(p, roundLimit, round) {
+  /* 语义（明确下来，避免各方理解不一致）：
+   *   roundLimit = N 表示「第 N 大回合打完之后收场」，也就是说 1..N 这些回合都完整打。
+   *   传入的 round 是「刚刚打完的那个大回合」，不是「即将开始的回合」。
+   *   例：limit 12 → 打完第 11 回合返回 false；打完第 12 回合返回 true。
+   * 胜负怎么判（占点 / 积分 / 存活）不在地图里定，由对战逻辑决定；地图只负责给出这个事实。 */
+  function isGameOver(p, roundLimit, roundJustFinished) {
     const lim = normalizeRoundLimit(roundLimit);
     if (lim == null) return false;
-    return Math.floor(Number(round) || 1) >= lim;
+    return Math.floor(Number(roundJustFinished) || 1) >= lim;
+  }
+
+  /* 还剩几个大回合（已打完 round 时）；不限时返回 null */
+  function roundsLeft(roundLimit, round) {
+    const lim = normalizeRoundLimit(roundLimit);
+    if (lim == null) return null;
+    return Math.max(0, lim - Math.floor(Number(round) || 0));
   }
 
   /* 规整成合法配置：A 恒为 1；B ≥ 2；C ≥ B+1；C 存在时 B 必须存在 */
@@ -539,6 +550,7 @@
     normalizePhases: normalizePhases,
     normalizeRoundLimit: normalizeRoundLimit,
     isGameOver: isGameOver,
+    roundsLeft: roundsLeft,
     MAX_ROUND_LIMIT: MAX_ROUND_LIMIT,
     phaseOfRound: phaseOfRound,
     DEFAULT_FACING: DEFAULT_FACING,

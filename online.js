@@ -2900,6 +2900,10 @@
     const activePlayer = battle && battle.turnOrder
       ? battle.turnOrder.filter(function (p) { return p.id === battle.activePlayerId; })[0]
       : null;
+    if (battle && activePlayer && !battle.turnBannerShown) {
+      battle.turnBannerShown = true;
+      setTimeout(function () { battleShowTurnBanner(activePlayer.name, battle.round); }, 120);
+    }
 
     setText('online-battle-title', deploy
       ? 'A 阶段 · 部署'
@@ -6933,6 +6937,34 @@
       }
     }
     battleResetMp(b, b.activeSide);
+    battleShowTurnBanner(order[next].name, b.round);
+  }
+
+  function battleShowTurnBanner(playerName, round) {
+    if (state.view !== 'room') return;
+    let box = el('battle-turn-banner');
+    if (!box) {
+      box = document.createElement('div');
+      box.id = 'battle-turn-banner';
+      box.className = 'battle-turn-banner hidden';
+      document.body.appendChild(box);
+    }
+    box.textContent = '';
+    const name = document.createElement('b');
+    name.textContent = (playerName || '玩家') + ' 的回合';
+    const sub = document.createElement('span');
+    sub.textContent = '第 ' + (Number(round) || 1) + ' 回合';
+    box.appendChild(name);
+    box.appendChild(sub);
+    box.classList.remove('hidden');
+    box.classList.remove('is-showing');
+    void box.offsetWidth;
+    box.classList.add('is-showing');
+    clearTimeout(box._hideTimer);
+    box._hideTimer = setTimeout(function () {
+      box.classList.add('hidden');
+      box.classList.remove('is-showing');
+    }, 1500);
   }
 
   function battleNextTurn() {
