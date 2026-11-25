@@ -13279,10 +13279,29 @@
     const text = typeof stepDef === 'string' ? stepDef : ((stepDef && stepDef.text) || '');
     const autoPending = !!(stepDef && stepDef.auto && stepDef.auto !== 'rewind' &&
       !(state.tutorial && state.tutorial.enemyDone));
-    const locked = autoPending || !!(stepDef && (stepDef.allow || stepDef.blocked || stepDef.expectCounter));
+    const quizLocked = !!(stepDef && stepDef.quiz && !(state.tutorial && state.tutorial.quizCorrect));
+    const locked = autoPending || quizLocked ||
+      !!(stepDef && (stepDef.allow || stepDef.blocked || stepDef.expectCounter));
+    let media = '';
+    if (stepDef && Array.isArray(stepDef.images) && stepDef.images.length) {
+      media = '<div class="tutorial-slide-images">' + stepDef.images.map(function (src) {
+        return '<img src="' + src + '" alt="">';
+      }).join('') + '</div>';
+    }
+    let quiz = '';
+    if (stepDef && stepDef.quiz) {
+      quiz = '<div class="tutorial-quiz"><b>' + battleReinforceEsc(stepDef.quiz.question || '') + '</b>' +
+        '<div class="tutorial-quiz-options">' + (stepDef.quiz.options || []).map(function (n) {
+          const ans = Number(n);
+          const on = state.tutorial && state.tutorial.quizChoice === ans;
+          return '<button type="button" class="btn small' + (on ? ' is-on' : '') +
+            '" data-tutorial-answer="' + ans + '">' + ans + ' 点</button>';
+        }).join('') + '</div></div>';
+    }
     return '<div class="tutorial-guide-head"><b>' + battleReinforceEsc(level ? level.title : '教程') +
       '</b><span>' + (step + 1) + ' / ' + ((level && level.steps && level.steps.length) || 1) + '</span></div>' +
-      '<p>' + battleReinforceEsc(text) + '</p>' +
+      media +
+      '<p>' + battleReinforceEsc(text) + '</p>' + quiz +
       '<div class="tutorial-guide-actions">' +
         '<button type="button" class="btn small" data-tutorial-prev="1" disabled title="教程是顺序流程，暂不支持回退">上一步</button>' +
         '<button type="button" class="btn small primary" data-tutorial-next="1"' + (locked ? ' disabled' : '') + '>' + (step + 1 >= ((level && level.steps && level.steps.length) || 1) ? '完成教程' : '下一步') + '</button>' +
@@ -13320,7 +13339,15 @@
       syncTutorialGuideToggle();
       return;
     }
-    panel.innerHTML = tutorialGuideHtml(state.tutorial.level, state.tutorial.step || 0);
+    const stepNo = state.tutorial.step || 0;
+    const stepDef = state.tutorial.level && state.tutorial.level.steps ? state.tutorial.level.steps[stepNo] : null;
+    if (stepDef && stepDef.quiz && state.tutorial.quizStep !== stepNo) {
+      state.tutorial.quizStep = stepNo;
+      state.tutorial.quizChoice = null;
+      state.tutorial.quizCorrect = false;
+    }
+    panel.innerHTML = tutorialGuideHtml(state.tutorial.level, stepNo);
+    panel.classList.toggle('is-slide', !!(stepDef && stepDef.center));
     panel.classList.toggle('hidden', !!state.tutorialGuideCollapsed);
     syncTutorialGuideToggle();
   }
@@ -13329,6 +13356,22 @@
     if (!state.tutorial) return;
     const level = state.tutorial.level;
     const steps = level.steps || [];
+    const answerBtn = e.target.closest ? e.target.closest('[data-tutorial-answer]') : null;
+    if (answerBtn) {
+      const step = tutorialCurrentStep();
+      const ans = Number(answerBtn.getAttribute('data-tutorial-answer'));
+      state.tutorial.quizChoice = ans;
+      if (!step || !step.quiz) return;
+      if (ans === Number(step.quiz.answer)) {
+        state.tutorial.quizCorrect = true;
+        toast('回答正确');
+      } else {
+        state.tutorial.quizCorrect = false;
+        toast('回答错误，再想一想');
+      }
+      renderTutorialGuide();
+      return;
+    }
     if (e.target.closest && e.target.closest('[data-tutorial-next]')) {
       const current = tutorialCurrentStep();
       if (current && current.auto === 'rewind') {
@@ -13349,6 +13392,11 @@
       }
       state.tutorial.step = (state.tutorial.step || 0) + 1;
       state.tutorial.enemyDone = false;
+      state.tutorial.quizCorrect = false;
+      state.tutorial.quizChoice = null;
+      if (state.tutorial.level && state.tutorial.level.id === 't03' && state.tutorial.step === 12) {
+        tutorial3RestoreAttackers();
+      }
       renderTutorialGuide();
       refreshTutorialFocus();
       const nextStep = tutorialCurrentStep();
@@ -13410,6 +13458,9 @@
     }
     t.step = (t.step || 0) + 1;
     t.enemyDone = false;
+    t.quizCorrect = false;
+    t.quizChoice = null;
+    if (t.level.id === 't03' && t.step === 12) tutorial3RestoreAttackers();
     renderTutorialGuide();
     refreshTutorialFocus();
     if (B3) B3.need = true;
@@ -13437,8 +13488,8 @@
       toast('请阅读提示后点「下一步」继续');
       return false;
     }
-    if (step.previewOnly && action.type === 'attack') {
-      toast('这一步只需要查看预计伤害，看完点「下一步」即可');
+    if (step.previewOnly) {
+      toast('这一步只需要右键查看预计伤害，看完点「下一步」即可');
       return false;
     }
     if (step.blocked) {
