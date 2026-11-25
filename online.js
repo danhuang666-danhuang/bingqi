@@ -1658,6 +1658,7 @@
         d.x = e.clientX; d.y = e.clientY;
         updateBattle3DCamera();
         B3.need = true;
+        tutorialCameraAction('orbit');
       } else if (d.mode === 'pan') {
         const dx = e.clientX - d.x, dy = e.clientY - d.y;
         b3Pan(dx, dy);
@@ -1704,6 +1705,7 @@
       B3.cam.dist = Math.max(45, Math.min(1400, B3.cam.dist * Math.exp(e.deltaY * 0.0012)));
       updateBattle3DCamera();
       B3.need = true;
+      tutorialCameraAction('zoom');
     }, { passive: false });
     window.addEventListener('keydown', function (e) {
       if (e.code === 'Space' && !/INPUT|TEXTAREA|SELECT/.test((e.target && e.target.tagName) || '')) {
@@ -1722,6 +1724,7 @@
       if (!k) return;
       B3.keys[k] = true;
       e.preventDefault();
+      tutorialCameraAction('wasd');
     }, true);
     window.addEventListener('keyup', function (e) {
       if (!B3) return;
@@ -13953,6 +13956,13 @@
     if (screen) screen.classList.add('hidden');
   }
 
+  function tutorialCameraAction(kind) {
+    if (!state.tutorial) return;
+    const step = tutorialCurrentStep();
+    if (!step || step.camera !== kind) return;
+    tutorialAdvance();
+  }
+
   function tutorialGuideHtml(level, step) {
     const stepDef = level && level.steps ? level.steps[step] : null;
     const text = typeof stepDef === 'string' ? stepDef : ((stepDef && stepDef.text) || '');
@@ -13963,7 +13973,7 @@
     const finalDone = !!(lastStep && state.tutorial && state.tutorial.finalReady);
     const finalLocked = !!(lastStep && stepDef && stepDef.allow && !finalDone);
     const actionLocked = !!(!lastStep && stepDef &&
-      (stepDef.allow || stepDef.blocked || stepDef.expectCounter));
+      (stepDef.allow || stepDef.blocked || stepDef.expectCounter || stepDef.camera));
     const locked = autoPending || quizLocked || finalLocked || actionLocked;
     let media = '';
     if (stepDef && Array.isArray(stepDef.images) && stepDef.images.length) {
