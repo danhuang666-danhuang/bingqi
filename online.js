@@ -7424,6 +7424,8 @@
     const h = document.createElement('h4');
     h.textContent = attacker.name + ' → ' + defender.name + '（剩余 ' + attacker.mp + '）';
     box.appendChild(h);
+    const tPreview = tutorialCurrentStep();
+    const previewOnly = !!(state.tutorial && tPreview && tPreview.previewOnly);
     function add(label, type, disabled) {
       const btn = document.createElement('button');
       btn.type = 'button';
@@ -7431,6 +7433,7 @@
       btn.textContent = label;
       btn.disabled = !!disabled;
       btn.setAttribute('data-battle-action', type);
+      if (previewOnly && type === 'attack') btn.classList.add('tutorial-attack-highlight');
       box.appendChild(btn);
     }
     const atkCost = battleAttackCost(attacker, defender);
@@ -7445,6 +7448,12 @@
     const chosenFacing = facingInfo.facing;
     const needFacing = false;
     const one = battleAttackRaw(attacker, defender, [attacker.id], chosenFacing);
+    if (previewOnly) {
+      const bar = document.createElement('div');
+      bar.className = 'tutorial-preview-bar';
+      bar.innerHTML = '攻击预计伤害 <b>' + battleFmt(one.raw) + '</b><span>无法有效击穿正面装甲</span>';
+      box.appendChild(bar);
+    }
     const lockCost = battleAttackCost(attacker, defender);
     const ownLockRefund = ownLocked ? battleLockPaid(defender, attacker.id) : 0;
     const availMp = attacker.mp + ownLockRefund;
@@ -13275,7 +13284,7 @@
       '</b><span>' + (step + 1) + ' / ' + ((level && level.steps && level.steps.length) || 1) + '</span></div>' +
       '<p>' + battleReinforceEsc(text) + '</p>' +
       '<div class="tutorial-guide-actions">' +
-        '<button type="button" class="btn small" data-tutorial-prev="1"' + (step <= 0 || locked ? ' disabled' : '') + '>上一步</button>' +
+        '<button type="button" class="btn small" data-tutorial-prev="1" disabled title="教程是顺序流程，暂不支持回退">上一步</button>' +
         '<button type="button" class="btn small primary" data-tutorial-next="1"' + (locked ? ' disabled' : '') + '>' + (step + 1 >= ((level && level.steps && level.steps.length) || 1) ? '完成教程' : '下一步') + '</button>' +
         '<button type="button" class="btn small" data-tutorial-guide-close="1">收起</button>' +
       '</div>';
@@ -13426,6 +13435,10 @@
     if (!step) return true;
     if (step.auto) {
       toast('请阅读提示后点「下一步」继续');
+      return false;
+    }
+    if (step.previewOnly && action.type === 'attack') {
+      toast('这一步只需要查看预计伤害，看完点「下一步」即可');
       return false;
     }
     if (step.blocked) {

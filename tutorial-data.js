@@ -1323,19 +1323,13 @@ window.TUTORIAL_LEVELS = [
     ],
     "steps": [
       {
-        "text": "E4 是德军四号突击炮，属于装甲单位。先右键美军步兵 D4 对它的攻击预览：预计伤害只有约 0.17，AP 不足，无法有效击穿正面装甲。",
-        "blocked": true,
-        "blockedText": "预计伤害约 0.17：AP 不足，无法击穿四号突击炮的正面装甲。",
-        "allow": {
-          "type": "attack",
-          "unitId": "tutorial3-us-1",
-          "targetId": "tutorial3-target"
-        },
+        "text": "E4 是德军四号突击炮，属于装甲单位。右键美军步兵 D4 对它的攻击，查看高亮的预计伤害：约 0.17，AP 不足，无法击穿正面装甲。",
         "focus": {
           "c": 4,
           "r": 3,
-          "label": "E4 · 装甲"
-        }
+          "label": "预计伤害 0.17"
+        },
+        "previewOnly": true
       },
       {
         "text": "把步兵移动到 E3 城区。城区提供额外防护，同时让步兵攻击相邻目标时采用巷战数值，穿深更高。",
