@@ -6192,6 +6192,8 @@
     if (action.type === 'airAttack') {
       const target = battleUnitById(action.targetId);
       if (!battleIsAir(unit) || !target || !target.alive || target.side === unit.side) return;
+      if (battleHeavyBomber(unit) && unit.cooldownRound &&
+          Number(state.battle.round) <= Number(unit.cooldownRound)) return;
       // 战斗机不能单独主动出击；目标必须先被轰炸机/对地攻击机锁定。
       if (!battleAirCanLock(unit) && !battleAirHasBomberLock(target, unit.side)) return;
       let attackerIds = [unit.id];
@@ -6274,6 +6276,7 @@
           b.log.push(intercept.aa.name + ' 拦截 ' + unit.name + '：' + intercept.spec.damage + '，任务中止');
           b3StartAirFlight(unit, target, intercept);
           unit.mp = Math.max(0, unit.mp - airCost);
+          if (battleHeavyBomber(unit)) unit.cooldownRound = b.round + 1;
           b.selectedId = null;
           battleRefresh();
           battleCheckAutoEnd();
@@ -6331,6 +6334,9 @@
         hitLogs.join('；') +
         (participants.length > 1 ? ('（' + participants.length + ' 个单位集火）') : ''));
       group.forEach(function (a) { battleReconAfterSortie(a, target); });
+      group.forEach(function (a) {
+        if (battleHeavyBomber(a)) a.cooldownRound = b.round + 1;
+      });
       battleRefresh();
       battleCheckAutoEnd();
       return;
@@ -7442,11 +7448,19 @@
       refreshBattle3DBombHint();
     }
     const fighterNeedsLock = !battleAirCanLock(air) && !battleAirHasBomberLock(target, air.side);
+    const heavyCooling = !!(battleHeavyBomber(air) && air.cooldownRound &&
+      Number(state.battle.round) <= Number(air.cooldownRound));
+    if (heavyCooling) {
+      const cd = document.createElement('div');
+      cd.className = 'battle-choice-hint';
+      cd.textContent = '重轰出击冷却中：本回合不能再次出击。';
+      box.appendChild(cd);
+    }
     const escortOnly = !canBomb && bomberLock && !battleIsAir(target);
     if (!battleIsAir(target) && battleAirCanLock(air) &&
         (target.lockedBy || []).indexOf(air.id) === -1) {
       add('锁定 · 1 行动力', 'airLock', false,
-        mismatch || air.mp < 1 || !canNormalAir);
+        mismatch || heavyCooling || air.mp < 1 || !canNormalAir);
     }
     if (escortOnly) {
       const heavyLock = (target.lockedBy || []).map(battleUnitById).filter(function (u) {
@@ -7514,10 +7528,10 @@
       }
       const displayPreview = targetLocked ? focusPreview : airPreview;
       add((role === 'intercept' ? '攻击 · 空战' : '攻击 · 对地轰炸') + displayPreview + ' · ' + airCost + ' 行动力',
-        'airAttack', false, mismatch || air.mp < airCost || !canNormalAir || fighterNeedsLock);
+        'airAttack', false, mismatch || heavyCooling || air.mp < airCost || !canNormalAir || fighterNeedsLock);
       if (targetLocked) {
         add('集火 · ' + (role === 'intercept' ? '空战' : '对地轰炸') + focusPreview + ' · ' + airCost + ' 行动力',
-          'airAttack', true, mismatch || air.mp < airCost || fighterNeedsLock);
+          'airAttack', true, mismatch || heavyCooling || air.mp < airCost || fighterNeedsLock);
       }
     }
     if (!battleIsAir(target) && battleTrait(air, 'nuke') && Number(state.battle.nukeStock && state.battle.nukeStock[air.side]) > 0) {
