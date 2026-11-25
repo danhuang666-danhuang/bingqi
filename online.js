@@ -4392,6 +4392,8 @@
   function battleDistanceKey(a, b) {
     const d = battleHexDistance(a.c, a.r, b.c, b.r);
     if (d <= 1) {
+      // 隐蔽单位参与近战/相邻攻击时按巷战数值结算。
+      if (battleTrait(a, 'hidden') || battleTrait(b, 'hidden')) return 'urban';
       const ar = battleTerrainRule(a.c, a.r);
       const br = battleTerrainRule(b.c, b.r);
       return ((ar && ar.urban) || (br && br.urban)) ? 'urban' : 'r1';
@@ -5269,13 +5271,17 @@
     });
   }
 
-  function battleProtectAt(c, r) {
+  function battleProtectAt(c, r, attacker) {
     const rule = battleTerrainRule(c, r);
     let protect = rule && isFinite(rule.protect) ? Number(rule.protect) : 0;
     const b = battleBuildingAt(c, r);
     if (b) {
-      if (b.t === 'bunker') protect = Math.max(protect, 0.9);
-      else if (b.t === 'trench') protect = protect + 0.2;
+      if (b.t === 'bunker') {
+        // 爆破单位攻击碉堡时无视碉堡本格抗性。
+        protect = (attacker && battleTrait(attacker, 'demolition')) ? protect : Math.max(protect, 0.9);
+      } else if (b.t === 'trench') {
+        protect = (attacker && battleTrait(attacker, 'demolition')) ? protect : protect + 0.2;
+      }
     }
     return Math.max(0, Math.min(1, protect));
   }
@@ -5301,8 +5307,10 @@
       const targetBld = battleBuildingAt(target.c, target.r);
       // 火箭炮无视地形修正，但碉堡的“本格抗性”仍生效。
       const protect = arty.rocket
-        ? (targetBld && targetBld.t === 'bunker' ? 0.9 : 0)
-        : battleProtectAt(target.c, target.r);
+        ? (targetBld && targetBld.t === 'bunker'
+          ? (battleTrait(attacker, 'demolition') ? 0 : 0.9)
+          : 0)
+        : battleProtectAt(target.c, target.r, attacker);
       const airMod = battleGroundAirMod(attacker, target);
       return {
         raw: base * pen * (1 - protect) * airMod,
@@ -5317,7 +5325,7 @@
     const av = battleArmorValue(ti, zone);
     // 软攻不走穿透；只有打装甲目标、使用硬攻时才计算 AP/AV 穿透。
     const pen = useSoft ? 1 : (penOverride != null ? penOverride : battlePenMod(ap, av));
-    const protect = battleProtectAt(target.c, target.r);
+    const protect = battleProtectAt(target.c, target.r, attacker);
     const night = battleIsNight() ? 0.5 : 1;
     const airMod = battleGroundAirMod(attacker, target);
     return {
@@ -5349,7 +5357,7 @@
       raw += adjusted.raw;
       parts.push({ unit: u, base: adjusted.base, pen: adjusted.pen, raw: adjusted.raw });
     });
-    const protect = battleProtectAt(target.c, target.r);
+    const protect = battleProtectAt(target.c, target.r, attacker);
     const night = battleIsNight() ? 0.5 : 1;
     return {
       raw: raw,
@@ -5382,7 +5390,7 @@
     const ap = battleAttackAP(ai, key);
     const av = battleArmorValue(ti, zone);
     const pen = useSoft ? 1 : battlePenMod(ap, av);
-    const protect = battleProtectAt(target.c, target.r);
+    const protect = battleProtectAt(target.c, target.r, counterUnit);
     const night = battleIsNight() ? 0.75 : 1;
     const coef = ai && isFinite(ai.counter) ? Number(ai.counter) : 1;
     const airMod = battleGroundAirMod(counterUnit, target);
@@ -5403,7 +5411,7 @@
     const atkAP = battleAttackAP(ai, atkKey);
     const atkAV = battleArmorValue(ti);
     const atkPen = atkSoft ? 1 : battlePenMod(atkAP, atkAV);
-    const atkProtect = battleProtectAt(target.c, target.r);
+    const atkProtect = battleProtectAt(target.c, target.r, attacker);
     const atkNight = battleIsNight() ? 0.5 : 1;
     const defSoft = battleIsTransportTarget(attacker) || !battleHasArmor(ai);
     const defBase = battleAttackBase(ti, ai, 'urban', defSoft);
@@ -6278,6 +6286,11 @@
       })) return;
       if (!battleUnitCanSee(unit, target)) return;
       if (unit.mp < 3) return;
+      const targetBld = battleBuildingAt(target.c, target.r);
+      if (targetBld && targetBld.t === 'bunker') {
+        toast('碉堡内的单位无法被推进');
+        return;
+      }
       const dest = battlePushDestination(unit, target);
       if (!dest) return;
       const calc = battlePushRaw(unit, target);
