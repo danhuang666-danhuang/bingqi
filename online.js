@@ -3721,12 +3721,25 @@
       return battleIsAirUnit(p.name, side);
     }).length;
     const total = airNames.reduce(function (n, name) { return n + Number(pick.units[name] || 0); }, 0);
-    if (already >= total) return;
-    const slots = airPadCells(side, total);
-    let idx = already;
+    const placedBy = {};
+    (r.placed[side] || []).forEach(function (p) {
+      if (battleIsAirUnit(p.name, side)) placedBy[p.name] = (placedBy[p.name] || 0) + 1;
+    });
+    const remaining = airNames.reduce(function (n, name) {
+      return n + Math.max(0, Number(pick.units[name] || 0) - (placedBy[name] || 0));
+    }, 0);
+    if (remaining <= 0) return;
+    const occupied = {};
+    battleAliveUnits().forEach(function (u) {
+      if (u.side === side && u.airBase) occupied[u.c + ',' + u.r] = true;
+    });
+    const slots = airPadCells(side, total + Object.keys(occupied).length).filter(function (p) {
+      return !occupied[p.c + ',' + p.r];
+    });
+    let idx = 0;
     const faction = sideFaction(side);
     airNames.forEach(function (name) {
-      const want = Number(pick.units[name]) || 0;
+      const want = Math.max(0, Number(pick.units[name] || 0) - (placedBy[name] || 0));
       for (let i = 0; i < want; i++) {
         const slot = slots[idx++];
         if (!slot) break;
