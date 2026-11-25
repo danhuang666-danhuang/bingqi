@@ -5219,6 +5219,15 @@
     return L.cell(p.c, p.r);
   }
 
+  function battleWorldCell(x, z) {
+    const L = b3Layout();
+    if (!L || !state.map) return null;
+    const p = HG.pixelToCell(x - L.OX, L.OZ - z, L.HEXR);
+    const c = Math.round(p[0]), r = Math.round(p[1]);
+    if (c < 0 || r < 0 || c >= state.map.cols || r >= state.map.rows) return null;
+    return { c: c, r: r };
+  }
+
   function battleAirPathIntercept(unit, target) {
     const L = b3Layout();
     if (!L) return null;
@@ -5226,19 +5235,26 @@
     const to = L.cell(target.c, target.r);
     if (!from || !to) return null;
     const dx = to[0] - from[0], dz = to[1] - from[1];
-    const len2 = dx * dx + dz * dz || 1;
+    const len = Math.hypot(dx, dz) || 1;
+    const steps = Math.max(40, Math.ceil(len / (L.PITCH * 0.08)));
     let best = null;
     battleAliveUnits().forEach(function (aa) {
       if (aa.side === unit.side) return;
       const spec = battleAntiAirSpec(aa);
       if (!spec) return;
-      const p = L.cell(aa.c, aa.r);
-      let t = ((p[0] - from[0]) * dx + (p[1] - from[1]) * dz) / len2;
-      t = Math.max(0, Math.min(1, t));
-      const px = from[0] + dx * t, pz = from[1] + dz * t;
-      const dist = Math.hypot(px - p[0], pz - p[1]);
-      if (dist <= battleAAEffectiveRadius(spec, unit) * L.PITCH * 1.25 && (!best || t < best.t)) {
-        best = { aa: aa, spec: spec, t: t, point: [px, pz], target: to, from: from };
+      const radius = battleAAEffectiveRadius(spec, unit);
+      if (radius <= 0) return;
+      for (let i = 0; i <= steps; i++) {
+        const t = i / steps;
+        const px = from[0] + dx * t, pz = from[1] + dz * t;
+        const cell = battleWorldCell(px, pz);
+        if (!cell) continue;
+        if (battleHexDistance(cell.c, cell.r, aa.c, aa.r) <= radius) {
+          if (!best || t < best.t) {
+            best = { aa: aa, spec: spec, t: t, point: [px, pz], target: to, from: from };
+          }
+          break;
+        }
       }
     });
     return best;
@@ -6111,8 +6127,8 @@
         return;
       }
       unit.mp = Math.max(0, unit.mp - 1);
-      b3StartAirFlight(unit, { c: c, r: r }, null, 0, true);
       battleSetReconMission(unit, c, r);
+      b3StartAirFlight(unit, { c: c, r: r }, null, 0, true);
       battleCheckAutoEnd();
       return;
     }
@@ -6257,8 +6273,8 @@
             const info = battleInfoFor(tgt);
             const base = battleIsTransportTarget(tgt) ? stats.soft :
               (battleHasArmor(info) ? stats.hard : stats.soft);
-            const mod = battleAirSuperiorityFor(p, tgt) ? 1.5 : 1;
-            raw += base * mod * (1 - battleProtectAt(tgt.c, tgt.r));
+            // 空中压制只增强参与本次行动的地面单位，不给飞机本体加伤。
+            raw += base * (1 - battleProtectAt(tgt.c, tgt.r));
           } else {
             raw += battleAttackRawOne(p, tgt, battleDistanceKey(p, tgt), null, facing).raw;
           }
@@ -13727,6 +13743,11 @@
       if (state.tutorial.level && state.tutorial.level.id === 't02' &&
           (state.tutorial.step || 0) === 4) {
         tutorialSaveCheckpoint();
+      }
+      if (state.tutorial.level && state.tutorial.level.id === 't05' &&
+          (action.type === 'airAttack' || action.type === 'airRecon')) {
+        setTimeout(tutorialAdvance, 1900);
+        return;
       }
       tutorialAdvance();
     }
