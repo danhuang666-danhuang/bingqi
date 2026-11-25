@@ -6599,7 +6599,11 @@
             return p && !battleArtilleryIsIndirect(p, target);
           });
           const cannotCounter = !!target.confused;
-          const counterTargets = cannotCounter ? [] : battleCounterTargets(target, directParts.map(function (p) { return p.id; }));
+          let counterTargets = cannotCounter ? [] : battleCounterTargets(target, directParts.map(function (p) { return p.id; }));
+          // 集火中直接参与锁定/攻击的单位必须能触发反击；视野异常时保留直接参与者兜底。
+          if (!cannotCounter && !counterTargets.length && action.type === 'focus' && directParts.length) {
+            counterTargets = directParts.filter(function (p) { return p && p.alive && !battleTrait(p, 'hidden'); });
+          }
           if (cannotCounter) {
             b.counter = null;
             b.log.push(target.name + ' 处于混乱，无法反击');
