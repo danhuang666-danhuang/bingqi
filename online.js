@@ -13734,6 +13734,14 @@
     if (stage === 'fighter') {
       b.units.push(tutorial5Unit('t5-bf', 'defender', 'Bf109战斗机', 7, 6, 'de', true));
     }
+    ['attacker', 'defender'].forEach(function (side) {
+      const airUnits = b.units.filter(function (u) { return u.side === side && u.airBase; });
+      if (!airUnits.length) return;
+      const slots = airPadCells(side, airUnits.length);
+      airUnits.forEach(function (u, i) {
+        if (slots[i]) { u.c = slots[i].c; u.r = slots[i].r; }
+      });
+    });
     b.buildings = [];
     b.counter = null;
     b.choice = null;
@@ -13923,6 +13931,14 @@
             side: u.side, name: u.name, c: Number(u.c), r: Number(u.r),
             airBase: !!u.airBase,
           };
+        });
+        ['attacker', 'defender'].forEach(function (side) {
+          const airUnits = units.filter(function (u) { return u.side === side && u.airBase; });
+          if (!airUnits.length) return;
+          const slots = airPadCells(side, airUnits.length);
+          airUnits.forEach(function (u, i) {
+            if (slots[i]) { u.c = slots[i].c; u.r = slots[i].r; }
+          });
         });
         state.decks = { attacker: [], defender: [] };
         units.forEach(function (u) { state.decks[u.side].push(u.name); });
