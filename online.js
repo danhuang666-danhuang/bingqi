@@ -13356,9 +13356,11 @@
       !(state.tutorial && state.tutorial.enemyDone));
     const quizLocked = !!(stepDef && stepDef.quiz && !(state.tutorial && state.tutorial.quizCorrect));
     const lastStep = step + 1 >= ((level && level.steps && level.steps.length) || 1);
-    const finalLocked = !!(lastStep && stepDef && stepDef.allow && !(state.tutorial && state.tutorial.finalReady));
-    const locked = autoPending || quizLocked || finalLocked ||
-      !!(stepDef && (stepDef.allow || stepDef.blocked || stepDef.expectCounter));
+    const finalDone = !!(lastStep && state.tutorial && state.tutorial.finalReady);
+    const finalLocked = !!(lastStep && stepDef && stepDef.allow && !finalDone);
+    const actionLocked = !!(!lastStep && stepDef &&
+      (stepDef.allow || stepDef.blocked || stepDef.expectCounter));
+    const locked = autoPending || quizLocked || finalLocked || actionLocked;
     let media = '';
     if (stepDef && Array.isArray(stepDef.images) && stepDef.images.length) {
       media = '<div class="tutorial-slide-images">' + stepDef.images.map(function (src) {
@@ -13429,6 +13431,18 @@
     syncTutorialGuideToggle();
   }
 
+  function finishTutorialFlow() {
+    hideEl('tutorial-guide', true);
+    hideEl('tutorial-guide-open', true);
+    state.tutorial = null;
+    state.tutorialGuideCollapsed = false;
+    refreshTutorialFocus();
+    close();
+    setTimeout(function () {
+      openTutorialScreen();
+    }, 80);
+  }
+
   function tutorialGuideClick(e) {
     if (!state.tutorial) return;
     const level = state.tutorial.level;
@@ -13461,10 +13475,7 @@
         }
       }
       if ((state.tutorial.step || 0) + 1 >= steps.length) {
-        hideEl('tutorial-guide', true);
-        state.tutorial = null;
-        refreshTutorialFocus();
-        toast('教程完成');
+        finishTutorialFlow();
         return;
       }
       state.tutorial.step = (state.tutorial.step || 0) + 1;
