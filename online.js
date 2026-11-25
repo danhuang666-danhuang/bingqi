@@ -6038,7 +6038,6 @@
       if (battleHexDistance(unit.c, unit.r, c, r) > spec.range || unit.mp < 1) return;
       unit.mp -= 1;
       unit.artyShots = Number(unit.artyShots || 0) + 1;
-      battleClearCounterBatteryMark(unit.side, c, r);
       b.selectedId = unit.id;
       b.log.push(unit.name + ' 炮击反炮兵标记格 ' + c + ',' + r + '（1 行动力）');
       battleRefresh();
@@ -6522,7 +6521,6 @@
         unit.artyShots = Number(unit.artyShots || 0) + 1;
         if (spec.rocket) unit.rocketReloadRound = b.round + 1;
         battleCounterBatteryRecord(unit);
-        battleClearCounterBatteryMark(unit.side, target.c, target.r);
         if (action.type === 'focus') {
           target.lockedBy = [];
           target.lockCosts = {};
@@ -6599,7 +6597,6 @@
         target: target.name, targetId: target.id, damage: Number(dmg) || 0,
         cell: { c: target.c, r: target.r }, side: unit.side,
       });
-      battleClearCounterBatteryMark(unit.side, target.c, target.r);
       if (action.type === 'focus') {
         target.lockedBy = [];
         target.lockCosts = {};
@@ -10782,6 +10779,13 @@
     closeMapDialog(true);
     hideAlert();
     state.test = true;
+    state.tutorial = null;
+    state.tutorialGuideCollapsed = false;
+    state.tutorialCheckpoint = null;
+    state.tutorialScripting = false;
+    hideEl('tutorial-guide', true);
+    hideEl('tutorial-guide-open', true);
+    hideEl('sandbox-dock', true);
     state.sandbox = { factions: { attacker: 'us', defender: 'de' }, unit: '', place: false, del: false };
     state.role = 'host';
     state.name = name;
@@ -13500,6 +13504,10 @@
       toast('这一步只需要右键查看预计伤害，看完点「下一步」即可');
       return false;
     }
+    if (step.lockActions) {
+      toast('先看清反炮兵标记，再点「下一步」继续');
+      return false;
+    }
     if (step.blocked) {
       if (!step.allow || action.type !== step.allow.type) {
         toast('教程步骤：请先尝试攻击被房区遮挡的德军');
@@ -13560,13 +13568,6 @@
       if (usSeat) { state.activeSeat = usSeat.id; syncActiveSeat(); }
       battleResetMp(state.battle, 'attacker');
       renderRoom();
-    }
-    if (state.tutorial.level && state.tutorial.level.id === 't04' && action.type === 'counterBatteryStrike') {
-      state.battle.counterBatteryMarks = [];
-    }
-    if (state.tutorial.level && state.tutorial.level.id === 't04' &&
-        action.type === 'attack' && action.targetId === 't4-de-arty') {
-      state.battle.counterBatteryMarks = [];
     }
     if (!step.allow) return;
     if (action.type === step.allow.type &&
