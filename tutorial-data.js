@@ -2427,7 +2427,7 @@ window.TUTORIAL_LEVELS = [
     ],
     "steps": [
       {
-        "text": "让 F5 侦察机从机场起飞，前往 G4 侦察。飞机路线固定，只能从进场点直线飞向目标点。",
+        "text": "让 F5 侦察机从进场点起飞，前往 G4 侦察。飞机路线固定，只能从进场点直线飞向目标点。",
         "allow": {
           "type": "airRecon",
           "unitId": "t5-f5",
@@ -2451,6 +2451,41 @@ window.TUTORIAL_LEVELS = [
           "c": 5,
           "r": 5,
           "label": "F6 · 对地攻击"
+        }
+      },
+      {
+        "text": "先移除侦察机，增加一名美军步兵到 E6。右键 F6 德军步兵，观察步兵单独攻击的预计伤害。",
+        "previewOnly": true,
+        "focus": {
+          "c": 5,
+          "r": 5,
+          "label": "F6 · 步兵直接攻击"
+        }
+      },
+      {
+        "text": "让 E6 美军步兵锁定 F6 德军步兵，为之后的空中集火提供目标和视野。",
+        "allow": {
+          "type": "lock",
+          "unitId": "t5-us-inf",
+          "targetId": "t5-de-inf"
+        },
+        "focus": {
+          "c": 5,
+          "r": 5,
+          "label": "锁定 F6"
+        }
+      },
+      {
+        "text": "现在让 P47 对已锁定的 F6 执行对地轰炸。地面单位先锁定目标、飞机再进行空中压制，两者的协同伤害会明显更高。",
+        "allow": {
+          "type": "airAttack",
+          "unitId": "t5-p47",
+          "targetId": "t5-de-inf"
+        },
+        "focus": {
+          "c": 5,
+          "r": 5,
+          "label": "P47 + 地面锁定"
         }
       },
       {
@@ -2510,9 +2545,7 @@ window.TUTORIAL_LEVELS = [
       {
         "text": "操作德军 Bf109 拦截 F5。战斗机拦截可以打出伤害，但无法把目标逼退返航；只有防空火力能强制返航。",
         "allow": {
-          "type": "airAttack",
-          "unitId": "t5-bf",
-          "targetId": "t5-f5"
+          "unitId": "t5-bf"
         },
         "focus": {
           "c": 6,

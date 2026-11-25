@@ -7450,10 +7450,18 @@
         add('侦察此格 · 1 行动力', 'airRecon', false, air.mp < 1);
       }
     } else {
-      add((role === 'intercept' ? '攻击 · 空战' : '攻击 · 对地轰炸') + ' · ' + airCost + ' 行动力',
+      let airPreview = '';
+      if (!battleIsAir(target) && canBomb) {
+        const ti = battleInfoFor(target);
+        const stats = battleAirGroundStats(air);
+        const base = battleIsTransportTarget(target) ? stats.soft :
+          (battleHasArmor(ti) ? stats.hard : stats.soft);
+        airPreview = ' · 预计 -' + battleFmt(base * (1 - battleProtectAt(target.c, target.r)));
+      }
+      add((role === 'intercept' ? '攻击 · 空战' : '攻击 · 对地轰炸') + airPreview + ' · ' + airCost + ' 行动力',
         'airAttack', false, mismatch || air.mp < airCost || !canNormalAir || fighterNeedsLock);
       if (targetLocked) {
-        add('集火 · ' + (role === 'intercept' ? '空战' : '对地轰炸') + ' · ' + airCost + ' 行动力',
+        add('集火 · ' + (role === 'intercept' ? '空战' : '对地轰炸') + airPreview + ' · ' + airCost + ' 行动力',
           'airAttack', true, mismatch || air.mp < airCost || fighterNeedsLock);
       }
     }
@@ -13548,6 +13556,8 @@
         setTimeout(function () { tutorial4Stage('push'); }, 300);
       } else if (nextStep && nextStep.auto === 'stage4Counter') {
         setTimeout(function () { tutorial4Stage('counter'); }, 300);
+      } else if (nextStep && nextStep.auto === 'stage5Support') {
+        setTimeout(function () { tutorial5Stage('support'); }, 300);
       } else if (nextStep && nextStep.auto === 'stage5AA') {
         setTimeout(function () { tutorial5Stage('aa'); }, 300);
       } else if (nextStep && nextStep.auto === 'stage5Fighter') {
@@ -13623,6 +13633,8 @@
       setTimeout(function () { tutorial4Stage('push'); }, 300);
     } else if (step && step.auto === 'stage4Counter') {
       setTimeout(function () { tutorial4Stage('counter'); }, 300);
+    } else if (step && step.auto === 'stage5Support') {
+      setTimeout(function () { tutorial5Stage('support'); }, 300);
     } else if (step && step.auto === 'stage5AA') {
       setTimeout(function () { tutorial5Stage('aa'); }, 300);
     } else if (step && step.auto === 'stage5Fighter') {
@@ -13727,7 +13739,7 @@
       battleResetMp(state.battle, 'defender');
       renderRoom();
     }
-    if (state.tutorial.level && state.tutorial.level.id === 't05' && action.type === 'airAttack' &&
+    if (state.tutorial.level && state.tutorial.level.id === 't05' &&
         action.unitId === 't5-bf') {
       state.battle.activeSide = 'attacker';
       const usSeat = state.testSeats.filter(function (s) { return s.side === 'attacker'; })[0];
@@ -13779,10 +13791,14 @@
     b3ClearAirFlights();
     const b = state.battle;
     b.units = [
-      tutorial5Unit('t5-f5', 'attacker', 'F5侦察机', 0, 0, 'us', true),
       tutorial5Unit('t5-p47', 'attacker', 'P47战斗轰炸机', 0, 0, 'us', true),
       tutorial5Unit('t5-de-inf', 'defender', '步兵营', 5, 5, 'de', false),
     ];
+    if (stage === 'support') {
+      b.units.push(tutorial5Unit('t5-us-inf', 'attacker', '步兵营', 4, 5, 'us', false));
+    } else {
+      b.units.unshift(tutorial5Unit('t5-f5', 'attacker', 'F5侦察机', 0, 0, 'us', true));
+    }
     if (stage === 'aa') {
       b.units.push(tutorial5Unit('t5-aa', 'defender', '20防空炮营', 3, 3, 'de', false));
     }
