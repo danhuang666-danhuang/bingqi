@@ -4779,13 +4779,19 @@
     return !enemyAir;
   }
 
+  function battleReconPoint(unit) {
+    if (unit && unit.reconActiveRound && unit.reconCell) return unit.reconCell;
+    return unit;
+  }
+
   function battleAirHasOwnVision(air, target) {
     if (!battleIsAir(air) || !target) return false;
-    const own = battleAliveUnits().filter(function (u) { return u.side === air.side && !battleIsAir(u); });
+    const own = battleAliveUnits().filter(function (u) { return u.side === air.side; });
     for (let i = 0; i < own.length; i++) {
       const u = own[i];
-      if (battleIsRecon(u) &&
-          battleHexDistance(u.c, u.r, target.c, target.r) <= battleReconRadius(u)) return true;
+      if (!battleIsRecon(u)) continue;
+      const rp = battleReconPoint(u);
+      if (battleHexDistance(rp.c, rp.r, target.c, target.r) <= battleReconRadius(u)) return true;
     }
     return false;
   }
@@ -5244,8 +5250,9 @@
     for (let i = 0; i < own.length; i++) {
       const u = own[i];
       if (u.id === attacker.id) continue;
-      if (battleIsRecon(u) &&
-          battleHexDistance(u.c, u.r, target.c, target.r) <= battleReconRadius(u)) return true;
+      if (!battleIsRecon(u)) continue;
+      const rp = battleReconPoint(u);
+      if (battleHexDistance(rp.c, rp.r, target.c, target.r) <= battleReconRadius(u)) return true;
     }
     return false;
   }
@@ -5596,7 +5603,8 @@
     for (let i = 0; i < own.length; i++) {
       const u = own[i];
       if (!battleIsRecon(u)) continue;
-      if (battleHexDistance(u.c, u.r, target.c, target.r) <= battleReconRadius(u)) return true;
+      const rp = battleReconPoint(u);
+      if (battleHexDistance(rp.c, rp.r, target.c, target.r) <= battleReconRadius(u)) return true;
     }
     return false;
   }
