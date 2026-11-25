@@ -1864,7 +1864,7 @@
       const upper = b3BuildingMesh('hq');
       if (lower) {
         lower.position.y = lower.userData.b3GroundY || 0;
-        lower.rotation.y = -Math.max(0, 6 - Math.min(6, unit.hp)) * Math.PI / 3;
+        lower.rotation.z = -Math.max(0, 6 - Math.min(6, unit.hp)) * Math.PI / 3;
         lower.visible = unit.hp > 0;
         lower.userData.b3Model = true;
         model.add(lower);
@@ -1877,7 +1877,7 @@
           lowerH = Math.max(0.1, lb.max.y - lb.min.y);
         } catch (e) { /* ignore */ }
         upper.position.y = lower.position.y + lowerH;
-        upper.rotation.y = -Math.max(0, 3 - Math.max(0, Math.min(3, unit.hp - 6))) * Math.PI / 3;
+        upper.rotation.z = -Math.max(0, 3 - Math.max(0, Math.min(3, unit.hp - 6))) * Math.PI / 3;
         upper.visible = unit.hp > 6;
         upper.userData.b3Model = true;
         model.add(upper);
@@ -7590,6 +7590,14 @@
     box.setAttribute('data-recon-c', String(c));
     box.setAttribute('data-recon-r', String(r));
     state.battle.choice = { attackerId: air.id, defenderId: '' };
+    const view = el('online-battle-view');
+    if (view) {
+      const vp = view.getBoundingClientRect();
+      const p = B3 && B3.lastPointer ? B3.lastPointer : { x: vp.left + vp.width / 2, y: vp.top + vp.height / 2 };
+      const minLeft = el('sandbox-dock') && !el('sandbox-dock').classList.contains('hidden') ? 284 : 10;
+      box.style.left = Math.max(minLeft, Math.min(vp.width - 226, p.x - vp.left + 10)) + 'px';
+      box.style.top = Math.max(10, Math.min(vp.height - 160, p.y - vp.top + 10)) + 'px';
+    }
   }
 
   function battleOpenAirChoice(air, target, roleOverride) {
