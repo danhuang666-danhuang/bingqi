@@ -2015,9 +2015,12 @@ window.TUTORIAL_LEVELS = [
       {
         "text": "选中 B3 的美军炮兵，对 G3 的德军炮兵曲射。反炮兵小组负责发现炮位，炮兵负责执行打击。",
         "allow": {
-          "type": "attack",
-          "unitId": "t4-us-arty",
-          "targetId": "t4-de-arty"
+          "types": [
+            "attack",
+            "focus",
+            "counterBatteryStrike"
+          ],
+          "unitId": "t4-us-arty"
         }
       }
     ]

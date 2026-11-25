@@ -13590,7 +13590,8 @@
     }
     const allow = step.allow;
     if (!allow) return true;
-    if (action.type !== allow.type) {
+    const allowTypes = allow.types || (allow.type ? [allow.type] : []);
+    if (allowTypes.length && allowTypes.indexOf(action.type) === -1) {
       toast('教程步骤：请按提示操作');
       return false;
     }
@@ -13641,7 +13642,8 @@
       renderRoom();
     }
     if (!step.allow) return;
-    if (action.type === step.allow.type &&
+    const allowedTypes = step.allow.types || (step.allow.type ? [step.allow.type] : []);
+    if ((!allowedTypes.length || allowedTypes.indexOf(action.type) !== -1) &&
         (!step.allow.unitId || action.unitId === step.allow.unitId) &&
         (!step.allow.targetId || action.targetId === step.allow.targetId)) {
       if (state.tutorial.level && state.tutorial.level.id === 't02' &&
