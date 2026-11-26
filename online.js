@@ -2805,14 +2805,36 @@
     const triCount = index ? Math.floor(index.count / 3) : Math.floor(pos.count / 3);
     if (!triCount) return null;
 
-    const bb = new THREE.Box3().setFromBufferAttribute(pos);
-    const axis = 2;                 // 水平切开：沿本地 z（高度）分层
-    const uIdx = 0;                 // 截面上的两根轴：x / y，x × y = +z
-    const vIdx = 1;
-    const aMin = bb.min.z;
-    const aMax = bb.max.z;
-    if (!(aMax - aMin > 1e-6)) return null;
-    const step = (aMax - aMin) / count;
+    // 大致水平、带随机倾角的切割法线；同一次切的所有切面共用这个法线（斜着切片）。
+    const ang = Math.random() * Math.PI * 2;
+    const tilt = 0.10 + Math.random() * 0.22;   // 约 6°–18°
+    const n = new THREE.Vector3(
+      Math.sin(tilt) * Math.cos(ang),
+      Math.sin(tilt) * Math.sin(ang),
+      Math.cos(tilt)
+    ).normalize();
+    const helper = Math.abs(n.z) < 0.9 ? new THREE.Vector3(0, 0, 1) : new THREE.Vector3(1, 0, 0);
+    const u = new THREE.Vector3().crossVectors(helper, n).normalize();
+    const v = new THREE.Vector3().crossVectors(n, u).normalize();
+    function proj(p) { return p[0] * n.x + p[1] * n.y + p[2] * n.z; }
+    function plane2D(p) {
+      return [p[0] * u.x + p[1] * u.y + p[2] * u.z, p[0] * v.x + p[1] * v.y + p[2] * v.z];
+    }
+    function from2D(a, b, d) {
+      return [
+        u.x * a + v.x * b + n.x * d,
+        u.y * a + v.y * b + n.y * d,
+        u.z * a + v.z * b + n.z * d,
+      ];
+    }
+    let dMin = Infinity, dMax = -Infinity;
+    for (let i = 0; i < pos.count; i++) {
+      const d = pos.getX(i) * n.x + pos.getY(i) * n.y + pos.getZ(i) * n.z;
+      if (d < dMin) dMin = d;
+      if (d > dMax) dMax = d;
+    }
+    if (!(dMax - dMin > 1e-6)) return null;
+    const step = (dMax - dMin) / count;
 
     function vert(t, k) {
       const i = index ? index.getX(t * 3 + k) : t * 3 + k;
@@ -2829,11 +2851,12 @@
       for (let i = 0; i < n; i++) {
         const cur = poly[i];
         const prev = poly[(i + n - 1) % n];
-        const curIn = keepGreater ? cur[axis] >= value : cur[axis] <= value;
-        const prevIn = keepGreater ? prev[axis] >= value : prev[axis] <= value;
+        const curD = proj(cur), prevD = proj(prev);
+        const curIn = keepGreater ? curD >= value : curD <= value;
+        const prevIn = keepGreater ? prevD >= value : prevD <= value;
         if (curIn !== prevIn) {
-          const den = cur[axis] - prev[axis];
-          const tt = den !== 0 ? (value - prev[axis]) / den : 0;
+          const den = curD - prevD;
+          const tt = den !== 0 ? (value - prevD) / den : 0;
           out.push([
             prev[0] + (cur[0] - prev[0]) * tt,
             prev[1] + (cur[1] - prev[1]) * tt,
@@ -2866,16 +2889,16 @@
     // 1) 切表面：把每个三角形按轴切成落在各段内的多边形
     for (let t = 0; t < triCount; t++) {
       const tri = [vert(t, 0), vert(t, 1), vert(t, 2)];
-      const a0v = tri[0][axis], a1v = tri[1][axis], a2v = tri[2][axis];
+      const a0v = proj(tri[0]), a1v = proj(tri[1]), a2v = proj(tri[2]);
       const tmin = Math.min(a0v, a1v, a2v);
       const tmax = Math.max(a0v, a1v, a2v);
-      if (tmax < aMin || tmin > aMax) continue;
-      let s0 = Math.floor((tmin - aMin) / step);
-      let s1 = Math.floor((tmax - aMin) / step);
+      if (tmax < dMin || tmin > dMax) continue;
+      let s0 = Math.floor((tmin - dMin) / step);
+      let s1 = Math.floor((tmax - dMin) / step);
       s0 = Math.max(0, Math.min(count - 1, s0));
       s1 = Math.max(0, Math.min(count - 1, s1));
       for (let s = s0; s <= s1; s++) {
-        const lo = aMin + s * step, hi = lo + step;
+        const lo = dMin + s * step, hi = lo + step;
         const poly = clipHalf(clipHalf(tri, lo, true), hi, false);
         if (poly.length < 3) continue;
         const slab = slabs[s];
@@ -2897,11 +2920,15 @@
         const pts = [];
         for (let e = 0; e < 3; e++) {
           const p = tri[e], q = tri[(e + 1) % 3];
-          const dp = p[axis] - plane, dq = q[axis] - plane;
-          if (Math.abs(dp) <= eps) pts.push([p[uIdx], p[vIdx]]);
+          const dp = proj(p) - plane, dq = proj(q) - plane;
+          if (Math.abs(dp) <= eps) pts.push(plane2D(p));
           if ((dp < -eps && dq > eps) || (dp > eps && dq < -eps)) {
-            const tt = (plane - p[axis]) / (q[axis] - p[axis]);
-            pts.push([p[uIdx] + (q[uIdx] - p[uIdx]) * tt, p[vIdx] + (q[vIdx] - p[vIdx]) * tt]);
+            const tt = (plane - proj(p)) / (proj(q) - proj(p));
+            pts.push(plane2D([
+              p[0] + (q[0] - p[0]) * tt,
+              p[1] + (q[1] - p[1]) * tt,
+              p[2] + (q[2] - p[2]) * tt,
+            ]));
           }
         }
         const uniq = [];
@@ -3010,17 +3037,13 @@
       const p = plane + (sign > 0 ? -eps : eps);
       tris.forEach(function (tri) {
         tri.forEach(function (pt) {
-          const q = [0, 0, 0];
-          q[axis] = p;
-          q[uIdx] = pt[0];
-          q[vIdx] = pt[1];
-          pushPos(slab, q, 0.62);   // 切口压暗一点，像金属断面
+          pushPos(slab, from2D(pt[0], pt[1], p), 0.62);   // 切口压暗一点，像金属断面
         });
       });
     }
 
     for (let s = 1; s < count; s++) {
-      const plane = aMin + s * step;
+      const plane = dMin + s * step;
       const segs = planeSegments(plane);
       if (!segs.length) continue;
       // 段数太多时不再接环（可能退化成很长的链），直接用一个包围盒封盖。
@@ -3129,13 +3152,11 @@
     if (!THREE || !L) return;
     if (b3PrefersReducedMotion()) return;   // 系统开了“减少动态效果”就不放这段
 
-    // 同时死太多时降级：碎块少一点，避免一炮多杀时掉帧。
+    // 同时死太多时少切一块；平时 3–4 块随机。
     const crowded = B3.deaths.length >= 3;
-    const count = 3;   // 水平切 3 层，层厚够看，不会变成一摞纸片
-    const LAYER_LIFT = 1.2;   // 水平切层：每高一层先往上抬多少 mm
+    const count = crowded ? 3 : (Math.random() < 0.5 ? 3 : 4);
     const pieces = [];
     const materials = [];
-    let maxY = -Infinity;
     const cornerW = new THREE.Vector3();
 
     snap.items.forEach(function (it) {
@@ -3161,9 +3182,10 @@
         mesh.receiveShadow = false;
         mesh.renderOrder = 12;
         B3.deathGroup.add(mesh);
+        let topY = -Infinity;
         chunk.corners.forEach(function (corner) {
           cornerW.set(corner[0], corner[1], corner[2]).applyMatrix4(it.matrix);
-          if (cornerW.y + chunk.layer * LAYER_LIFT > maxY) maxY = cornerW.y + chunk.layer * LAYER_LIFT;
+          if (cornerW.y > topY) topY = cornerW.y;
         });
         const centerW = new THREE.Vector3(chunk.center[0], chunk.center[1], chunk.center[2])
           .applyMatrix4(it.matrix);
@@ -3176,15 +3198,11 @@
             Math.random() * 1.1 - 0.55,
             Math.random() * 2 - 1
           ).normalize(),
-          angle: 0.03 + Math.random() * 0.08,
-          drift: 0.2 + Math.random() * 0.4,
-          rise: 0.05 + Math.random() * 0.1,
-          layerLift: chunk.layer * LAYER_LIFT,
-          // 水平切层：每层朝不同方向错开一点，像一摞切片散开
-          slideX: Math.cos(chunk.layer * 2.39996),
-          slideZ: Math.sin(chunk.layer * 2.39996),
-          slide: 2.0 + chunk.layer * 1.0,
-          delay: Math.random() * 0.05,
+          angle: 0.02 + Math.random() * 0.05,
+          delay: Math.random() * 0.2,
+          sinkTime: 1.4 + Math.random() * 1.5,
+          sinkDepth: Math.max(6, topY - L.TOP + 3.0) * (1 + Math.random() * 0.25),
+          accel: 1.1 + Math.random() * 0.9,
           m1: new THREE.Matrix4(),
           m2: new THREE.Matrix4(),
           m3: new THREE.Matrix4(),
@@ -3194,25 +3212,11 @@
     });
     if (!pieces.length) return;
 
-    // 每块往“远离单位中心”的水平方向散一点，像从内部炸开。
-    pieces.forEach(function (p) {
-      let dx = p.center.x - snap.center.x;
-      let dz = p.center.z - snap.center.z;
-      const len = Math.hypot(dx, dz);
-      if (len < 0.001) {
-        dx = Math.random() * 2 - 1;
-        dz = Math.random() * 2 - 1;
-      }
-      const l2 = Math.hypot(dx, dz) || 1;
-      p.dirX = dx / l2;
-      p.dirZ = dz / l2;
-    });
-
     const top = L.TOP;
-    // 最高的那块完全沉到棋盘面以下才算结束；高模型（指挥部/运输车叠载）会沉得久一点。
-    const depth = Math.max(12, maxY - top + 3.0);
-    const sinkDelay = 0.55;
-    const sinkTime = Math.max(2.1, Math.min(3.2, 2.0 + depth * 0.03));
+    let maxEnd = 0;
+    pieces.forEach(function (p) {
+      maxEnd = Math.max(maxEnd, p.delay + p.sinkTime);
+    });
 
     // 尘土：贴地的一片雾 + 一圈向外扩散的环，用来遮住“模型被棋盘面切断”的那条硬边。
     let dust = null;
@@ -3282,10 +3286,7 @@
       materials: materials,
       dust: dust,
       puffs: puffs,
-      depth: depth,
-      sinkDelay: sinkDelay,
-      sinkTime: sinkTime,
-      duration: sinkDelay + sinkTime + 0.25,
+      duration: maxEnd + 0.35,
       air: !!snap.air,
     });
     while (B3.deaths.length > 7) b3DisposeDeath(B3.deaths.shift());
@@ -3300,20 +3301,10 @@
       if (t > d.duration) { b3DisposeDeath(d); return; }
       d.pieces.forEach(function (p) {
         const tt = Math.max(0, t - p.delay);
-        const jolt = Math.min(1, tt / 0.26);
-        const joltEase = 1 - Math.pow(1 - jolt, 2);
-        const k = Math.max(0, Math.min(1, (tt - d.sinkDelay) / d.sinkTime));
-        const sink = -d.depth * Math.pow(k, 1.4);   // 慢速下沉，最后一点加速没入棋盘
-        const rise = p.rise * Math.sin(jolt * Math.PI);
-        const lift = (p.layerLift || 0) * joltEase;  // 水平切层：上下层先轻轻错开
-        const drift = p.drift * joltEase;
-        const slide = p.slide * joltEase;
-        const rot = p.angle * (0.35 + 0.65 * Math.min(1, tt / d.sinkTime));
-        p.m1.makeTranslation(
-          p.dirX * drift + p.slideX * slide,
-          sink + rise + lift,
-          p.dirZ * drift + p.slideZ * slide
-        );
+        const k = Math.max(0, Math.min(1, tt / p.sinkTime));
+        const sink = -p.sinkDepth * Math.pow(k, p.accel);   // 原位下沉：每块速度、加速度不同
+        const rot = p.angle * Math.min(1, tt / p.sinkTime);
+        p.m1.makeTranslation(0, sink, 0);
         p.m2.makeTranslation(p.center.x, p.center.y, p.center.z);
         p.m3.makeRotationAxis(p.axis, rot);
         p.m4.makeTranslation(-p.center.x, -p.center.y, -p.center.z);
