@@ -3416,6 +3416,7 @@
       mat.depthWrite = true;
       mat.side = THREE.DoubleSide;   // 切口封盖在个别模型上朝向可能相反，双面渲染保证看得见
       mat.vertexColors = true;       // 几何体带 color：外表面 1.0、切口 0.62
+      if (mat.color) mat.userData.b3BaseColor = mat.color.clone();
       mat._b3Dispose = false;
       items.push({ geo: obj.geometry, matrix: obj.matrixWorld.clone(), material: mat });
     });
@@ -3509,6 +3510,7 @@
           m2: new THREE.Matrix4(),
           m3: new THREE.Matrix4(),
           m4: new THREE.Matrix4(),
+          m5: new THREE.Matrix4(),
         });
       });
     });
@@ -3605,6 +3607,7 @@
       materials: materials,
       dust: dust,
       puffs: puffs,
+      gray: new THREE.Color(0x8f959b),
       duration: maxEnd + 0.35,
       air: !!snap.air,
     });
@@ -3624,13 +3627,23 @@
         const sink = -p.sinkDepth * Math.pow(k, p.accel);   // 每块速度、加速度不同
         const drift = p.drift * k;                          // 各自朝不同方向散开一点
         const rot = p.angle * Math.min(1, tt / p.sinkTime);
+        const shrink = Math.max(0.02, 1 - k);               // 一边下沉一边缩小
         p.m1.makeTranslation(p.dirX * drift, sink, p.dirZ * drift);
         p.m2.makeTranslation(p.center.x, p.center.y, p.center.z);
         p.m3.makeRotationAxis(p.axis, rot);
+        p.m5.makeScale(shrink, shrink, shrink);
         p.m4.makeTranslation(-p.center.x, -p.center.y, -p.center.z);
-        p.mesh.matrix.copy(p.m1).multiply(p.m2).multiply(p.m3).multiply(p.m4).multiply(p.base);
+        p.mesh.matrix.copy(p.m1).multiply(p.m2).multiply(p.m3).multiply(p.m5).multiply(p.m4).multiply(p.base);
         p.mesh.matrixWorldNeedsUpdate = true;
       });
+      // 碎块迅速变灰
+      if (d.gray) {
+        const gr = Math.min(1, t / 0.18);
+        (d.materials || []).forEach(function (m) {
+          const base = m.userData && m.userData.b3BaseColor;
+          if (base && m.color) m.color.copy(base).lerp(d.gray, gr * 0.92);
+        });
+      }
       if (d.air) {
         // 机场在地图外，没有“棋盘下面”可以沉，改成边沉边淡出。
         const fade = Math.max(0, Math.min(1, (t - 0.5) / 1.0));
