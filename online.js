@@ -3505,6 +3505,7 @@
           delay: Math.random() * 0.2,
           sinkTime: 1.4 + Math.random() * 1.5,
           sinkDepth: Math.max(6, topY - L.TOP + 3.0) * (1 + Math.random() * 0.25),
+          topY: topY,
           accel: 1.1 + Math.random() * 0.9,
           m1: new THREE.Matrix4(),
           m2: new THREE.Matrix4(),
@@ -3607,7 +3608,8 @@
       materials: materials,
       dust: dust,
       puffs: puffs,
-      gray: new THREE.Color(0x8f959b),
+      gray: new THREE.Color(0x44494f),   // 比德军 #50565e 更深的灰
+      top: top,
       duration: maxEnd + 0.35,
       air: !!snap.air,
     });
@@ -3627,7 +3629,10 @@
         const sink = -p.sinkDepth * Math.pow(k, p.accel);   // 每块速度、加速度不同
         const drift = p.drift * k;                          // 各自朝不同方向散开一点
         const rot = p.angle * Math.min(1, tt / p.sinkTime);
-        const shrink = Math.max(0.02, 1 - k);               // 一边下沉一边缩小
+        // 平时保持原大；顶面快贴到棋盘面时再迅速缩小，避免在空中就变小。
+        const above = p.topY + sink - (d.top || 0);
+        const shrinkK = Math.max(0, Math.min(1, (1.4 - above) / 1.2));
+        const shrink = 1 - 0.98 * Math.pow(shrinkK, 0.75);
         p.m1.makeTranslation(p.dirX * drift, sink, p.dirZ * drift);
         p.m2.makeTranslation(p.center.x, p.center.y, p.center.z);
         p.m3.makeRotationAxis(p.axis, rot);
