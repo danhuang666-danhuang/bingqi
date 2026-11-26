@@ -2787,7 +2787,7 @@
   }
 
   function b3FractureTemplate(geo, count) {
-    return b3SliceTemplate(geo, count);
+    return b3RandomCutTemplate(geo, count);
   }
 
   /* 厚片版：沿水平面（模型本地 z / 高度）切成几层，保留原来的外表面，
@@ -3094,6 +3094,308 @@
     return tpl;
   }
 
+  /* 通用三角汤切割：用平面 n·p = planeD 把一堆三角形切成两半，并给两个切面封盖。
+   * 输入/输出都是 [{ p:[v0,v1,v2], s: 颜色明度 }]，几何体可以反复切。 */
+  function b3SplitSoup(tris, n, planeD) {
+    const THREE = window.THREE;
+    if (!THREE || !tris || !tris.length) return { pos: [], neg: [] };
+    const helper = Math.abs(n.z) < 0.9 ? new THREE.Vector3(0, 0, 1) : new THREE.Vector3(1, 0, 0);
+    const u = new THREE.Vector3().crossVectors(helper, n).normalize();
+    const v = new THREE.Vector3().crossVectors(n, u).normalize();
+    const eps = 1e-6;
+    function proj(p) { return p[0] * n.x + p[1] * n.y + p[2] * n.z; }
+    function to2(p) { return [p[0] * u.x + p[1] * u.y + p[2] * u.z, p[0] * v.x + p[1] * v.y + p[2] * v.z]; }
+    function from2(a, b, d) {
+      return [
+        u.x * a + v.x * b + n.x * d,
+        u.y * a + v.y * b + n.y * d,
+        u.z * a + v.z * b + n.z * d,
+      ];
+    }
+    function keyOf(p) { return Math.round(p[0] * 1e4) + ',' + Math.round(p[1] * 1e4); }
+
+    function clipPoly(poly, keepGreater) {
+      const out = [];
+      const m = poly.length;
+      for (let i = 0; i < m; i++) {
+        const cur = poly[i];
+        const prev = poly[(i + m - 1) % m];
+        const curD = proj(cur), prevD = proj(prev);
+        const curIn = keepGreater ? curD >= planeD : curD <= planeD;
+        const prevIn = keepGreater ? prevD >= planeD : prevD <= planeD;
+        if (curIn !== prevIn) {
+          const den = curD - prevD;
+          const t = den !== 0 ? (planeD - prevD) / den : 0;
+          out.push([
+            prev[0] + (cur[0] - prev[0]) * t,
+            prev[1] + (cur[1] - prev[1]) * t,
+            prev[2] + (cur[2] - prev[2]) * t,
+          ]);
+        }
+        if (curIn) out.push(cur);
+      }
+      return out;
+    }
+
+    const pos = [];
+    const neg = [];
+    const segs = [];
+    const segSeen = {};
+    for (let i = 0; i < tris.length; i++) {
+      const tri = tris[i];
+      const p = tri.p;
+      const d0 = proj(p[0]), d1 = proj(p[1]), d2 = proj(p[2]);
+      if (d0 >= -eps && d1 >= -eps && d2 >= -eps) { pos.push(tri); continue; }
+      if (d0 <= eps && d1 <= eps && d2 <= eps) { neg.push(tri); continue; }
+      const pp = clipPoly(p, true);
+      const pn = clipPoly(p, false);
+      for (let k = 1; k < pp.length - 1; k++) pos.push({ p: [pp[0], pp[k], pp[k + 1]], s: tri.s });
+      for (let k = 1; k < pn.length - 1; k++) neg.push({ p: [pn[0], pn[k], pn[k + 1]], s: tri.s });
+
+      const pts = [];
+      for (let e = 0; e < 3; e++) {
+        const a = p[e], b = p[(e + 1) % 3];
+        const da = proj(a) - planeD, db = proj(b) - planeD;
+        if (Math.abs(da) <= eps) pts.push(to2(a));
+        if ((da < -eps && db > eps) || (da > eps && db < -eps)) {
+          const t = (planeD - proj(a)) / (proj(b) - proj(a));
+          pts.push(to2([
+            a[0] + (b[0] - a[0]) * t,
+            a[1] + (b[1] - a[1]) * t,
+            a[2] + (b[2] - a[2]) * t,
+          ]));
+        }
+      }
+      const uniq = [];
+      pts.forEach(function (q) {
+        if (!uniq.some(function (r) { return Math.hypot(r[0] - q[0], r[1] - q[1]) < 1e-4; })) uniq.push(q);
+      });
+      if (uniq.length !== 2) continue;
+      const ka = keyOf(uniq[0]), kb = keyOf(uniq[1]);
+      const sk = ka < kb ? ka + '|' + kb : kb + '|' + ka;
+      if (segSeen[sk]) continue;
+      segSeen[sk] = true;
+      segs.push([uniq[0], uniq[1]]);
+    }
+
+    function loopsFromSegs(list) {
+      const map = {};
+      list.forEach(function (s, i) {
+        const a = keyOf(s[0]), b = keyOf(s[1]);
+        (map[a] = map[a] || []).push(i);
+        (map[b] = map[b] || []).push(i);
+      });
+      const used = new Array(list.length).fill(false);
+      const loops = [];
+      for (let i = 0; i < list.length; i++) {
+        if (used[i]) continue;
+        used[i] = true;
+        const startKey = keyOf(list[i][0]);
+        let cur = keyOf(list[i][1]);
+        const pts = [list[i][0], list[i][1]];
+        let guard = 0;
+        while (cur !== startKey && guard++ < list.length + 4) {
+          const ids = map[cur] || [];
+          let next = -1;
+          for (let j = 0; j < ids.length; j++) if (!used[ids[j]]) { next = ids[j]; break; }
+          if (next < 0) break;
+          used[next] = true;
+          const sg = list[next];
+          const fromA = keyOf(sg[0]) === cur;
+          const other = fromA ? sg[1] : sg[0];
+          pts.push(other);
+          cur = keyOf(other);
+        }
+        if (cur === startKey && pts.length >= 3) loops.push(pts);
+      }
+      return loops;
+    }
+
+    function bboxLoop(list) {
+      let minU = Infinity, minV = Infinity, maxU = -Infinity, maxV = -Infinity;
+      list.forEach(function (s) {
+        s.forEach(function (q) {
+          if (q[0] < minU) minU = q[0];
+          if (q[0] > maxU) maxU = q[0];
+          if (q[1] < minV) minV = q[1];
+          if (q[1] > maxV) maxV = q[1];
+        });
+      });
+      if (!(maxU - minU > 1e-5) || !(maxV - minV > 1e-5)) return null;
+      return [[minU, minV], [maxU, minV], [maxU, maxV], [minU, maxV]];
+    }
+
+    function convexTriangles(loop, ccw) {
+      const pts = [];
+      loop.forEach(function (q) {
+        const last = pts[pts.length - 1];
+        if (!last || Math.hypot(last[0] - q[0], last[1] - q[1]) > 1e-6) pts.push([q[0], q[1]]);
+      });
+      if (pts.length > 2 && Math.hypot(pts[0][0] - pts[pts.length - 1][0], pts[0][1] - pts[pts.length - 1][1]) < 1e-6) pts.pop();
+      if (pts.length < 3) return [];
+      const sorted = pts.slice().sort(function (a, b) { return a[0] - b[0] || a[1] - b[1]; });
+      const cr = function (o, a, b) {
+        return (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+      };
+      const lower = [];
+      for (let i = 0; i < sorted.length; i++) {
+        while (lower.length >= 2 && cr(lower[lower.length - 2], lower[lower.length - 1], sorted[i]) <= 0) lower.pop();
+        lower.push(sorted[i]);
+      }
+      const upper = [];
+      for (let i = sorted.length - 1; i >= 0; i--) {
+        while (upper.length >= 2 && cr(upper[upper.length - 2], upper[upper.length - 1], sorted[i]) <= 0) upper.pop();
+        upper.push(sorted[i]);
+      }
+      let hull = lower.slice(0, lower.length - 1).concat(upper.slice(0, upper.length - 1));
+      if (hull.length < 3) hull = pts;
+      let area = 0;
+      for (let i = 0; i < hull.length; i++) {
+        const j = (i + 1) % hull.length;
+        area += hull[i][0] * hull[j][1] - hull[j][0] * hull[i][1];
+      }
+      if ((area > 0) !== ccw) hull.reverse();
+      const out = [];
+      for (let i = 1; i < hull.length - 1; i++) out.push([hull[0], hull[i], hull[i + 1]]);
+      return out;
+    }
+
+    function addCap(side, loop, d) {
+      const tris2d = convexTriangles(loop, d > planeD);
+      tris2d.forEach(function (t2) {
+        side.push({ p: t2.map(function (q) { return from2(q[0], q[1], d); }), s: 0.62 });
+      });
+    }
+
+    if (segs.length) {
+      let loops = segs.length > 2500 ? [] : loopsFromSegs(segs);
+      if (!loops.length) {
+        const b = bboxLoop(segs);
+        if (b) loops = [b];
+      }
+      loops.forEach(function (loop) {
+        addCap(pos, loop, planeD - 0.0008);
+        addCap(neg, loop, planeD + 0.0008);
+      });
+    }
+    return { pos: pos, neg: neg };
+  }
+
+  /* 随机切：先用一个带大倾角的“大致水平”面切成两厚片，再把其中一片（或两片）
+   * 用竖直面切成两块；总数 3–4 块，避免很多薄片。 */
+  function b3RandomCutTemplate(geo, count) {
+    if (!B3 || !geo) return null;
+    const THREE = window.THREE;
+    if (!THREE) return null;
+    count = Math.max(3, Math.min(4, count || 3));
+    const key = geo.uuid + '|' + count + '|rand2';
+    if (B3.fractureCache[key]) return B3.fractureCache[key];
+    const pos = geo.attributes && geo.attributes.position;
+    if (!pos || !pos.count) return null;
+    const index = geo.index;
+    const triCount = index ? Math.floor(index.count / 3) : Math.floor(pos.count / 3);
+    if (!triCount) return null;
+
+    const tris = [];
+    for (let t = 0; t < triCount; t++) {
+      const p = [];
+      for (let k = 0; k < 3; k++) {
+        const i = index ? index.getX(t * 3 + k) : t * 3 + k;
+        p.push([pos.getX(i), pos.getY(i), pos.getZ(i)]);
+      }
+      tris.push({ p: p, s: 1 });
+    }
+
+    // 大致水平、倾角 14°–32°
+    const ang = Math.random() * Math.PI * 2;
+    const tilt = 0.25 + Math.random() * 0.31;
+    const nH = new THREE.Vector3(
+      Math.sin(tilt) * Math.cos(ang),
+      Math.sin(tilt) * Math.sin(ang),
+      Math.cos(tilt)
+    ).normalize();
+    let dMin = Infinity, dMax = -Infinity;
+    tris.forEach(function (tri) {
+      tri.p.forEach(function (q) {
+        const d = q[0] * nH.x + q[1] * nH.y + q[2] * nH.z;
+        if (d < dMin) dMin = d;
+        if (d > dMax) dMax = d;
+      });
+    });
+    if (!(dMax - dMin > 1e-6)) return null;
+    const cutD = dMin + (dMax - dMin) * (0.35 + Math.random() * 0.3);
+    const split = b3SplitSoup(tris, nH, cutD);
+    let parts = [split.pos, split.neg].filter(function (p) { return p.length; });
+    if (!parts.length) return null;
+
+    // 竖切成 3 / 4 块：3 块切一片，4 块切两片
+    const splitBoth = count >= 4;
+    const pick = Math.random() < 0.5 ? 0 : Math.max(0, parts.length - 1);
+    const out = [];
+    parts.forEach(function (part, i) {
+      if (!part.length) return;
+      if (!splitBoth && i !== pick) { out.push(part); return; }
+      const a = Math.random() * Math.PI * 2;
+      const nV = new THREE.Vector3(Math.cos(a), Math.sin(a), 0.06).normalize();
+      let vMin = Infinity, vMax = -Infinity;
+      part.forEach(function (tri) {
+        tri.p.forEach(function (q) {
+          const d = q[0] * nV.x + q[1] * nV.y + q[2] * nV.z;
+          if (d < vMin) vMin = d;
+          if (d > vMax) vMax = d;
+        });
+      });
+      if (!(vMax - vMin > 1e-6)) { out.push(part); return; }
+      const vCut = vMin + (vMax - vMin) * (0.4 + Math.random() * 0.2);
+      const vs = b3SplitSoup(part, nV, vCut);
+      if (vs.pos.length && vs.neg.length) out.push(vs.pos, vs.neg);
+      else out.push(part);
+    });
+    if (!out.length) return null;
+
+    const chunks = [];
+    out.forEach(function (list) {
+      if (!list.length) return;
+      const positions = [];
+      const colors = [];
+      const min = [Infinity, Infinity, Infinity];
+      const max = [-Infinity, -Infinity, -Infinity];
+      list.forEach(function (tri) {
+        tri.p.forEach(function (q) {
+          positions.push(q[0], q[1], q[2]);
+          colors.push(tri.s, tri.s, tri.s);
+          for (let i = 0; i < 3; i++) {
+            if (q[i] < min[i]) min[i] = q[i];
+            if (q[i] > max[i]) max[i] = q[i];
+          }
+        });
+      });
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+      g.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+      g.computeVertexNormals();
+      g.userData.b3DeathChunk = true;
+      const cx = (min[0] + max[0]) / 2;
+      const cy = (min[1] + max[1]) / 2;
+      const cz = (min[2] + max[2]) / 2;
+      const corners = [];
+      for (let a = 0; a < 8; a++) {
+        corners.push([a & 1 ? max[0] : min[0], a & 2 ? max[1] : min[1], a & 4 ? max[2] : min[2]]);
+      }
+      chunks.push({ geometry: g, center: [cx, cy, cz], corners: corners });
+    });
+    if (!chunks.length) return null;
+
+    const tpl = { chunks: chunks };
+    B3.fractureCache[key] = tpl;
+    B3.fractureKeys.push(key);
+    while (B3.fractureKeys.length > 24) {
+      const old = B3.fractureKeys.shift();
+      delete B3.fractureCache[old];
+    }
+    return tpl;
+  }
+
   /* 清空 unitsGroup 之前把死掉的模型“拍”下来（材质在这里克隆，原材质随后会被释放）。 */
   function b3DeathSnapshot(group) {
     const THREE = window.THREE;
@@ -3212,6 +3514,23 @@
     });
     if (!pieces.length) return;
 
+    // 每块朝不同方向散开一点，避免所有块都直上直下压在一起。
+    pieces.forEach(function (p) {
+      let dx = p.center.x - snap.center.x;
+      let dz = p.center.z - snap.center.z;
+      let len = Math.hypot(dx, dz);
+      if (len < 0.4) {
+        const a0 = Math.random() * Math.PI * 2;
+        dx = Math.cos(a0);
+        dz = Math.sin(a0);
+        len = 1;
+      }
+      const ang = Math.atan2(dz / len, dx / len) + (Math.random() - 0.5) * 0.7;
+      p.dirX = Math.cos(ang);
+      p.dirZ = Math.sin(ang);
+      p.drift = 1.0 + Math.random() * 1.8;
+    });
+
     const top = L.TOP;
     let maxEnd = 0;
     pieces.forEach(function (p) {
@@ -3302,9 +3621,10 @@
       d.pieces.forEach(function (p) {
         const tt = Math.max(0, t - p.delay);
         const k = Math.max(0, Math.min(1, tt / p.sinkTime));
-        const sink = -p.sinkDepth * Math.pow(k, p.accel);   // 原位下沉：每块速度、加速度不同
+        const sink = -p.sinkDepth * Math.pow(k, p.accel);   // 每块速度、加速度不同
+        const drift = p.drift * k;                          // 各自朝不同方向散开一点
         const rot = p.angle * Math.min(1, tt / p.sinkTime);
-        p.m1.makeTranslation(0, sink, 0);
+        p.m1.makeTranslation(p.dirX * drift, sink, p.dirZ * drift);
         p.m2.makeTranslation(p.center.x, p.center.y, p.center.z);
         p.m3.makeRotationAxis(p.axis, rot);
         p.m4.makeTranslation(-p.center.x, -p.center.y, -p.center.z);
