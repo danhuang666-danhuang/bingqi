@@ -1202,6 +1202,7 @@
       const unitsGroup = new THREE.Group();
       const ghostGroup = new THREE.Group();
       const floatGroup = new THREE.Group();
+      const deathGroup = new THREE.Group();
       const apGroup = new THREE.Group();
       const airGroup = new THREE.Group();
       const confusionGroup = new THREE.Group();
@@ -1223,6 +1224,7 @@
       scene.add(unitsGroup);
       scene.add(ghostGroup);
       scene.add(floatGroup);
+      scene.add(deathGroup);
       scene.add(apGroup);
       scene.add(airGroup);
       scene.add(confusionGroup);
@@ -1253,6 +1255,7 @@
         unitsGroup: unitsGroup,
         ghostGroup: ghostGroup,
         floatGroup: floatGroup,
+        deathGroup: deathGroup,
         apGroup: apGroup,
         airGroup: airGroup,
         confusionGroup: confusionGroup,
@@ -1269,6 +1272,10 @@
         tutorialFocusGroup: tutorialFocusGroup,
         floats: [],
         flights: [],
+        deaths: [],
+        fractureCache: {},
+        fractureKeys: [],
+        dustTex: null,
         tileMeshes: [],
         cam: { yaw: 0, pitch: 0.86, dist: 320, tx: 0, ty: 0, tz: 0 },
         mapRef: null,
@@ -1317,6 +1324,7 @@
           b3KeyboardPan(dt);
         }
         if (B3.floats && B3.floats.length) b3UpdateFloats(performance.now());
+        if (B3.deaths && B3.deaths.length) b3UpdateDeaths(performance.now());
         if (B3.flights && B3.flights.length) b3UpdateAirFlights(performance.now());
         if (B3.need) {
           B3.need = false;
@@ -1409,6 +1417,7 @@
     b3ClearGroup(b.flagGroup);
     b3ClearGroup(b.eligibleGroup);
     b3ClearGroup(b.ghostGroup);
+    b3ClearDeaths();
     b.tileMeshes = [];
 
     const geos = b3TileGeometries();
@@ -2283,6 +2292,15 @@
     if (B3.zoneGroup) B3.zoneGroup.visible = state.phase === 'deploy';
     if (B3.hovered) b3SetUnitHover(null);
     B3.hovered = null;
+    // 重建前先把这一帧“刚阵亡”的单位拍下来：清空 unitsGroup 会把模型材质一起释放。
+    const deadSnaps = [];
+    B3.unitsGroup.children.forEach(function (g) {
+      const u = g.userData && g.userData.b3Unit;
+      if (u && u.alive === false) {
+        const snap = b3DeathSnapshot(g);
+        if (snap) deadSnaps.push(snap);
+      }
+    });
     b3ClearGroup(B3.unitsGroup);
     const source = state.phase === 'battle' && state.battle
       ? battleAliveUnits()
@@ -2291,6 +2309,7 @@
       const g = buildBattle3DUnit(u);
       if (g) B3.unitsGroup.add(g);
     });
+    deadSnaps.forEach(function (snap) { b3StartUnitDeath(snap); });
     refreshBattle3DEligible();
     refreshBattle3DApRings();
     refreshBattle3DAirPads();
@@ -2754,6 +2773,613 @@
       keep.push(f);
     });
     B3.floats = keep;
+    B3.need = true;
+  }
+
+  /* ---------------- 阵亡表现：碎成几块 → 慢慢沉进棋盘 → 消失 ---------------- */
+
+  function b3PrefersReducedMotion() {
+    try {
+      return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function b3FractureTemplate(geo, count) {
+    return b3SliceTemplate(geo, count);
+  }
+
+  /* 厚片版：沿水平面（模型本地 z / 高度）切成几层，保留原来的外表面，
+   * 每个切口用截面轮廓封成实体，所以层与层分开后看到的是实心截面，不是撕开的空壳。 */
+  function b3SliceTemplate(geo, count) {
+    if (!B3 || !geo) return null;
+    const THREE = window.THREE;
+    if (!THREE) return null;
+    count = Math.max(3, Math.min(4, count || 4));
+    const key = geo.uuid + '|' + count + '|slice';
+    if (B3.fractureCache[key]) return B3.fractureCache[key];
+    const pos = geo.attributes && geo.attributes.position;
+    if (!pos || !pos.count) return null;
+    const index = geo.index;
+    const triCount = index ? Math.floor(index.count / 3) : Math.floor(pos.count / 3);
+    if (!triCount) return null;
+
+    const bb = new THREE.Box3().setFromBufferAttribute(pos);
+    const axis = 2;                 // 水平切开：沿本地 z（高度）分层
+    const uIdx = 0;                 // 截面上的两根轴：x / y，x × y = +z
+    const vIdx = 1;
+    const aMin = bb.min.z;
+    const aMax = bb.max.z;
+    if (!(aMax - aMin > 1e-6)) return null;
+    const step = (aMax - aMin) / count;
+
+    function vert(t, k) {
+      const i = index ? index.getX(t * 3 + k) : t * 3 + k;
+      return [pos.getX(i), pos.getY(i), pos.getZ(i)];
+    }
+    function keyOf(p) {
+      return Math.round(p[0] * 1e4) + ',' + Math.round(p[1] * 1e4);
+    }
+
+    function clipHalf(poly, value, keepGreater) {
+      if (!poly.length) return poly;
+      const out = [];
+      const n = poly.length;
+      for (let i = 0; i < n; i++) {
+        const cur = poly[i];
+        const prev = poly[(i + n - 1) % n];
+        const curIn = keepGreater ? cur[axis] >= value : cur[axis] <= value;
+        const prevIn = keepGreater ? prev[axis] >= value : prev[axis] <= value;
+        if (curIn !== prevIn) {
+          const den = cur[axis] - prev[axis];
+          const tt = den !== 0 ? (value - prev[axis]) / den : 0;
+          out.push([
+            prev[0] + (cur[0] - prev[0]) * tt,
+            prev[1] + (cur[1] - prev[1]) * tt,
+            prev[2] + (cur[2] - prev[2]) * tt,
+          ]);
+        }
+        if (curIn) out.push(cur);
+      }
+      return out;
+    }
+
+    const slabs = [];
+    for (let s = 0; s < count; s++) {
+      slabs.push({
+        pos: [], col: [],
+        min: [Infinity, Infinity, Infinity],
+        max: [-Infinity, -Infinity, -Infinity],
+      });
+    }
+    function pushPos(slab, p, shade) {
+      const k = shade == null ? 1 : shade;
+      slab.pos.push(p[0], p[1], p[2]);
+      slab.col.push(k, k, k);
+      for (let i = 0; i < 3; i++) {
+        if (p[i] < slab.min[i]) slab.min[i] = p[i];
+        if (p[i] > slab.max[i]) slab.max[i] = p[i];
+      }
+    }
+
+    // 1) 切表面：把每个三角形按轴切成落在各段内的多边形
+    for (let t = 0; t < triCount; t++) {
+      const tri = [vert(t, 0), vert(t, 1), vert(t, 2)];
+      const a0v = tri[0][axis], a1v = tri[1][axis], a2v = tri[2][axis];
+      const tmin = Math.min(a0v, a1v, a2v);
+      const tmax = Math.max(a0v, a1v, a2v);
+      if (tmax < aMin || tmin > aMax) continue;
+      let s0 = Math.floor((tmin - aMin) / step);
+      let s1 = Math.floor((tmax - aMin) / step);
+      s0 = Math.max(0, Math.min(count - 1, s0));
+      s1 = Math.max(0, Math.min(count - 1, s1));
+      for (let s = s0; s <= s1; s++) {
+        const lo = aMin + s * step, hi = lo + step;
+        const poly = clipHalf(clipHalf(tri, lo, true), hi, false);
+        if (poly.length < 3) continue;
+        const slab = slabs[s];
+        for (let k = 1; k < poly.length - 1; k++) {
+          pushPos(slab, poly[0]);
+          pushPos(slab, poly[k]);
+          pushPos(slab, poly[k + 1]);
+        }
+      }
+    }
+
+    // 2) 切面轮廓：在每条切割平面上收集三角形交线段，接成闭合环
+    function planeSegments(plane) {
+      const eps = 1e-6;
+      const out = [];
+      const seen = {};
+      for (let t = 0; t < triCount; t++) {
+        const tri = [vert(t, 0), vert(t, 1), vert(t, 2)];
+        const pts = [];
+        for (let e = 0; e < 3; e++) {
+          const p = tri[e], q = tri[(e + 1) % 3];
+          const dp = p[axis] - plane, dq = q[axis] - plane;
+          if (Math.abs(dp) <= eps) pts.push([p[uIdx], p[vIdx]]);
+          if ((dp < -eps && dq > eps) || (dp > eps && dq < -eps)) {
+            const tt = (plane - p[axis]) / (q[axis] - p[axis]);
+            pts.push([p[uIdx] + (q[uIdx] - p[uIdx]) * tt, p[vIdx] + (q[vIdx] - p[vIdx]) * tt]);
+          }
+        }
+        const uniq = [];
+        pts.forEach(function (p) {
+          if (!uniq.some(function (q) { return Math.hypot(q[0] - p[0], q[1] - p[1]) < 1e-4; })) uniq.push(p);
+        });
+        if (uniq.length !== 2) continue;
+        const ka = keyOf(uniq[0]), kb = keyOf(uniq[1]);
+        const sk = ka < kb ? ka + '|' + kb : kb + '|' + ka;
+        if (seen[sk]) continue;
+        seen[sk] = true;
+        out.push([uniq[0], uniq[1]]);
+      }
+      return out;
+    }
+
+    function loopsFromSegs(segs) {
+      const map = {};
+      segs.forEach(function (s, i) {
+        const a = keyOf(s[0]), b = keyOf(s[1]);
+        (map[a] = map[a] || []).push(i);
+        (map[b] = map[b] || []).push(i);
+      });
+      const used = new Array(segs.length).fill(false);
+      const loops = [];
+      for (let i = 0; i < segs.length; i++) {
+        if (used[i]) continue;
+        used[i] = true;
+        const startKey = keyOf(segs[i][0]);
+        let cur = keyOf(segs[i][1]);
+        const pts = [segs[i][0], segs[i][1]];
+        let guard = 0;
+        while (cur !== startKey && guard++ < segs.length + 4) {
+          const list = map[cur] || [];
+          let next = -1;
+          for (let j = 0; j < list.length; j++) if (!used[list[j]]) { next = list[j]; break; }
+          if (next < 0) break;
+          used[next] = true;
+          const sg = segs[next];
+          const fromA = keyOf(sg[0]) === cur;
+          const other = fromA ? sg[1] : sg[0];
+          pts.push(other);
+          cur = keyOf(other);
+        }
+        if (cur === startKey && pts.length >= 3) loops.push(pts);
+      }
+      return loops;
+    }
+
+    function bboxLoop(segs) {
+      let minU = Infinity, minV = Infinity, maxU = -Infinity, maxV = -Infinity;
+      segs.forEach(function (s) {
+        s.forEach(function (p) {
+          if (p[0] < minU) minU = p[0];
+          if (p[0] > maxU) maxU = p[0];
+          if (p[1] < minV) minV = p[1];
+          if (p[1] > maxV) maxV = p[1];
+        });
+      });
+      if (!(maxU - minU > 1e-5) || !(maxV - minV > 1e-5)) return null;
+      return [[minU, minV], [maxU, minV], [maxU, maxV], [minU, maxV]];
+    }
+
+    function triangulate(loop, ccw) {
+      const pts = [];
+      loop.forEach(function (p) {
+        const last = pts[pts.length - 1];
+        if (!last || Math.hypot(last[0] - p[0], last[1] - p[1]) > 1e-6) pts.push([p[0], p[1]]);
+      });
+      if (pts.length > 2 && Math.hypot(pts[0][0] - pts[pts.length - 1][0], pts[0][1] - pts[pts.length - 1][1]) < 1e-6) pts.pop();
+      if (pts.length < 3) return [];
+
+      // 截面轮廓可能有几百个点，直接耳切太慢；先取 2D 凸包，再扇形三角化。
+      // 凸包会把凹口填平，但封盖本来就是“实心断面”，视觉上更干净，也稳定。
+      const sorted = pts.slice().sort(function (a, b) {
+        return a[0] - b[0] || a[1] - b[1];
+      });
+      const cr = function (o, a, b) {
+        return (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+      };
+      const lower = [];
+      for (let i = 0; i < sorted.length; i++) {
+        while (lower.length >= 2 && cr(lower[lower.length - 2], lower[lower.length - 1], sorted[i]) <= 0) lower.pop();
+        lower.push(sorted[i]);
+      }
+      const upper = [];
+      for (let i = sorted.length - 1; i >= 0; i--) {
+        while (upper.length >= 2 && cr(upper[upper.length - 2], upper[upper.length - 1], sorted[i]) <= 0) upper.pop();
+        upper.push(sorted[i]);
+      }
+      let hull = lower.slice(0, lower.length - 1).concat(upper.slice(0, upper.length - 1));
+      if (hull.length < 3) hull = pts;
+      let area = 0;
+      for (let i = 0; i < hull.length; i++) {
+        const j = (i + 1) % hull.length;
+        area += hull[i][0] * hull[j][1] - hull[j][0] * hull[i][1];
+      }
+      if ((area > 0) !== ccw) hull.reverse();
+      const out = [];
+      for (let i = 1; i < hull.length - 1; i++) out.push([hull[0], hull[i], hull[i + 1]]);
+      return out;
+    }
+
+    function addCap(slab, tris, plane, sign) {
+      const eps = 0.0008;
+      const p = plane + (sign > 0 ? -eps : eps);
+      tris.forEach(function (tri) {
+        tri.forEach(function (pt) {
+          const q = [0, 0, 0];
+          q[axis] = p;
+          q[uIdx] = pt[0];
+          q[vIdx] = pt[1];
+          pushPos(slab, q, 0.62);   // 切口压暗一点，像金属断面
+        });
+      });
+    }
+
+    for (let s = 1; s < count; s++) {
+      const plane = aMin + s * step;
+      const segs = planeSegments(plane);
+      if (!segs.length) continue;
+      // 段数太多时不再接环（可能退化成很长的链），直接用一个包围盒封盖。
+      let loops = segs.length > 2500 ? [] : loopsFromSegs(segs);
+      if (!loops.length) {
+        const b = bboxLoop(segs);
+        if (b) loops = [b];
+      }
+      loops.forEach(function (loop) {
+        addCap(slabs[s - 1], triangulate(loop, true), plane, 1);
+        addCap(slabs[s], triangulate(loop, false), plane, -1);
+      });
+    }
+
+    const chunks = [];
+    slabs.forEach(function (slab, layerIndex) {
+      if (slab.pos.length < 9) return;
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.Float32BufferAttribute(slab.pos, 3));
+      g.setAttribute('color', new THREE.Float32BufferAttribute(slab.col, 3));
+      g.computeVertexNormals();
+      g.userData.b3DeathChunk = true;
+      const cx = (slab.min[0] + slab.max[0]) / 2;
+      const cy = (slab.min[1] + slab.max[1]) / 2;
+      const cz = (slab.min[2] + slab.max[2]) / 2;
+      const corners = [];
+      for (let a = 0; a < 8; a++) {
+        corners.push([
+          a & 1 ? slab.max[0] : slab.min[0],
+          a & 2 ? slab.max[1] : slab.min[1],
+          a & 4 ? slab.max[2] : slab.min[2],
+        ]);
+      }
+      chunks.push({
+        geometry: g, center: [cx, cy, cz], corners: corners,
+        layer: layerIndex, layers: slabs.length,
+      });
+    });
+    if (!chunks.length) return null;
+
+    const tpl = { chunks: chunks };
+    B3.fractureCache[key] = tpl;
+    B3.fractureKeys.push(key);
+    while (B3.fractureKeys.length > 24) {
+      const old = B3.fractureKeys.shift();
+      delete B3.fractureCache[old];
+    }
+    return tpl;
+  }
+
+  /* 清空 unitsGroup 之前把死掉的模型“拍”下来（材质在这里克隆，原材质随后会被释放）。 */
+  function b3DeathSnapshot(group) {
+    const THREE = window.THREE;
+    if (!group || !THREE) return null;
+    group.updateMatrixWorld(true);
+    const items = [];
+    group.traverse(function (obj) {
+      if (!obj.isMesh || !obj.geometry) return;
+      const pos = obj.geometry.attributes && obj.geometry.attributes.position;
+      if (!pos) return;
+      const src = Array.isArray(obj.material) ? obj.material[0] : obj.material;
+      if (!src) return;
+      let mat = null;
+      try { mat = src.clone(); } catch (e) { mat = null; }
+      if (!mat) return;
+      mat.transparent = false;
+      mat.opacity = 1;
+      mat.depthWrite = true;
+      mat.side = THREE.DoubleSide;   // 切口封盖在个别模型上朝向可能相反，双面渲染保证看得见
+      mat.vertexColors = true;       // 几何体带 color：外表面 1.0、切口 0.62
+      mat._b3Dispose = false;
+      items.push({ geo: obj.geometry, matrix: obj.matrixWorld.clone(), material: mat });
+    });
+    if (!items.length) return null;
+    const unit = group.userData.b3Unit || null;
+    const center = new THREE.Vector3();
+    group.getWorldPosition(center);
+    return { unit: unit, air: !!(unit && unit.airBase), items: items, center: center };
+  }
+
+  function b3DustTexture() {
+    if (B3.dustTex) return B3.dustTex;
+    const THREE = window.THREE;
+    if (!THREE) return null;
+    const cv = document.createElement('canvas');
+    cv.width = cv.height = 128;
+    const g = cv.getContext('2d');
+    const grd = g.createRadialGradient(64, 64, 6, 64, 64, 62);
+    grd.addColorStop(0, 'rgba(208,198,180,0.8)');
+    grd.addColorStop(0.45, 'rgba(182,170,152,0.42)');
+    grd.addColorStop(1, 'rgba(150,140,125,0)');
+    g.fillStyle = grd;
+    g.beginPath();
+    g.arc(64, 64, 62, 0, Math.PI * 2);
+    g.fill();
+    const tex = new THREE.CanvasTexture(cv);
+    if (THREE.sRGBEncoding !== undefined) tex.encoding = THREE.sRGBEncoding;
+    B3.dustTex = tex;
+    return tex;
+  }
+
+  function b3StartUnitDeath(snap) {
+    if (!B3 || !B3.deathGroup || !snap) return;
+    const THREE = window.THREE;
+    const L = b3Layout();
+    if (!THREE || !L) return;
+    if (b3PrefersReducedMotion()) return;   // 系统开了“减少动态效果”就不放这段
+
+    // 同时死太多时降级：碎块少一点，避免一炮多杀时掉帧。
+    const crowded = B3.deaths.length >= 3;
+    const count = 3;   // 水平切 3 层，层厚够看，不会变成一摞纸片
+    const LAYER_LIFT = 1.2;   // 水平切层：每高一层先往上抬多少 mm
+    const pieces = [];
+    const materials = [];
+    let maxY = -Infinity;
+    const cornerW = new THREE.Vector3();
+
+    snap.items.forEach(function (it) {
+      const tpl = b3FractureTemplate(it.geo, count);
+      if (!tpl) return;
+      const mat = it.material;
+      if (snap.air) {
+        mat.transparent = true;
+        mat.depthWrite = false;
+      }
+      materials.push(mat);
+      // 指挥部/运输车这种一个单位里有多层模型的，把碎块预算摊到每一层，避免总块数翻倍。
+      const perMesh = snap.items.length > 1
+        ? Math.max(2, Math.round(count / snap.items.length))
+        : count;
+      const chunks = perMesh === count ? tpl.chunks
+        : (b3FractureTemplate(it.geo, perMesh) || tpl).chunks;
+      chunks.forEach(function (chunk) {
+        const mesh = new THREE.Mesh(chunk.geometry, mat);
+        mesh.matrixAutoUpdate = false;
+        mesh.frustumCulled = false;
+        mesh.castShadow = false;
+        mesh.receiveShadow = false;
+        mesh.renderOrder = 12;
+        B3.deathGroup.add(mesh);
+        chunk.corners.forEach(function (corner) {
+          cornerW.set(corner[0], corner[1], corner[2]).applyMatrix4(it.matrix);
+          if (cornerW.y + chunk.layer * LAYER_LIFT > maxY) maxY = cornerW.y + chunk.layer * LAYER_LIFT;
+        });
+        const centerW = new THREE.Vector3(chunk.center[0], chunk.center[1], chunk.center[2])
+          .applyMatrix4(it.matrix);
+        pieces.push({
+          mesh: mesh,
+          base: it.matrix,
+          center: centerW,
+          axis: new THREE.Vector3(
+            Math.random() * 2 - 1,
+            Math.random() * 1.1 - 0.55,
+            Math.random() * 2 - 1
+          ).normalize(),
+          angle: 0.03 + Math.random() * 0.08,
+          drift: 0.2 + Math.random() * 0.4,
+          rise: 0.05 + Math.random() * 0.1,
+          layerLift: chunk.layer * LAYER_LIFT,
+          // 水平切层：每层朝不同方向错开一点，像一摞切片散开
+          slideX: Math.cos(chunk.layer * 2.39996),
+          slideZ: Math.sin(chunk.layer * 2.39996),
+          slide: 2.0 + chunk.layer * 1.0,
+          delay: Math.random() * 0.05,
+          m1: new THREE.Matrix4(),
+          m2: new THREE.Matrix4(),
+          m3: new THREE.Matrix4(),
+          m4: new THREE.Matrix4(),
+        });
+      });
+    });
+    if (!pieces.length) return;
+
+    // 每块往“远离单位中心”的水平方向散一点，像从内部炸开。
+    pieces.forEach(function (p) {
+      let dx = p.center.x - snap.center.x;
+      let dz = p.center.z - snap.center.z;
+      const len = Math.hypot(dx, dz);
+      if (len < 0.001) {
+        dx = Math.random() * 2 - 1;
+        dz = Math.random() * 2 - 1;
+      }
+      const l2 = Math.hypot(dx, dz) || 1;
+      p.dirX = dx / l2;
+      p.dirZ = dz / l2;
+    });
+
+    const top = L.TOP;
+    // 最高的那块完全沉到棋盘面以下才算结束；高模型（指挥部/运输车叠载）会沉得久一点。
+    const depth = Math.max(12, maxY - top + 3.0);
+    const sinkDelay = 0.55;
+    const sinkTime = Math.max(2.1, Math.min(3.2, 2.0 + depth * 0.03));
+
+    // 尘土：贴地的一片雾 + 一圈向外扩散的环，用来遮住“模型被棋盘面切断”的那条硬边。
+    let dust = null;
+    const tex = b3DustTexture();
+    if (tex) {
+      const dmat = new THREE.MeshBasicMaterial({
+        map: tex, transparent: true, depthWrite: false, opacity: 0.45, side: THREE.DoubleSide,
+        color: 0x9a8d7c,
+      });
+      dmat._b3Dispose = true;
+      const disc = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), dmat);
+      disc.rotation.x = -Math.PI / 2;
+      disc.position.set(snap.center.x, top + 0.18, snap.center.z);
+      disc.scale.setScalar(L.HEXR * 2.0);
+      disc.renderOrder = 13;
+      B3.deathGroup.add(disc);
+
+      const rmat = new THREE.MeshBasicMaterial({
+        color: 0x8b7f6e, transparent: true, depthWrite: false, opacity: 0.32, side: THREE.DoubleSide,
+      });
+      rmat._b3Dispose = true;
+      const ring = new THREE.Mesh(new THREE.RingGeometry(0.9, 1, 40), rmat);
+      ring.rotation.x = -Math.PI / 2;
+      ring.position.set(snap.center.x, top + 0.14, snap.center.z);
+      ring.scale.setScalar(L.HEXR * 1.2);
+      ring.renderOrder = 14;
+      B3.deathGroup.add(ring);
+
+      dust = { disc: disc, ring: ring, discMat: dmat, ringMat: rmat, base: L.HEXR };
+    }
+
+    // 几团往上飘的烟，让默认远景下也能看出“这里有东西被埋下去了”。
+    const puffs = [];
+    if (tex) {
+      for (let i = 0; i < 5; i++) {
+        const pm = new THREE.SpriteMaterial({
+          map: tex, transparent: true, depthWrite: false, opacity: 0.55, color: 0xe4dac8,
+        });
+        pm._b3Dispose = true;
+        const sp = new THREE.Sprite(pm);
+        const ang = Math.random() * Math.PI * 2;
+        const rr = 5 + Math.random() * 5;
+        const s0 = L.HEXR * (0.4 + Math.random() * 0.35);
+        sp.position.set(
+          snap.center.x + Math.cos(ang) * rr,
+          top + 8.0 + Math.random() * 4.0,
+          snap.center.z + Math.sin(ang) * rr
+        );
+        sp.scale.set(s0, s0, 1);
+        sp.renderOrder = 13;
+        B3.deathGroup.add(sp);
+        puffs.push({
+          sprite: sp, material: pm, base: s0,
+          x0: sp.position.x, y0: sp.position.y, z0: sp.position.z,
+          vx: Math.cos(ang) * (1.5 + Math.random() * 2.6),
+          vy: 3.0 + Math.random() * 3.0,
+          vz: Math.sin(ang) * (1.5 + Math.random() * 2.6),
+          delay: 0.18 + Math.random() * 0.25,
+          life: 0.7 + Math.random() * 0.5,
+        });
+      }
+    }
+
+    B3.deaths.push({
+      born: performance.now(),
+      pieces: pieces,
+      materials: materials,
+      dust: dust,
+      puffs: puffs,
+      depth: depth,
+      sinkDelay: sinkDelay,
+      sinkTime: sinkTime,
+      duration: sinkDelay + sinkTime + 0.25,
+      air: !!snap.air,
+    });
+    while (B3.deaths.length > 7) b3DisposeDeath(B3.deaths.shift());
+    B3.need = true;
+  }
+
+  function b3UpdateDeaths(now) {
+    if (!B3 || !B3.deaths) return;
+    const keep = [];
+    B3.deaths.forEach(function (d) {
+      const t = (now - d.born) / 1000;
+      if (t > d.duration) { b3DisposeDeath(d); return; }
+      d.pieces.forEach(function (p) {
+        const tt = Math.max(0, t - p.delay);
+        const jolt = Math.min(1, tt / 0.26);
+        const joltEase = 1 - Math.pow(1 - jolt, 2);
+        const k = Math.max(0, Math.min(1, (tt - d.sinkDelay) / d.sinkTime));
+        const sink = -d.depth * Math.pow(k, 1.4);   // 慢速下沉，最后一点加速没入棋盘
+        const rise = p.rise * Math.sin(jolt * Math.PI);
+        const lift = (p.layerLift || 0) * joltEase;  // 水平切层：上下层先轻轻错开
+        const drift = p.drift * joltEase;
+        const slide = p.slide * joltEase;
+        const rot = p.angle * (0.35 + 0.65 * Math.min(1, tt / d.sinkTime));
+        p.m1.makeTranslation(
+          p.dirX * drift + p.slideX * slide,
+          sink + rise + lift,
+          p.dirZ * drift + p.slideZ * slide
+        );
+        p.m2.makeTranslation(p.center.x, p.center.y, p.center.z);
+        p.m3.makeRotationAxis(p.axis, rot);
+        p.m4.makeTranslation(-p.center.x, -p.center.y, -p.center.z);
+        p.mesh.matrix.copy(p.m1).multiply(p.m2).multiply(p.m3).multiply(p.m4).multiply(p.base);
+        p.mesh.matrixWorldNeedsUpdate = true;
+      });
+      if (d.air) {
+        // 机场在地图外，没有“棋盘下面”可以沉，改成边沉边淡出。
+        const fade = Math.max(0, Math.min(1, (t - 0.5) / 1.0));
+        d.materials.forEach(function (m) { m.opacity = 1 - fade; });
+      }
+      if (d.dust) {
+        const k = Math.max(0, Math.min(1, (t - 0.1) / 1.8));
+        const ds = d.dust.base * (1.9 + 2.1 * k);
+        d.dust.disc.scale.set(ds, ds, 1);
+        d.dust.discMat.opacity = 0.45 * (1 - k);
+        const rs = d.dust.base * (1.0 + 2.0 * k);
+        d.dust.ring.scale.set(rs, rs, 1);
+        d.dust.ringMat.opacity = 0.32 * (1 - k);
+      }
+      (d.puffs || []).forEach(function (p) {
+        const tt = Math.max(0, t - p.delay);
+        const k = Math.max(0, Math.min(1, tt / p.life));
+        p.sprite.position.set(p.x0 + p.vx * tt, p.y0 + p.vy * tt, p.z0 + p.vz * tt);
+        const s = p.base * (1 + 1.7 * k);
+        p.sprite.scale.set(s, s, 1);
+        p.material.opacity = 0.5 * (1 - k);
+      });
+      keep.push(d);
+    });
+    B3.deaths = keep;
+    B3.need = true;
+  }
+
+  function b3DisposeDeath(d) {
+    if (!d || !B3) return;
+    d.pieces.forEach(function (p) {
+      if (p.mesh.parent) p.mesh.parent.remove(p.mesh);
+      // 碎块 geometry 缓存在 b3FractureTemplate 的模板里，下次同类单位阵亡还要复用，
+      // 所以这里只把 mesh 从场景里摘掉，不能 dispose。
+    });
+    if (d.dust) {
+      [d.dust.disc, d.dust.ring].forEach(function (m) {
+        if (m && m.parent) m.parent.remove(m);
+        if (m && m.geometry) { try { m.geometry.dispose(); } catch (e) { /* ignore */ } }
+      });
+      try { d.dust.discMat.dispose(); } catch (e) { /* ignore */ }
+      try { d.dust.ringMat.dispose(); } catch (e) { /* ignore */ }
+    }
+    (d.puffs || []).forEach(function (p) {
+      if (p.sprite.parent) p.sprite.parent.remove(p.sprite);
+      try { p.material.dispose(); } catch (e) { /* ignore */ }
+    });
+    (d.materials || []).forEach(function (m) {
+      try { m.dispose(); } catch (e) { /* ignore */ }
+    });
+    B3.need = true;
+  }
+
+  function b3ClearDeaths() {
+    if (!B3) return;
+    (B3.deaths || []).slice().forEach(b3DisposeDeath);
+    B3.deaths = [];
+    if (B3.deathGroup) {
+      while (B3.deathGroup.children.length) B3.deathGroup.remove(B3.deathGroup.children[0]);
+    }
     B3.need = true;
   }
 
