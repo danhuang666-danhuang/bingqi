@@ -3243,3 +3243,5 @@ body.online-open { overflow: hidden; }
 .end-meta { font-size:10px; color:#7b6347; }
 .end-empty { color:#6d563b; font:12px var(--mono); }
 .end-exit { display:block; margin:6px auto 0; min-width:160px; padding:8px 16px; border:1px solid #7d5b34; border-radius:4px; background:rgba(255,248,231,.2); color:#4f3922; font:12px var(--mono); cursor:pointer; }
+.tutorial-guide-head { cursor: move; touch-action: none; }
+.tutorial-guide-open { z-index: 500; pointer-events: auto; }

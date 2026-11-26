@@ -15018,7 +15018,19 @@
       '</div>';
   }
 
+  function openTutorialGuidePanel() {
+    if (!state.tutorial) return;
+    state.tutorialGuideCollapsed = false;
+    renderTutorialGuide();
+  }
+
   function ensureTutorialGuideToggle() {
+    if (!document.__tutorialToggleClick) {
+      document.__tutorialToggleClick = true;
+      document.addEventListener('click', function (e) {
+        if (e.target.closest && e.target.closest('#tutorial-guide-open')) openTutorialGuidePanel();
+      }, true);
+    }
     let btn = el('tutorial-guide-open');
     if (btn) return btn;
     btn = document.createElement('button');
@@ -15026,13 +15038,50 @@
     btn.type = 'button';
     btn.className = 'tutorial-guide-open hidden';
     btn.textContent = '教程提示';
-    btn.addEventListener('click', function () {
-      if (!state.tutorial) return;
-      state.tutorialGuideCollapsed = false;
-      renderTutorialGuide();
+    btn.addEventListener('click', function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      openTutorialGuidePanel();
     });
     document.body.appendChild(btn);
     return btn;
+  }
+
+  function bindTutorialGuideDrag(panel) {
+    if (!panel || panel.__tutorialDragBound) return;
+    panel.__tutorialDragBound = true;
+    let drag = null;
+    panel.addEventListener('pointerdown', function (e) {
+      if (e.button !== 0) return;
+      if (e.target.closest && e.target.closest('button,input,select,textarea,a')) return;
+      if (!e.target.closest || !e.target.closest('.tutorial-guide-head')) return;
+      if (panel.classList.contains('is-slide')) return;
+      const parent = panel.offsetParent || panel.parentElement || document.body;
+      const pr = parent.getBoundingClientRect();
+      const gr = panel.getBoundingClientRect();
+      drag = { x: e.clientX, y: e.clientY, left: gr.left - pr.left, top: gr.top - pr.top };
+      panel.style.left = drag.left + 'px';
+      panel.style.top = drag.top + 'px';
+      panel.style.bottom = 'auto';
+      panel.style.transform = 'none';
+      try { panel.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
+      e.preventDefault();
+    });
+    panel.addEventListener('pointermove', function (e) {
+      if (!drag) return;
+      panel.style.left = (drag.left + e.clientX - drag.x) + 'px';
+      panel.style.top = (drag.top + e.clientY - drag.y) + 'px';
+      panel.style.bottom = 'auto';
+      panel.style.transform = 'none';
+    });
+    function endDrag(e) {
+      if (!drag) return;
+      drag = null;
+      state.tutorialGuidePos = { left: panel.style.left, top: panel.style.top };
+      try { panel.releasePointerCapture(e.pointerId); } catch (err) { /* ignore */ }
+    }
+    panel.addEventListener('pointerup', endDrag);
+    panel.addEventListener('pointercancel', endDrag);
   }
 
   function syncTutorialGuideToggle() {
@@ -15057,6 +15106,17 @@
     }
     panel.innerHTML = tutorialGuideHtml(state.tutorial.level, stepNo);
     panel.classList.toggle('is-slide', !!(stepDef && stepDef.center));
+    if (stepDef && stepDef.center) {
+      panel.style.left = '';
+      panel.style.top = '';
+      panel.style.bottom = '';
+      panel.style.transform = '';
+    } else if (state.tutorialGuidePos) {
+      panel.style.left = state.tutorialGuidePos.left;
+      panel.style.top = state.tutorialGuidePos.top;
+      panel.style.bottom = 'auto';
+      panel.style.transform = 'none';
+    }
     panel.classList.toggle('hidden', !!state.tutorialGuideCollapsed);
     syncTutorialGuideToggle();
   }
@@ -15597,6 +15657,7 @@
         state.battle.history = [];
         state.tutorial = { level: level, step: 0, enemyDone: false, finalReady: false, tutorialGuideCollapsed: false };
         state.tutorialGuideCollapsed = false;
+        state.tutorialGuidePos = null;
         hideEl('sandbox-dock', true);
         hideEl('sandbox-panel', true);
         hideEl('sandbox-toggle', true);
@@ -15615,8 +15676,10 @@
           if (view) view.appendChild(panel);
           renderTutorialGuide();
           panel.addEventListener('click', tutorialGuideClick);
+          bindTutorialGuideDrag(panel);
         } else {
           guide.addEventListener('click', tutorialGuideClick);
+          bindTutorialGuideDrag(guide);
         }
         window.dispatchEvent(new Event('resize'));
       }).catch(function (err) {
