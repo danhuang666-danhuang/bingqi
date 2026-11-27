@@ -8478,6 +8478,10 @@
       const facing = facingInfo.facing;
       target.facing = facing;
       const bombTargets = heavyDir != null ? battleBombTargets(target, heavyDir) : [target];
+      const groundParts = participants.filter(function (p) {
+        return p && p.alive && !battleIsAir(p);
+      });
+      let mainHistoryId = '';
       const hitLogs = [];
       bombTargets.forEach(function (tgt) {
         let raw = 0;
@@ -8497,13 +8501,31 @@
         const dmg = battleRollDamage(raw);
         battleDamageUnit(tgt, dmg);
         b3AddDamageFloat(tgt, dmg, '#ff6b57');
-        battleHistoryAdd({
+        const historyId = battleHistoryAdd({
           attackers: participants.map(function (p) { return p.name; }),
           target: tgt.name, targetId: tgt.id, damage: Number(dmg) || 0,
           cell: { c: tgt.c, r: tgt.r }, side: unit.side,
         });
+        if (tgt.id === target.id) mainHistoryId = historyId;
         hitLogs.push(tgt.name + ' -' + battleFmt(dmg) + '（' + battleFmt(raw) + '）');
       });
+      // 空中集火里的地面参战单位会被目标反击；纯飞机轰炸仍然没有反击。
+      if (groundParts.length && !target.confused) {
+        const counterTargets = battleCounterTargets(target, groundParts.map(function (p) { return p.id; }));
+        if (counterTargets.length) {
+          b.counter = {
+            counterUnitId: target.id,
+            chooserSide: target.side,
+            targetIds: counterTargets.map(function (u) { return u.id; }),
+            lethal: !target.alive,
+            historyId: mainHistoryId,
+          };
+        } else {
+          b.counter = null;
+        }
+      } else {
+        b.counter = null;
+      }
       if (participants.some(function (p) { return p.id !== unit.id; })) {
         target.lockedBy = [];
         target.lockCosts = {};
