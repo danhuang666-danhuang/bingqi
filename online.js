@@ -4108,7 +4108,7 @@
     const fullLen = Math.max(0.1, dir.length());
     dir.normalize();
     const bulletLen = opts.len || (L.HEXR * 0.9);
-    const radius = opts.radius || 0.055;
+    const radius = opts.radius || 0.085;
     const geo = new THREE.CylinderGeometry(1, 1, 1, 5, 1, true);
     const mat = new THREE.MeshBasicMaterial({
       color: opts.color != null ? opts.color : 0xffd27a,
@@ -4205,7 +4205,7 @@
         if (s.bullet) {
           // 子弹：细长曳光，只显示靠近弹头的一小截。
           const bl = s.bulletLen;
-          s.trail.scale.set(0.055, bl, 0.055);
+          s.trail.scale.set(0.085, bl, 0.085);
           s.trail.position.set(
             s.from[0] + s.dir.x * (len - bl / 2),
             s.from[1],
