@@ -6362,8 +6362,10 @@
   function battleArtillerySpec(unit) {
     const art = battleTrait(unit, 'artillery');
     const rocket = battleTrait(unit, 'rocket');
-    if (art) return { damage: art.damage, range: art.range, rocket: !!rocket };
-    if (rocket) return { damage: rocket.damage, range: rocket.range, rocket: true };
+    const rocketRange = rocket && /喀秋莎|管风琴/.test(String(unit && unit.name || ''))
+      ? 5 : (rocket ? rocket.range : 7);
+    if (art) return { damage: art.damage, range: rocket ? rocketRange : art.range, rocket: !!rocket };
+    if (rocket) return { damage: rocket.damage, range: rocketRange, rocket: true };
     return null;
   }
 
