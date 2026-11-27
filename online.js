@@ -9963,7 +9963,12 @@
       state.battle.choice = { attackerId: attacker.id, defenderId: defender.id };
       return;
     }
-    if (!battleUnitCanSee(attacker, defender) && !battleArtilleryCanTarget(attacker, defender)) {
+    const focusSharedVision = (defender.lockedBy || []).some(function (id) {
+      const u = battleUnitById(id);
+      return u && u.alive && u.side === attacker.side;
+    });
+    if (!battleUnitCanSee(attacker, defender) && !battleArtilleryCanTarget(attacker, defender) &&
+        !focusSharedVision) {
       toast('没有该单位的视野');
       return;
     }
