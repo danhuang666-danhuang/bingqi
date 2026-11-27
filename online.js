@@ -8646,6 +8646,19 @@
         b.counter = null;
         b.log.push(unit.name + ' 集火曲射 ' + target.name + '：' + battleFmt(dmg) + '（' + cost + ' 行动力）');
         b3AddDamageFloat(target, dmg, '#ff6b57');
+        // 炮兵集火也把每个参战单位的特效补上：火炮打抛物线，直射队友打各自的弹道。
+        const focusArtyUnits = parts.filter(function (p) {
+          return p && p.alive && battleArtilleryIsIndirect(p, target);
+        });
+        const focusDirectParts = parts.filter(function (p) {
+          return p && p.alive && !battleArtilleryIsIndirect(p, target);
+        });
+        try {
+          b3StartArtilleryStrike(focusArtyUnits.length ? focusArtyUnits : [unit], [target]);
+        } catch (e) { /* ignore */ }
+        try {
+          b3StartTankVolley(focusDirectParts, target, 0.03);
+        } catch (e) { /* ignore */ }
         battleRefresh();
         battleCheckAutoEnd();
         return;
