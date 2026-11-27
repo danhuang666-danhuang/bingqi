@@ -13482,15 +13482,40 @@
     state.net = null;
     state.netStatus = 'local';
     ensureTestSeats(2);
+    // 测试模式固定 1v1：1 号位攻方、2 号位守方，直接进地图和单位选择。
+    if (state.testSeats[0]) {
+      state.testSeats[0].side = 'attacker';
+      state.testSeats[0].faction = 'us';
+      state.testSeats[0].ready = true;
+    }
+    if (state.testSeats[1]) {
+      state.testSeats[1].side = 'defender';
+      state.testSeats[1].faction = 'de';
+      state.testSeats[1].ready = true;
+    }
+    state.activeSeat = state.testSeats[0] ? state.testSeats[0].id : '';
+    syncActiveSeat();
+    state.hostFactions = { attacker: 'us', defender: 'de' };
+    state.factionView = false;
+    state.map = null;
+    state.mapWrapper = null;
     setStatus('local');
     setView('room');
-    pushLog('沙盒模式已启动 · 选择或导入地图后开始');
-    toast('沙盒模式：选择地图后开始');
+    pushLog('测试模式已启动 · 1 号位攻方 / 2 号位守方');
     ensureSandboxPanel();
     renderRoom();
     const sbox = el('sandbox-panel');
-    if (sbox) sbox.classList.remove('hidden');
-    loadPrepData().then(function () { renderSandboxPanel(); }).catch(function () {});
+    if (sbox) sbox.classList.add('hidden');
+    loadPrepData().then(function () {
+      if (!state.test) return;
+      const parsed = parseMap(testBattleMap());
+      if (!parsed) { toast('测试地图解析失败'); return; }
+      state.map = parsed.parsed;
+      state.mapWrapper = { title: '测试地图', map: testBattleMap() };
+      state.selectedMapId = 'test';
+      startSandboxBattle();
+      toast('测试模式：1 号位攻方，2 号位守方');
+    }).catch(function () { toast('单位数据加载失败'); });
     mount.focus({ preventScroll: true });
   }
 
