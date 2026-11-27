@@ -2630,8 +2630,8 @@
     const w = unit.airBase
       ? (airPadWorld(unit.side, unit.c, unit.r) || L.cell(unit.c, unit.r))
       : L.cell(unit.c, unit.r);
-    // 数字贴在模型头顶，不再用固定的 2.55 格半径（会飘到画面上方看不见）。
-    const baseY = unit.airBase ? L.TOP + L.HEXR * 2.55 : b3UnitTopY(unit) - 2.8;
+    // 恢复固定高度：死亡单位的模型顶部不可靠，固定高度保证反击伤害也能看见。
+    const baseY = L.TOP + L.HEXR * 2.55;
     sp.position.set(w[0], baseY, w[1]);
     B3.floatGroup.add(sp);
     B3.floats.push({ sprite: sp, born: performance.now(), baseY: baseY });
