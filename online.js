@@ -1203,6 +1203,7 @@
       const ghostGroup = new THREE.Group();
       const floatGroup = new THREE.Group();
       const deathGroup = new THREE.Group();
+      const fxGroup = new THREE.Group();
       const apGroup = new THREE.Group();
       const airGroup = new THREE.Group();
       const confusionGroup = new THREE.Group();
@@ -1225,6 +1226,7 @@
       scene.add(ghostGroup);
       scene.add(floatGroup);
       scene.add(deathGroup);
+      scene.add(fxGroup);
       scene.add(apGroup);
       scene.add(airGroup);
       scene.add(confusionGroup);
@@ -1256,6 +1258,7 @@
         ghostGroup: ghostGroup,
         floatGroup: floatGroup,
         deathGroup: deathGroup,
+        fxGroup: fxGroup,
         apGroup: apGroup,
         airGroup: airGroup,
         confusionGroup: confusionGroup,
@@ -1276,6 +1279,10 @@
         fractureCache: {},
         fractureKeys: [],
         dustTex: null,
+        flashTex: null,
+        shots: [],
+        fxSprites: [],
+        fxRings: [],
         tileMeshes: [],
         cam: { yaw: 0, pitch: 0.86, dist: 320, tx: 0, ty: 0, tz: 0 },
         mapRef: null,
@@ -1325,6 +1332,8 @@
         }
         if (B3.floats && B3.floats.length) b3UpdateFloats(performance.now());
         if (B3.deaths && B3.deaths.length) b3UpdateDeaths(performance.now());
+        if ((B3.shots && B3.shots.length) || (B3.fxSprites && B3.fxSprites.length) ||
+            (B3.fxRings && B3.fxRings.length)) b3UpdateFx(performance.now());
         if (B3.flights && B3.flights.length) b3UpdateAirFlights(performance.now());
         if (B3.need) {
           B3.need = false;
@@ -1418,6 +1427,7 @@
     b3ClearGroup(b.eligibleGroup);
     b3ClearGroup(b.ghostGroup);
     b3ClearDeaths();
+    b3ClearFx();
     b.tileMeshes = [];
 
     const geos = b3TileGeometries();
@@ -3674,6 +3684,318 @@
       keep.push(d);
     });
     B3.deaths = keep;
+    B3.need = true;
+  }
+
+  /* ---------------- 开炮：炮口火光 / 烟雾 / 炮弹飞行 / 高爆命中 ---------------- */
+
+  function b3FlashTexture() {
+    if (B3.flashTex) return B3.flashTex;
+    const THREE = window.THREE;
+    if (!THREE) return null;
+    const cv = document.createElement('canvas');
+    cv.width = cv.height = 128;
+    const g = cv.getContext('2d');
+    const grd = g.createRadialGradient(64, 64, 2, 64, 64, 62);
+    grd.addColorStop(0, 'rgba(255,255,244,1)');
+    grd.addColorStop(0.22, 'rgba(255,224,150,0.95)');
+    grd.addColorStop(0.55, 'rgba(255,146,44,0.5)');
+    grd.addColorStop(1, 'rgba(255,90,10,0)');
+    g.fillStyle = grd;
+    g.beginPath();
+    g.arc(64, 64, 62, 0, Math.PI * 2);
+    g.fill();
+    const tex = new THREE.CanvasTexture(cv);
+    if (THREE.sRGBEncoding !== undefined) tex.encoding = THREE.sRGBEncoding;
+    B3.flashTex = tex;
+    return tex;
+  }
+
+  function b3FxSprite(x, y, z, opts) {
+    const THREE = window.THREE;
+    if (!B3 || !B3.fxGroup || !THREE) return null;
+    opts = opts || {};
+    const mat = new THREE.SpriteMaterial({
+      map: opts.map || b3DustTexture(),
+      color: opts.color != null ? opts.color : 0xffffff,
+      transparent: true,
+      opacity: opts.opacity != null ? opts.opacity : 0.7,
+      depthWrite: false,
+      depthTest: opts.depthTest !== false,
+      blending: opts.additive ? THREE.AdditiveBlending : THREE.NormalBlending,
+    });
+    mat._b3Dispose = true;
+    const sp = new THREE.Sprite(mat);
+    const s0 = opts.s0 != null ? opts.s0 : 3;
+    sp.scale.set(s0, s0, 1);
+    sp.position.set(x, y, z);
+    sp.renderOrder = opts.renderOrder != null ? opts.renderOrder : 16;
+    sp.visible = false;
+    B3.fxGroup.add(sp);
+    const rec = {
+      sprite: sp, material: mat,
+      born: performance.now() + Math.max(0, Number(opts.delay) || 0) * 1000,
+      life: opts.life != null ? opts.life : 0.6,
+      x0: x, y0: y, z0: z,
+      vx: opts.vx || 0, vy: opts.vy || 0, vz: opts.vz || 0,
+      s0: s0, s1: opts.s1 != null ? opts.s1 : s0 * 2,
+      o0: mat.opacity,
+      gravity: opts.gravity || 0,
+    };
+    B3.fxSprites.push(rec);
+    while (B3.fxSprites.length > 200) {
+      const old = B3.fxSprites.shift();
+      if (old.sprite.parent) old.sprite.parent.remove(old.sprite);
+      try { old.material.dispose(); } catch (e) { /* ignore */ }
+    }
+    B3.need = true;
+    return rec;
+  }
+
+  function b3FxRing(x, y, z, opts) {
+    const THREE = window.THREE;
+    if (!B3 || !B3.fxGroup || !THREE) return null;
+    opts = opts || {};
+    const geo = new THREE.RingGeometry(0.9, 1, 40);
+    const mat = new THREE.MeshBasicMaterial({
+      color: opts.color != null ? opts.color : 0xd9b88a,
+      transparent: true,
+      opacity: opts.opacity != null ? opts.opacity : 0.5,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    });
+    mat._b3Dispose = true;
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.rotation.x = -Math.PI / 2;
+    mesh.position.set(x, y, z);
+    const s0 = opts.s0 != null ? opts.s0 : 10;
+    mesh.scale.set(s0, s0, 1);
+    mesh.renderOrder = 15;
+    B3.fxGroup.add(mesh);
+    B3.fxRings.push({
+      mesh: mesh, geometry: geo, material: mat,
+      born: performance.now() + Math.max(0, Number(opts.delay) || 0) * 1000,
+      life: opts.life != null ? opts.life : 0.4,
+      s0: s0, s1: opts.s1 != null ? opts.s1 : s0 * 2.2,
+      o0: mat.opacity,
+    });
+    B3.need = true;
+    return true;
+  }
+
+  function b3SpawnMuzzle(point, kind, delay) {
+    const THREE = window.THREE;
+    const L = b3Layout();
+    if (!THREE || !L) return;
+    const flash = b3FlashTexture();
+    const big = kind === 'he';
+    if (flash) {
+      b3FxSprite(point[0] + (Math.random() - 0.5) * 1.2, point[1] + Math.random(),
+        point[2] + (Math.random() - 0.5) * 1.2, {
+          map: flash, color: big ? 0xffc46a : 0xfff4cc, additive: true,
+          s0: big ? 4.5 : 3.0, s1: big ? 10 : 7,
+          life: 0.2, opacity: 1, delay: delay, depthTest: false, renderOrder: 30,
+        });
+    }
+    const dust = b3DustTexture();
+    const n = big ? 2 : 1;
+    for (let i = 0; i < n; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const r = Math.random() * 1.6;
+      b3FxSprite(point[0] + Math.cos(a) * r, point[1] + Math.random() * 1.5, point[2] + Math.sin(a) * r, {
+        map: dust, color: 0x8b857c, s0: 3.2, s1: 9,
+        life: 0.5 + Math.random() * 0.3, opacity: 0.5,
+        vx: Math.cos(a) * 2.2, vy: 2.4 + Math.random() * 2.2, vz: Math.sin(a) * 2.2,
+        delay: delay,
+      });
+    }
+  }
+
+  function b3SpawnImpact(point, kind) {
+    if (kind !== 'he') return;
+    const THREE = window.THREE;
+    const L = b3Layout();
+    if (!THREE || !L) return;
+    const flash = b3FlashTexture();
+    const dust = b3DustTexture();
+    if (flash) {
+      b3FxSprite(point[0], point[1] + 3.0, point[2], {
+        map: flash, color: 0xffb060, additive: true,
+        s0: 6.5, s1: 22, life: 0.3, opacity: 1,
+        depthTest: false, renderOrder: 30,
+      });
+      b3FxSprite(point[0], L.TOP + 2.0, point[2], {
+        map: flash, color: 0xffa050, additive: true,
+        s0: 2.5, s1: 7, life: 0.28, opacity: 0.9,
+        depthTest: false, renderOrder: 29,
+      });
+    }
+    for (let i = 0; i < 5; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const r = Math.random() * 1.5;
+      b3FxSprite(point[0] + Math.cos(a) * r, point[1] + 1.5 + Math.random() * 2.5,
+        point[2] + Math.sin(a) * r, {
+          map: dust, color: 0x8a8378, s0: 5, s1: 15 + Math.random() * 7,
+          life: 0.8 + Math.random() * 0.35, opacity: 0.58,
+          vx: Math.cos(a) * (3 + Math.random() * 3), vy: 2.2 + Math.random() * 2.6,
+          vz: Math.sin(a) * (3 + Math.random() * 3),
+        });
+    }
+    b3FxRing(point[0], L.TOP + 0.22, point[2], {
+      s0: L.HEXR * 0.7, s1: L.HEXR * 3.0, life: 0.45, opacity: 0.68, color: 0xd9b88a,
+    });
+  }
+
+  function b3SpawnShot(attacker, target, kind, delay) {
+    const THREE = window.THREE;
+    const L = b3Layout();
+    if (!THREE || !L || !B3 || !B3.fxGroup) return;
+    const from = L.cell(attacker.c, attacker.r);
+    const to = L.cell(target.c, target.r);
+    const start = [from[0], L.TOP + 6.0, from[1]];
+    const end = [to[0], L.TOP + 4.3, to[1]];
+    const dist = Math.hypot(end[0] - start[0], end[2] - start[2]);
+    const flight = Math.max(0.24, Math.min(0.5, 0.26 + dist * 0.003));
+    b3SpawnMuzzle(start, kind, delay);
+    const flash = b3FlashTexture();
+    if (!flash) return;
+    const mat = new THREE.SpriteMaterial({
+      map: flash,
+      color: kind === 'he' ? 0xffb347 : 0xfff3c4,
+      transparent: true, opacity: 1, depthWrite: false, blending: THREE.AdditiveBlending,
+    });
+    mat._b3Dispose = true;
+    const sp = new THREE.Sprite(mat);
+    const sc = kind === 'he' ? 3.2 : 2.2;
+    sp.scale.set(sc, sc * 0.7, 1);
+    sp.position.set(start[0], start[1], start[2]);
+    sp.renderOrder = 17;
+    sp.visible = false;
+    B3.fxGroup.add(sp);
+    B3.shots.push({
+      sprite: sp, material: mat,
+      from: start, to: end, kind: kind,
+      born: performance.now() + Math.max(0, Number(delay) || 0) * 1000,
+      flight: flight,
+    });
+    while (B3.shots.length > 24) {
+      const old = B3.shots.shift();
+      if (old.sprite.parent) old.sprite.parent.remove(old.sprite);
+      try { old.material.dispose(); } catch (e) { /* ignore */ }
+    }
+    B3.need = true;
+  }
+
+  function b3StartTankVolley(parts, target) {
+    if (!B3 || !B3.fxGroup || !target) return;
+    const L = b3Layout();
+    if (!L) return;
+    const seen = {};
+    let delay = 0;
+    (parts || []).forEach(function (part) {
+      const u = part && part.unit;
+      if (!u || !u.alive || part.indirect) return;
+      if (u.airBase || battleIsAir(u) || battleIsAir(target)) return;
+      if (seen[u.id]) return;
+      seen[u.id] = true;
+      b3SpawnShot(u, target, part.soft ? 'he' : 'ap', delay);
+      delay += 0.13;
+    });
+  }
+
+  function b3UpdateFx(now) {
+    if (!B3) return;
+    const keepShots = [];
+    (B3.shots || []).forEach(function (s) {
+      const t = (now - s.born) / 1000;
+      if (t < 0) { s.sprite.visible = false; keepShots.push(s); return; }
+      const k = Math.min(1, t / s.flight);
+      s.sprite.visible = true;
+      const arc = Math.sin(Math.PI * k) * 2.0;
+      s.sprite.position.set(
+        s.from[0] + (s.to[0] - s.from[0]) * k,
+        s.from[1] + (s.to[1] - s.from[1]) * k + arc,
+        s.from[2] + (s.to[2] - s.from[2]) * k
+      );
+      if (k >= 1) {
+        s.sprite.visible = false;
+        if (s.sprite.parent) s.sprite.parent.remove(s.sprite);
+        try { s.material.dispose(); } catch (e) { /* ignore */ }
+        if (s.kind === 'he') {
+          b3SpawnImpact([s.to[0], s.to[1], s.to[2]], 'he');
+        }
+        return;
+      }
+      keepShots.push(s);
+    });
+    B3.shots = keepShots;
+
+    const keepSprites = [];
+    (B3.fxSprites || []).forEach(function (p) {
+      const t = (now - p.born) / 1000;
+      if (t < 0) { p.sprite.visible = false; keepSprites.push(p); return; }
+      if (t > p.life) {
+        if (p.sprite.parent) p.sprite.parent.remove(p.sprite);
+        try { p.material.dispose(); } catch (e) { /* ignore */ }
+        return;
+      }
+      const k = t / p.life;
+      p.sprite.visible = true;
+      p.sprite.position.set(
+        p.x0 + p.vx * t,
+        p.y0 + p.vy * t + 0.5 * p.gravity * t * t,
+        p.z0 + p.vz * t
+      );
+      const sc = p.s0 + (p.s1 - p.s0) * k;
+      p.sprite.scale.set(sc, sc, 1);
+      p.material.opacity = p.o0 * (1 - k);
+      keepSprites.push(p);
+    });
+    B3.fxSprites = keepSprites;
+
+    const keepRings = [];
+    (B3.fxRings || []).forEach(function (r) {
+      const t = (now - r.born) / 1000;
+      if (t < 0) { r.mesh.visible = false; keepRings.push(r); return; }
+      if (t > r.life) {
+        if (r.mesh.parent) r.mesh.parent.remove(r.mesh);
+        try { r.geometry.dispose(); } catch (e) { /* ignore */ }
+        try { r.material.dispose(); } catch (e) { /* ignore */ }
+        return;
+      }
+      const k = t / r.life;
+      r.mesh.visible = true;
+      const sc = r.s0 + (r.s1 - r.s0) * k;
+      r.mesh.scale.set(sc, sc, 1);
+      r.material.opacity = r.o0 * (1 - k);
+      keepRings.push(r);
+    });
+    B3.fxRings = keepRings;
+
+    B3.need = true;
+  }
+
+  function b3ClearFx() {
+    if (!B3) return;
+    (B3.shots || []).forEach(function (s) {
+      if (s.sprite.parent) s.sprite.parent.remove(s.sprite);
+      try { s.material.dispose(); } catch (e) { /* ignore */ }
+    });
+    (B3.fxSprites || []).forEach(function (p) {
+      if (p.sprite.parent) p.sprite.parent.remove(p.sprite);
+      try { p.material.dispose(); } catch (e) { /* ignore */ }
+    });
+    (B3.fxRings || []).forEach(function (r) {
+      if (r.mesh.parent) r.mesh.parent.remove(r.mesh);
+      try { r.geometry.dispose(); } catch (e) { /* ignore */ }
+      try { r.material.dispose(); } catch (e) { /* ignore */ }
+    });
+    B3.shots = [];
+    B3.fxSprites = [];
+    B3.fxRings = [];
+    if (B3.fxGroup) {
+      while (B3.fxGroup.children.length) B3.fxGroup.remove(B3.fxGroup.children[0]);
+    }
     B3.need = true;
   }
 
@@ -6450,7 +6772,8 @@
       return {
         raw: base * pen * (1 - protect) * airMod,
         base: base, ap: 0, av: battleArmorValue(ti), pen: pen,
-        protect: protect, night: 1, key: key, indirect: true, rocket: arty.rocket, airMod: airMod,
+        protect: protect, night: 1, key: key,
+        soft: true, indirect: true, rocket: arty.rocket, airMod: airMod,
       };
     }
     const zone = facing == null ? 'front' : battleFacingZone(facing, battleDirectionIndex(target.c, target.r, attacker.c, attacker.r));
@@ -6466,7 +6789,8 @@
     return {
       raw: base * pen * (1 - protect) * night * airMod,
       base: base, ap: ap, av: av, pen: pen, zone: zone,
-      protect: protect, night: night, key: key, airMod: airMod,
+      protect: protect, night: night, key: key,
+      soft: useSoft, indirect: false, airMod: airMod,
     };
   }
 
@@ -6490,7 +6814,10 @@
         battleAttackRawOne(u, target, battleDistanceKey(u, target), bestPen, facing);
       base += adjusted.base;
       raw += adjusted.raw;
-      parts.push({ unit: u, base: adjusted.base, pen: adjusted.pen, raw: adjusted.raw });
+      parts.push({
+        unit: u, base: adjusted.base, pen: adjusted.pen, raw: adjusted.raw,
+        soft: adjusted.soft !== false, indirect: !!adjusted.indirect,
+      });
     });
     const protect = battleProtectAt(target.c, target.r, attacker);
     const night = battleIsNight() ? 0.5 : 1;
@@ -7911,6 +8238,7 @@
       const dmg = resolved.dmg;
       battleDamageUnit(target, dmg);
       b3AddDamageFloat(target, dmg, '#ff6b57');
+      b3StartTankVolley(calc.parts, target);
       const historyId = battleHistoryAdd({
         attackers: participantsUnits.map(function (u) { return u.name; }),
         target: target.name, targetId: target.id, damage: Number(dmg) || 0,
