@@ -3989,52 +3989,61 @@
     if (!THREE || !L || !B3 || !B3.fxGroup) return;
     const flash = b3FlashTexture();
     const dust = b3DustTexture();
+    // 命中点抬到目标模型顶部上方，避免整个特效塞进炮塔/车体内部。
+    const tu = battleUnitById(targetId);
+    const topY = tu ? b3UnitTopY(tu) : point[1];
+    const hx = point[0];
+    const hy = Math.max(point[1], topY) + 1.4;
+    const hz = point[2];
     if (flash) {
-      b3FxSprite(point[0], point[1] + 0.25, point[2], {
+      b3FxSprite(hx, hy, hz, {
         map: flash, color: 0xffe0a8, additive: true,
-        s0: 2.2, s1: 6.0, life: 0.14, opacity: 0.95,
+        s0: 4.5, s1: 12, life: 0.22, opacity: 1,
         depthTest: false, renderOrder: 30,
       });
-      // 穿甲弹命中：少量高温火星。
-      for (let i = 0; i < 5; i++) {
-        b3FxSprite(point[0], point[1], point[2], {
+      // 穿甲弹命中：高温火星。
+      for (let i = 0; i < 8; i++) {
+        b3FxSprite(hx, hy, hz, {
           map: flash, color: 0xffc070, additive: true,
-          s0: 0.8, s1: 0.15, life: 0.18 + Math.random() * 0.08, opacity: 1,
-          vx: (Math.random() - 0.5) * 8, vy: 1 + Math.random() * 4,
-          vz: (Math.random() - 0.5) * 8, gravity: 16,
+          s0: 1.3, s1: 0.2, life: 0.24 + Math.random() * 0.12, opacity: 1,
+          vx: (Math.random() - 0.5) * 11, vy: 1.5 + Math.random() * 5,
+          vz: (Math.random() - 0.5) * 11, gravity: 18,
           depthTest: false, renderOrder: 30,
         });
       }
     }
-    for (let i = 0; i < 2; i++) {
-      b3FxSprite(point[0], point[1], point[2], {
-        map: dust, color: 0x77736b, s0: 1.8, s1: 4.5,
-        life: 0.28 + Math.random() * 0.14, opacity: 0.35,
-        vx: (Math.random() - 0.5) * 2.5, vy: 1.2 + Math.random() * 1.5,
-        vz: (Math.random() - 0.5) * 2.5,
+    for (let i = 0; i < 3; i++) {
+      b3FxSprite(hx, hy, hz, {
+        map: dust, color: 0x8b857c, s0: 2.6, s1: 7,
+        life: 0.35 + Math.random() * 0.18, opacity: 0.48,
+        vx: (Math.random() - 0.5) * 3.5, vy: 1.6 + Math.random() * 2,
+        vz: (Math.random() - 0.5) * 3.5,
+        depthTest: false, renderOrder: 29,
       });
     }
-    // 深色金属破片。
+    // 深色金属破片，始终画在车体上方，避免被模型吞掉。
     const now = performance.now();
-    for (let i = 0; i < 6; i++) {
-      const geo = new THREE.TetrahedronGeometry(0.14 + Math.random() * 0.16);
+    for (let i = 0; i < 9; i++) {
+      const geo = new THREE.TetrahedronGeometry(0.22 + Math.random() * 0.22);
       const mat = new THREE.MeshBasicMaterial({
-        color: 0x55524b, transparent: true, opacity: 1, depthWrite: false,
+        color: 0x55524b, transparent: true, opacity: 1,
+        depthWrite: false, depthTest: false,
       });
       const mesh = new THREE.Mesh(geo, mat);
-      mesh.position.set(point[0], point[1], point[2]);
+      mesh.position.set(hx, hy, hz);
       mesh.rotation.set(Math.random() * 3, Math.random() * 3, Math.random() * 3);
+      mesh.renderOrder = 30;
       B3.fxGroup.add(mesh);
       B3.debris.push({
         mesh: mesh, geo: geo, mat: mat, born: now,
-        life: 0.45 + Math.random() * 0.25,
-        x0: point[0], y0: point[1], z0: point[2],
-        vx: (Math.random() - 0.5) * 5, vy: 1.5 + Math.random() * 3.5,
-        vz: (Math.random() - 0.5) * 5,
-        rx: (Math.random() - 0.5) * 8, ry: (Math.random() - 0.5) * 8,
+        life: 0.65 + Math.random() * 0.3,
+        x0: hx, y0: hy, z0: hz,
+        vx: (Math.random() - 0.5) * 7, vy: 2 + Math.random() * 4.5,
+        vz: (Math.random() - 0.5) * 7,
+        rx: (Math.random() - 0.5) * 9, ry: (Math.random() - 0.5) * 9,
       });
     }
-    b3ShakeUnitById(targetId, 0.8);
+    b3ShakeUnitById(targetId, 1.1);
   }
 
   function b3UpdateDebris(now) {
