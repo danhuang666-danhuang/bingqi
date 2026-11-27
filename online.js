@@ -16025,7 +16025,7 @@
       return;
     }
     if (state.tutorial.level && state.tutorial.level.id === 't05' && action.type === 'airRecon' &&
-        (state.tutorial.step || 0) === 6) {
+        step.switchSide === 'defender') {
       state.battle.activeSide = 'defender';
       const deSeat = state.testSeats.filter(function (s) { return s.side === 'defender'; })[0];
       if (deSeat) { state.activeSeat = deSeat.id; syncActiveSeat(); }
