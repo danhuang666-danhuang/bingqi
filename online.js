@@ -4275,12 +4275,16 @@
     const seen = {};
     let delay = Math.max(0, Number(startDelay) || 0);
     let maxDelay = 0;
+    const targetSoft = !battleHasArmor(battleInfoFor(target)) || battleIsTransportTarget(target);
     (parts || []).forEach(function (part) {
-      const u = part && part.unit;
-      if (!u || !u.alive || part.indirect) return;
+      // 兼容两种入参：calc.parts 的 { unit, soft }，以及直接传的单位对象。
+      const u = part && (part.unit || part);
+      if (!u || !u.alive) return;
+      if (part && part.indirect) return;
       if (u.airBase || battleIsAir(u)) return;
       if (seen[u.id]) return;
       seen[u.id] = true;
+      const soft = part && part.soft != null ? part.soft : targetSoft;
       let d = 0;
       // 某一个单位的特效失败不能阻断整次集火结算。
       try {
@@ -4288,7 +4292,7 @@
           // 步兵 / 徒步单位：连续 5–6 发细长曳光子弹，没有炮弹轨迹。
           d = b3StartBulletBurst(u, target, delay, 0);
         } else {
-          d = b3SpawnShot(u, target, part.soft ? 'he' : 'ap', delay);
+          d = b3SpawnShot(u, target, soft ? 'he' : 'ap', delay);
         }
       } catch (e) { d = 0; }
       if (d > maxDelay) maxDelay = d;
