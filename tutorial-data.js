@@ -428,7 +428,7 @@ window.TUTORIAL_LEVELS = [
         }
       },
       {
-        "text": "右键德军步兵攻击：观察预计伤害、地形修正和反击预览。",
+        "text": "右键德军步兵，观察预计伤害、地形修正和反击预览，并确认攻击。",
         "allow": {
           "type": "attack",
           "unitId": "tutorial-us-inf",
