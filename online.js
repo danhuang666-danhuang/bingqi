@@ -8608,6 +8608,48 @@
         const u = battleUnitById(id);
         return u && u.alive;
       });
+      // 炮兵集火走独立结算路径：锁定后直接曲射，不再被普通攻击的视野/曲射分支条件拦截。
+      if (action.type === 'focus' && battleArtillerySpec(unit) && targetLocked) {
+        const spec = battleArtillerySpec(unit);
+        const cost = spec.rocket ? 2 : 1;
+        if (unit.mp < cost) return;
+        const participants = [unit.id];
+        (target.lockedBy || []).forEach(function (id) {
+          const u = battleUnitById(id);
+          if (u && u.alive && u.side === unit.side && participants.indexOf(id) === -1) participants.push(id);
+        });
+        const parts = participants.map(battleUnitById).filter(Boolean);
+        const facingInfo = battleAutoFacing(target, parts);
+        const facing = facingInfo.facing;
+        target.facing = facing;
+        const resolved = battleResolveFocus(unit, target, participants, facing);
+        const dmg = resolved.dmg;
+        battleDamageUnit(target, dmg);
+        battleHistoryAdd({
+          attackers: parts.map(function (p) { return p.name; }),
+          target: target.name, targetId: target.id, damage: Number(dmg) || 0,
+          cell: { c: target.c, r: target.r }, side: unit.side,
+        });
+        unit.mp -= cost;
+        unit.artyShots = Number(unit.artyShots || 0) + 1;
+        if (spec.rocket) {
+          unit.mp = 0;
+          unit.actionLocked = true;
+          unit.rocketReloadRound = b.round + 1;
+        } else if (unit.artyShots >= 2) {
+          unit.mp = 0;
+          unit.actionLocked = true;
+        }
+        target.lockedBy = [];
+        target.lockCosts = {};
+        b.selectedId = null;
+        b.counter = null;
+        b.log.push(unit.name + ' 集火曲射 ' + target.name + '：' + battleFmt(dmg) + '（' + cost + ' 行动力）');
+        b3AddDamageFloat(target, dmg, '#ff6b57');
+        battleRefresh();
+        battleCheckAutoEnd();
+        return;
+      }
       if (targetLocked && action.type === 'attack' &&
           !battleUnitHasOwnVision(unit, target) &&
           !battleArtilleryHasOwnVision(unit, target)) return;
