@@ -7492,8 +7492,18 @@
     if (!state.battle || !action) return;
     const b = state.battle;
     if (b.winner) return;
+    // 反击 / 选朝向 / 空中拦截是防守方的响应动作，不能因为“当前行动方”不是他而被拒。
+    const actionSide = normalizeSide(action.side);
+    const pendingOwner = !!(
+      (b.counter && (action.type === 'counter' || action.type === 'counterSkip') &&
+        b.counter.chooserSide === actionSide) ||
+      (b.facingChoice && action.type === 'faceChoose' &&
+        b.facingChoice.defenderSide === actionSide) ||
+      (b.airIntercept && action.type === 'airIntercept' &&
+        b.airIntercept.defenderSide === actionSide)
+    );
     if (!state.test && b.turnOrder && b.activePlayerId && action.playerId &&
-        action.playerId !== b.activePlayerId) return;
+        action.playerId !== b.activePlayerId && !pendingOwner) return;
     if (String(action.type || '').indexOf('reinforce') === 0) {
       battleApplyReinforce(action);
       return;
@@ -8931,9 +8941,14 @@
     const clicked = battleUnitAt(c, r);
     if (button === 'left') {
       if (b.counter) {
-        if (clicked && b.counter.targetIds.indexOf(clicked.id) !== -1 &&
-            battleCanCounter(b.counter.chooserSide)) {
-          battleRequest({ type: 'counter', side: b.counter.chooserSide, counterId: clicked.id });
+        let counterId = clicked && b.counter.targetIds.indexOf(clicked.id) !== -1 ? clicked.id : '';
+        // 只有一个进攻方时，点自己（被攻击单位）也视为选择那个进攻方。
+        if (!counterId && clicked && clicked.id === b.counter.counterUnitId &&
+            b.counter.targetIds.length === 1) {
+          counterId = b.counter.targetIds[0];
+        }
+        if (counterId && battleCanCounter(b.counter.chooserSide)) {
+          battleRequest({ type: 'counter', side: b.counter.chooserSide, counterId: counterId });
         }
         return;
       }
@@ -9904,9 +9919,13 @@
     const b = state.battle;
     if (!b || !b.counter) { panel.classList.add('hidden'); return; }
     const cu = battleUnitById(b.counter.counterUnitId);
-    const targets = (b.counter.targetIds || []).map(function (id) {
+    const targetIds = (b.counter.targetIds || []).filter(function (id) {
       const u = battleUnitById(id);
-      return u && u.alive ? u.name : '';
+      return u && u.alive;
+    });
+    const targets = targetIds.map(function (id) {
+      const u = battleUnitById(id);
+      return u ? u.name : '';
     }).filter(Boolean);
     panel.innerHTML = '';
     const h = document.createElement('b');
@@ -9914,8 +9933,19 @@
     const p = document.createElement('p');
     p.textContent = (cu ? cu.name : '被攻击单位') +
       (b.counter.lethal ? ' 已阵亡，仍可打出反击' : ' 反击') +
-      (targets.length ? '：点击 ' + targets.join(' / ') + ' 中的一个' : '：没有可反击的进攻方') +
+      (targets.length ? '：点击下方按钮或地图上的 ' + targets.join(' / ') : '：没有可反击的进攻方') +
       '；悬停可看预计伤害。';
+    // 除了点地图上的进攻方，也可以直接点面板里的目标按钮，避免 3D 点选被挡住。
+    targetIds.forEach(function (id) {
+      const u = battleUnitById(id);
+      if (!u) return;
+      const tb = document.createElement('button');
+      tb.type = 'button';
+      tb.className = 'btn small';
+      tb.textContent = u.name;
+      tb.setAttribute('data-battle-counter-target', id);
+      panel.appendChild(tb);
+    });
     const skip = document.createElement('button');
     skip.type = 'button';
     skip.className = 'btn small';
@@ -10315,7 +10345,7 @@
       name: state.role === 'host' ? state.name : ((hostPresence && hostPresence.name) || '房主'),
       role: 'host',
       online: state.role === 'host' ? true : !!(hostPresence && hostPresence.online),
-      ready: true,
+      ready: state.role === 'host' ? !!state.ready : !!(hostPresence && hostPresence.ready),
       side: normalizeSide(state.role === 'host' ? state.side : (hostPresence && hostPresence.side)),
       faction: normalizeFaction(state.role === 'host' ? state.faction : (hostPresence && hostPresence.faction)),
       factionReady: state.role === 'host' ? state.factionReady : !!(hostPresence && hostPresence.factionReady),
@@ -10581,7 +10611,7 @@
     const attacker = roster.filter(function (p) { return p.side === 'attacker'; });
     const defender = roster.filter(function (p) { return p.side === 'defender'; });
     if (!attacker.length || !defender.length) return false;
-    function ready(p) { return p.role === 'host' || !!p.ready; }
+    function ready(p) { return !!p.ready; }
     return attacker.every(ready) && defender.every(ready);
   }
 
@@ -12127,12 +12157,15 @@
     if (state.role === 'guest' && state.ready) {
       state.ready = false;
       toast('已换到' + sideName(id) + '，准备状态已取消' + (hadFaction ? '，国家阵营已清空' : ''));
+    } else if (state.role === 'host' && state.ready) {
+      state.ready = false;
+      toast('已换到' + sideName(id) + '，准备状态已取消' + (hadFaction ? '，国家阵营已清空' : ''));
     } else {
       toast('已加入' + sideName(id) + (hadFaction ? '，国家阵营已清空' : ''));
     }
     if (state.net) {
       if (state.role === 'host') {
-        await state.net.setHostState({ side: id, faction: null });
+        await state.net.setHostState({ side: id, faction: null, ready: state.ready });
       } else {
         await state.net.setGuestState({ side: id, faction: null, ready: state.ready });
       }
@@ -13188,6 +13221,30 @@
       note.textContent = '你在' + sideName(state.side) + '；换攻守会取消准备。';
     }
     box.appendChild(note);
+
+    if (!state.test && state.phase === 'lobby') {
+      const readyWrap = document.createElement('div');
+      readyWrap.className = 'online-side-ready';
+      const readyBtn = document.createElement('button');
+      readyBtn.type = 'button';
+      readyBtn.className = 'btn primary online-side-ready-btn' + (state.ready ? ' is-on' : '');
+      readyBtn.textContent = state.ready ? '已准备 · 点击取消' : '准备';
+      readyBtn.disabled = !state.side || state.netStatus !== 'connected';
+      readyBtn.title = !state.side ? '先选择攻方或守方' :
+        (state.netStatus !== 'connected' ? '连接中断，正在重连…' : '所有玩家准备后进入选国家阵营');
+      readyBtn.addEventListener('click', async function () {
+        if (!state.side) { toast('先选择攻方或守方'); return; }
+        state.ready = !state.ready;
+        if (state.net) {
+          if (state.role === 'host') await state.net.setHostState({ ready: state.ready });
+          else await state.net.setGuestState({ side: state.side, faction: state.faction, ready: state.ready });
+        }
+        refreshRoom();
+        maybePrepare();
+      });
+      readyWrap.appendChild(readyBtn);
+      box.appendChild(readyWrap);
+    }
   }
 
   function flowStep(box, id, no, label, note, status) {
@@ -13203,8 +13260,9 @@
     const box = el('online-flow');
     if (!box) return;
     const c = teamCounts();
-    const guests = onlineRoster().filter(function (p) { return p.role !== 'host'; });
-    const readyN = guests.filter(function (p) { return p.ready; }).length;
+    const readyPlayers = onlineRoster();
+    const readyN = readyPlayers.filter(function (p) { return p.ready; }).length;
+    const readyTotal = readyPlayers.length;
     const map = state.map;
     const attack = !!map && map.mode === 'attack';
     const battle = state.phase === 'battle';
@@ -13241,7 +13299,7 @@
       battle ? '对局进行中' :
         (!sideDone ? '先完成攻守编成' :
           (!facReady ? '先选国家阵营' :
-            (guests.length ? ('已准备 ' + readyN + ' / ' + guests.length) : '等待玩家加入'))),
+            (readyTotal ? ('已准备 ' + readyN + ' / ' + readyTotal) : '等待玩家加入'))),
       battle ? 'done' :
         (facReady && sideDone ? 'active' : 'wait'));
   }
@@ -13348,8 +13406,7 @@
     if (!fd) return '守方还没选国家阵营';
     if (fa === fd) return '双方阵营不能相同，请换一个';
 
-    const guests = list.filter(function (p) { return p.role !== 'host'; });
-    const notReady = guests.filter(function (p) { return !p.ready; });
+    const notReady = list.filter(function (p) { return !p.ready; });
     if (notReady.length) return '等待「' + truncName(notReady[0].name) + '」准备';
     return '';
   }
@@ -13373,7 +13430,7 @@
 
     hideEl('online-start', !(isHost && lobby));
     hideEl('online-pick-map', !(isHost && lobby));
-    hideEl('online-ready', state.test || !(!isHost && lobby));
+    hideEl('online-ready', true);
     hideEl('online-back-lobby', !(isHost && live));
 
     if (start) {
@@ -14837,6 +14894,16 @@
           attackerIds: attackerIds,
           facing: facing == null ? undefined : facing,
           role: role || undefined, focus: focus, dir: airDir,
+        });
+      }
+      return;
+    }
+    const counterPick = e.target.closest ? e.target.closest('[data-battle-counter-target]') : null;
+    if (counterPick) {
+      if (state.battle && state.battle.counter && battleCanCounter(state.battle.counter.chooserSide)) {
+        battleRequest({
+          type: 'counter', side: state.battle.counter.chooserSide,
+          counterId: counterPick.getAttribute('data-battle-counter-target'),
         });
       }
       return;
