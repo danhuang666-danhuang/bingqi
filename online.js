@@ -8798,7 +8798,7 @@
       const facingInfo = battleAutoFacing(target, participantsUnits);
       let facing = Number(action.facing);
       const hasChosenFacing = isFinite(facing) && facing >= 0 && facing <= 5;
-      if (facingInfo.conflict && !hasChosenFacing) {
+      if (facingInfo.conflict && !hasChosenFacing && action.type !== 'focus') {
         b.facingChoice = {
           key: 'fc-' + Date.now().toString(36),
           attackerSide: unit.side,
