@@ -4236,9 +4236,12 @@
     const activePlayer = battle && battle.turnOrder
       ? battle.turnOrder.filter(function (p) { return p.id === battle.activePlayerId; })[0]
       : null;
-    if (battle && activePlayer && !battle.turnBannerShown) {
-      battle.turnBannerShown = true;
-      setTimeout(function () { battleShowTurnBanner(activePlayer.name, battle.round); }, 120);
+    if (battle && activePlayer) {
+      const bannerKey = activePlayer.id + '|' + battle.round + '|' + (battle.turnIndex == null ? 0 : battle.turnIndex);
+      if (state.lastTurnBannerKey !== bannerKey) {
+        state.lastTurnBannerKey = bannerKey;
+        setTimeout(function () { battleShowTurnBanner(activePlayer.name, battle.round); }, 120);
+      }
     }
     if (battle && battle.ended && !battle.endScreenShown) {
       battle.endScreenShown = true;
@@ -5149,6 +5152,7 @@
   }
 
   function initBattleState() {
+    state.lastTurnBannerKey = '';
     const units = deployUnits().map(function (u) {
       const faction = normalizeFaction(u.faction) || sideFaction(u.side);
       const hp = prepUnitHp(u.name, faction);
@@ -8592,7 +8596,6 @@
       }
     }
     battleResetMp(b, b.activeSide);
-    battleShowTurnBanner(order[next].name, b.round);
   }
 
   function battleShowTurnBanner(playerName, round) {
