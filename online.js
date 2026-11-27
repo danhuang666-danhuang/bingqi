@@ -2505,6 +2505,32 @@
     B3.need = true;
   }
 
+  function b3GuardStripeTexture() {
+    if (!B3) return null;
+    if (B3.guardStripeTex) return B3.guardStripeTex;
+    const THREE = window.THREE;
+    if (!THREE) return null;
+    const cv = document.createElement('canvas');
+    cv.width = 64; cv.height = 64;
+    const g = cv.getContext('2d');
+    g.fillStyle = '#0c0c0c';
+    g.fillRect(0, 0, 64, 64);
+    g.strokeStyle = '#f2c14e';
+    g.lineWidth = 14;
+    for (let i = -64; i < 128; i += 28) {
+      g.beginPath();
+      g.moveTo(i, 0);
+      g.lineTo(i - 64, 64);
+      g.stroke();
+    }
+    const tex = new THREE.CanvasTexture(cv);
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    tex.repeat.set(2, 2);
+    if (THREE.sRGBEncoding !== undefined) tex.encoding = THREE.sRGBEncoding;
+    B3.guardStripeTex = tex;
+    return tex;
+  }
+
   function refreshBattle3DRangeHint() {
     if (!B3 || !B3.rangeGroup || !state.map || !state.battle) return;
     const THREE = window.THREE;
@@ -2520,8 +2546,10 @@
     const arty = battleArtillerySpec(unit);
     const artyR = arty ? arty.range : 0;
     const cbR = battleCounterBatteryKind(unit) ? battleCounterBatteryRange(unit) : 0;
+    const guardCells = battleGuardCellsFor(unit);
+    const guardCount = Object.keys(guardCells).length;
     const radius = Math.max(reconR, aaR, artyR, cbR);
-    if (radius <= 0) { B3.need = true; return; }
+    if (radius <= 0 && !guardCount) { B3.need = true; return; }
     const plate = b3HexPlateGeo();
     if (!plate) return;
     for (let r = 0; r < state.map.rows; r++) {
@@ -2548,11 +2576,39 @@
         B3.rangeGroup.add(line);
       }
     }
+    if (guardCount) {
+      const stripe = b3GuardStripeTexture();
+      Object.keys(guardCells).forEach(function (key) {
+        const idx = Number(key);
+        const c = idx % state.map.cols, r = Math.floor(idx / state.map.cols);
+        const w = L.cell(c, r);
+        const mat = new THREE.MeshBasicMaterial({
+          map: stripe || null, color: stripe ? 0xffffff : 0xf2c14e,
+          transparent: true, opacity: 0.58, depthWrite: false, side: THREE.DoubleSide,
+        });
+        mat._b3Dispose = true;
+        const m = new THREE.Mesh(plate, mat);
+        m.position.set(w[0], L.TOP + 0.10, w[1]);
+        m.renderOrder = 25;
+        B3.rangeGroup.add(m);
+        const pts = HG.corners(0, 0, L.HEXR * 0.88).map(function (p) {
+          return new THREE.Vector3(p[0], L.TOP + 0.13, -p[1]);
+        });
+        const line = new THREE.LineLoop(
+          new THREE.BufferGeometry().setFromPoints(pts),
+          new THREE.LineBasicMaterial({ color: 0xffd35c, transparent: true, opacity: 0.8, depthTest: false })
+        );
+        line.material._b3Dispose = true;
+        line.position.set(w[0], 0, w[1]);
+        B3.rangeGroup.add(line);
+      });
+    }
     const parts = [];
     if (reconR) parts.push('侦察');
     if (aa) parts.push('防空伤害 ' + battleFmt(aa.damage));
     if (arty) parts.push((arty.rocket ? '火箭炮伤害 ' : '炮击伤害 ') + battleFmt(arty.damage));
     if (cbR) parts.push('反炮兵');
+    if (guardCount) parts.push('警戒区');
     const labelText = parts.join(' / ');
     const label = b3CostSprite(labelText, { color: '#ff6b6b' });
     if (label) {
@@ -5512,6 +5568,34 @@
     state.battle.counterBatteryMarks = state.battle.counterBatteryMarks.filter(function (m) {
       return !(m.forSide === side && m.c === c && m.r === r);
     });
+  }
+
+  function battleGuardCellsFor(unit) {
+    const out = {};
+    if (!unit || !unit.alive || unit.confused || !state.map) return out;
+    const add = function (c, r) {
+      if (c < 0 || r < 0 || c >= state.map.cols || r >= state.map.rows) return;
+      if (battleUnitAt(c, r)) return;
+      out[r * state.map.cols + c] = true;
+    };
+    const tankGuard = battleTrait(unit, 'heavyTank') || battleTrait(unit, 'mediumTank');
+    if (tankGuard) {
+      HG.neighbors(unit.c, unit.r).forEach(function (p) { add(p[0], p[1]); });
+    }
+    if (battleIsMain(unit)) {
+      battleAliveUnits().forEach(function (other) {
+        if (other.id === unit.id || other.side !== unit.side || other.confused ||
+            !battleIsMain(other) || battleHexDistance(unit.c, unit.r, other.c, other.r) !== 2) return;
+        HG.neighbors(unit.c, unit.r).forEach(function (p) {
+          if (battleHexDistance(p[0], p[1], other.c, other.r) === 1) add(p[0], p[1]);
+        });
+      });
+    }
+    const bld = battleBuildingAt(unit.c, unit.r);
+    if (bld && bld.t === 'bunker' && bld.side === unit.side) {
+      HG.neighbors(unit.c, unit.r).forEach(function (p) { add(p[0], p[1]); });
+    }
+    return out;
   }
 
   function battleGuardCells(side) {
