@@ -5311,6 +5311,14 @@
       state.battle.counter && state.battle.counter.chooserSide === s);
   }
 
+  function battleCanResolveCounter(side) {
+    if (battleCanCounter(side)) return true;
+    // 沙盒里两个座位都由本机操作：待反击方已经弹面板时，不再要求先切到防守方座位。
+    const s = normalizeSide(side);
+    return !!(state.test && state.battle && s && state.battle.counter &&
+      state.battle.counter.chooserSide === s);
+  }
+
   function battleResetMp(battle, side) {
     if (!battle) return;
     const round = Number(battle.round) || 1;
@@ -8947,7 +8955,7 @@
             b.counter.targetIds.length === 1) {
           counterId = b.counter.targetIds[0];
         }
-        if (counterId && battleCanCounter(b.counter.chooserSide)) {
+        if (counterId && battleCanResolveCounter(b.counter.chooserSide)) {
           battleRequest({ type: 'counter', side: b.counter.chooserSide, counterId: counterId });
         }
         return;
@@ -9942,7 +9950,7 @@
     panel.appendChild(h);
     panel.appendChild(p);
     panel.appendChild(skip);
-    panel.classList.toggle('hidden', !battleCanCounter(b.counter.chooserSide));
+    panel.classList.toggle('hidden', !battleCanResolveCounter(b.counter.chooserSide));
   }
 
   function battleShowTip(clientX, clientY, text) {
@@ -14887,7 +14895,7 @@
       return;
     }
     if (e.target.closest && e.target.closest('[data-battle-counter-skip]')) {
-      if (state.battle && state.battle.counter && battleCanCounter(state.battle.counter.chooserSide)) {
+      if (state.battle && state.battle.counter && battleCanResolveCounter(state.battle.counter.chooserSide)) {
         battleRequest({ type: 'counterSkip', side: state.battle.counter.chooserSide });
       }
       return;
