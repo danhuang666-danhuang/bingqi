@@ -7756,7 +7756,7 @@
         }
         if (!battleArtilleryCanFire(unit)) return;
         const spec = battleArtillerySpec(unit);
-        const cost = 1;
+        const cost = spec.rocket ? 2 : 1;
         if (unit.mp < cost) return;
         const hits = [];
         if (action.type === 'focus') {
@@ -7833,7 +7833,12 @@
           unit.actionLocked = true;
           b.log.push(unit.name + ' 已完成两次炮击，本回合不能再行动');
         }
-        if (spec.rocket) unit.rocketReloadRound = b.round + 1;
+        if (spec.rocket) {
+          unit.mp = 0;
+          unit.actionLocked = true;
+          unit.rocketReloadRound = b.round + 1;
+          b.log.push(unit.name + ' 火箭炮齐射后本回合不能再移动');
+        }
         battleCounterBatteryRecord(unit);
         if (action.type === 'focus') {
           target.lockedBy = [];
@@ -7841,7 +7846,7 @@
         }
         b.selectedId = null;
         b.log.push(unit.name + (spec.rocket ? ' 火箭炮覆盖 ' : (action.type === 'focus' ? ' 集火曲射 ' : ' 曲射 ')) + target.name +
-          '：' + hits.join('、') + '（1 行动力，曲射无反击）');
+          '：' + hits.join('、') + '（' + battleFmt(cost) + ' 行动力，曲射无反击）');
         battleRefresh();
         battleCheckAutoEnd();
         return;
@@ -9098,16 +9103,17 @@
     box.setAttribute('data-facing', '');
     if (indirect) {
       const canFire = battleArtilleryCanFire(attacker);
+      const artyCost = artySpec.rocket ? 2 : 1;
       const label = (artySpec.rocket ? '火箭炮覆盖' : '曲射') + ' · -' + battleFmt(one.raw) +
-        (artySpec.rocket ? ' · 半径1' : '') + ' · 1 行动力' +
+        (artySpec.rocket ? ' · 半径1' : '') + ' · ' + artyCost + ' 行动力' +
         (canFire ? '' : (artySpec.rocket && attacker.rocketReloadRound && state.battle.round <= attacker.rocketReloadRound
           ? ' · 装填中' : ' · 本回合曲射次数已用完'));
       const canNormalArty = !targetLocked || battleArtilleryHasOwnVision(attacker, defender);
-      if (canNormalArty) add(label, 'attack', !canFire);
+      if (canNormalArty) add(label, 'attack', !canFire || attacker.mp < artyCost);
       if (targetLocked) {
         const focus = battleAttackRaw(attacker, defender,
           [attacker.id].concat(otherLocked), chosenFacing);
-        add('集火曲射 · 总伤害 -' + battleFmt(battleAttackTotal(focus)) + ' · 1 行动力（目标已锁定）', 'focus', !canFire);
+        add('集火曲射 · 总伤害 -' + battleFmt(battleAttackTotal(focus)) + ' · ' + artyCost + ' 行动力（目标已锁定）', 'focus', !canFire || attacker.mp < artyCost);
         if (!ownLocked) {
           add('远程锁定 · 1 行动力（加入其他锁定）', 'lock', attacker.mp < 1);
         } else {
@@ -9117,7 +9123,7 @@
       const hint = document.createElement('div');
       hint.className = 'battle-choice-hint';
       hint.textContent = '曲射不受反击；伤害固定，装甲目标 ×0.5，无视昼夜。必须有己方侦察单位共享目标视野，或目标已被己方锁定。' +
-        (artySpec.rocket ? ' 火箭炮会命中目标及半径 1 内所有地面单位，敌友不分、无视地形。' : '');
+        (artySpec.rocket ? ' 火箭炮消耗2行动力，齐射后本回合不能移动；会命中目标及半径 1 内所有地面单位，敌友不分、无视地形。' : '');
       box.appendChild(hint);
       add('取消', 'cancel', false);
       box.classList.remove('hidden');
