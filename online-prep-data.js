@@ -6266,194 +6266,93 @@ window.PREP_DATA.factions.uk = {
       },
       "counter": 1,
       "traits": "重轰，空中压制3/2"
+    },
+    "反炮兵小组": {
+      "price": 10,
+      "hp": 1,
+      "cat": "support",
+      "move": 4,
+      "ap": {
+        "urban": 0,
+        "r1": 0,
+        "r2": 0
+      },
+      "av": {
+        "front": 0,
+        "side": 0,
+        "rear": 0
+      },
+      "attack": {
+        "urban": [
+          0,
+          0
+        ],
+        "r1": [
+          0,
+          0
+        ],
+        "r2": [
+          0,
+          0
+        ]
+      },
+      "counter": 1,
+      "traits": "声学反炮兵6"
     }
   },
   "corps": [
     {
-      "id": "uk-21ag",
-      "name": "第21集团军直属",
+      "id": "uk-2a",
+      "name": "第2集团军直属",
       "units": [
+        {
+          "name": "宪兵",
+          "max": 3
+        },
         {
           "name": "医疗营",
           "max": 5
         },
         {
           "name": "155炮兵营",
-          "max": 2
+          "max": 3
         },
         {
-          "name": "25磅炮兵营",
-          "max": 2
+          "name": "丘吉尔重坦营",
+          "max": 3
+        },
+        {
+          "name": "台风战斗轰炸机",
+          "max": 3
         },
         {
           "name": "摩托化运输队",
           "max": 3
         },
         {
-          "name": "反坦克小组",
+          "name": "反炮兵小组",
           "max": 2
-        },
-        {
-          "name": "40防空炮营",
-          "max": 1
-        }
-      ]
-    },
-    {
-      "id": "uk-2a",
-      "name": "第2集团军直属",
-      "units": [
-        {
-          "name": "工兵营",
-          "max": 2
-        },
-        {
-          "name": "突击工兵营",
-          "max": 1
-        },
-        {
-          "name": "宪兵",
-          "max": 2
-        },
-        {
-          "name": "探照灯营",
-          "max": 1
-        },
-        {
-          "name": "摩托化运输队",
-          "max": 2
-        },
-        {
-          "name": "反坦克小组",
-          "max": 2
-        },
-        {
-          "name": "90防空炮营",
-          "max": 1
         }
       ]
     }
   ],
   "divisions": [
     {
-      "id": "uk-guards-inf",
-      "name": "近卫步兵师",
+      "id": "uk-3inf",
+      "name": "第3步兵师",
       "type": "infantry",
       "phase": "AB",
       "slots": {
         "main": 7,
         "support": 5
       },
-      "planes": 3,
+      "planes": 2,
       "attack": {
         "A": 235,
-        "B": 300
+        "B": 305
       },
       "defense": {
         "A": 185,
-        "B": 285
-      },
-      "fundsC": null,
-      "pool": {
-        "A": [
-          {
-            "name": "步兵营",
-            "max": 2
-          },
-          {
-            "name": "摩托化营",
-            "max": 1
-          },
-          {
-            "name": "反坦克小组",
-            "max": 1
-          },
-          {
-            "name": "反坦克营",
-            "max": 1
-          },
-          {
-            "name": "25磅炮兵营",
-            "max": 2
-          },
-          {
-            "name": "155炮兵营",
-            "max": 1
-          },
-          {
-            "name": "40防空炮营",
-            "max": 1
-          },
-          {
-            "name": "90防空炮营",
-            "max": 1
-          },
-          {
-            "name": "侦察营",
-            "max": 1
-          },
-          {
-            "name": "工兵营",
-            "max": 1
-          },
-          {
-            "name": "医疗营",
-            "max": 1
-          },
-          {
-            "name": "蚊式侦察机",
-            "max": 1
-          },
-          {
-            "name": "台风战斗轰炸机",
-            "max": 1
-          }
-        ],
-        "B": [
-          {
-            "name": "SAS特勤营",
-            "max": 1
-          },
-          {
-            "name": "丘吉尔重坦营",
-            "max": 1
-          },
-          {
-            "name": "鳄鱼喷火坦克营",
-            "max": 1
-          },
-          {
-            "name": "克伦威尔中坦营",
-            "max": 1
-          },
-          {
-            "name": "喷火战斗机",
-            "max": 2
-          },
-          {
-            "name": "惠灵顿轰炸机",
-            "max": 1
-          }
-        ],
-        "C": []
-      }
-    },
-    {
-      "id": "uk-1inf",
-      "name": "第1步兵师",
-      "type": "infantry",
-      "phase": "AB",
-      "slots": {
-        "main": 7,
-        "support": 5
-      },
-      "planes": 3,
-      "attack": {
-        "A": 230,
-        "B": 295
-      },
-      "defense": {
-        "A": 180,
         "B": 280
       },
       "fundsC": null,
@@ -6461,26 +6360,14 @@ window.PREP_DATA.factions.uk = {
         "A": [
           {
             "name": "步兵营",
-            "max": 3
-          },
-          {
-            "name": "摩托化营",
             "max": 2
           },
           {
-            "name": "反坦克小组",
+            "name": "SAS特勤营",
             "max": 2
           },
           {
-            "name": "反坦克营",
-            "max": 1
-          },
-          {
-            "name": "25磅炮兵营",
-            "max": 2
-          },
-          {
-            "name": "155炮兵营",
+            "name": "工兵营",
             "max": 1
           },
           {
@@ -6488,15 +6375,23 @@ window.PREP_DATA.factions.uk = {
             "max": 1
           },
           {
-            "name": "侦察营",
+            "name": "25磅炮兵营",
+            "max": 3
+          },
+          {
+            "name": "反坦克营",
             "max": 1
           },
           {
-            "name": "工兵营",
+            "name": "反坦克小组",
+            "max": 3
+          },
+          {
+            "name": "探照灯营",
             "max": 1
           },
           {
-            "name": "医疗营",
+            "name": "野狗装甲侦察营",
             "max": 1
           },
           {
@@ -6504,25 +6399,17 @@ window.PREP_DATA.factions.uk = {
             "max": 1
           },
           {
-            "name": "台风战斗轰炸机",
+            "name": "喷火战斗机",
             "max": 1
           }
         ],
         "B": [
           {
-            "name": "丘吉尔重坦营",
-            "max": 1
+            "name": "斯图亚特轻坦营",
+            "max": 2
           },
           {
-            "name": "克伦威尔中坦营",
-            "max": 1
-          },
-          {
-            "name": "喷火战斗机",
-            "max": 1
-          },
-          {
-            "name": "惠灵顿轰炸机",
+            "name": "挑战者中坦营",
             "max": 1
           }
         ],
@@ -6538,170 +6425,24 @@ window.PREP_DATA.factions.uk = {
         "main": 8,
         "support": 5
       },
-      "planes": 2,
+      "planes": 3,
       "attack": {
-        "A": 250,
-        "B": 320
-      },
-      "defense": {
-        "A": 170,
-        "B": 270
-      },
-      "fundsC": null,
-      "pool": {
-        "A": [
-          {
-            "name": "SAS特勤营",
-            "max": 2
-          },
-          {
-            "name": "步兵营",
-            "max": 2
-          },
-          {
-            "name": "反坦克小组",
-            "max": 2
-          },
-          {
-            "name": "侦察营",
-            "max": 1
-          },
-          {
-            "name": "25磅炮兵营",
-            "max": 1
-          },
-          {
-            "name": "40防空炮营",
-            "max": 1
-          },
-          {
-            "name": "蚊式侦察机",
-            "max": 2
-          },
-          {
-            "name": "台风战斗轰炸机",
-            "max": 1
-          }
-        ],
-        "B": [
-          {
-            "name": "小领主轻坦营",
-            "max": 2
-          },
-          {
-            "name": "斯图亚特轻坦营",
-            "max": 1
-          },
-          {
-            "name": "喷火战斗机",
-            "max": 1
-          }
-        ],
-        "C": []
-      }
-    },
-    {
-      "id": "uk-commando",
-      "name": "突击队",
-      "type": "airborne",
-      "phase": "AB",
-      "slots": {
-        "main": 7,
-        "support": 4
-      },
-      "planes": 2,
-      "attack": {
-        "A": 245,
-        "B": 315
-      },
-      "defense": {
-        "A": 165,
-        "B": 260
-      },
-      "fundsC": null,
-      "pool": {
-        "A": [
-          {
-            "name": "SAS特勤营",
-            "max": 3
-          },
-          {
-            "name": "步兵营",
-            "max": 1
-          },
-          {
-            "name": "反坦克小组",
-            "max": 1
-          },
-          {
-            "name": "侦察营",
-            "max": 1
-          },
-          {
-            "name": "25磅炮兵营",
-            "max": 1
-          },
-          {
-            "name": "40防空炮营",
-            "max": 1
-          },
-          {
-            "name": "蚊式侦察机",
-            "max": 1
-          },
-          {
-            "name": "台风战斗轰炸机",
-            "max": 2
-          }
-        ],
-        "B": [
-          {
-            "name": "小领主轻坦营",
-            "max": 1
-          },
-          {
-            "name": "十字军防空营",
-            "max": 1
-          }
-        ],
-        "C": []
-      }
-    },
-    {
-      "id": "uk-ra",
-      "name": "皇家炮兵师",
-      "type": "artillery",
-      "phase": "AB",
-      "slots": {
-        "main": 6,
-        "support": 5
-      },
-      "planes": 2,
-      "attack": {
-        "A": 225,
-        "B": 295
+        "A": 240,
+        "B": 265
       },
       "defense": {
         "A": 175,
-        "B": 270
+        "B": 230
       },
       "fundsC": null,
       "pool": {
         "A": [
           {
-            "name": "25磅炮兵营",
-            "max": 3
-          },
-          {
-            "name": "155炮兵营",
+            "name": "步兵营",
             "max": 2
           },
           {
-            "name": "司事自行火炮营",
-            "max": 2
-          },
-          {
-            "name": "反坦克小组",
+            "name": "40防空炮营",
             "max": 1
           },
           {
@@ -6709,25 +6450,193 @@ window.PREP_DATA.factions.uk = {
             "max": 1
           },
           {
-            "name": "40防空炮营",
-            "max": 1
+            "name": "小领主轻坦营",
+            "max": 2
           },
           {
-            "name": "90防空炮营",
-            "max": 1
+            "name": "反坦克小组",
+            "max": 2
           },
           {
             "name": "工兵营",
             "max": 1
           },
           {
-            "name": "摩托化运输队",
+            "name": "25磅炮兵营",
+            "max": 1
+          },
+          {
+            "name": "蚊式侦察机",
+            "max": 1
+          },
+          {
+            "name": "喷火战斗机",
+            "max": 2
+          },
+          {
+            "name": "台风战斗轰炸机",
+            "max": 2
+          }
+        ],
+        "B": [
+          {
+            "name": "SAS特勤营",
+            "max": 1
+          },
+          {
+            "name": "克伦威尔中坦营",
+            "max": 1
+          },
+          {
+            "name": "惠灵顿轰炸机",
+            "max": 1
+          }
+        ],
+        "C": []
+      }
+    },
+    {
+      "id": "uk-51high",
+      "name": "第51高地师",
+      "type": "infantry",
+      "phase": "AB",
+      "slots": {
+        "main": 7,
+        "support": 5
+      },
+      "planes": 2,
+      "attack": {
+        "A": 240,
+        "B": 300
+      },
+      "defense": {
+        "A": 175,
+        "B": 275
+      },
+      "fundsC": null,
+      "pool": {
+        "A": [
+          {
+            "name": "突击工兵营",
+            "max": 1
+          },
+          {
+            "name": "步兵营",
+            "max": 2
+          },
+          {
+            "name": "SAS特勤营",
+            "max": 3
+          },
+          {
+            "name": "侦察营",
+            "max": 2
+          },
+          {
+            "name": "25磅炮兵营",
+            "max": 2
+          },
+          {
+            "name": "反坦克营",
+            "max": 2
+          },
+          {
+            "name": "反坦克小组",
+            "max": 3
+          },
+          {
+            "name": "探照灯营",
+            "max": 1
+          },
+          {
+            "name": "喷火战斗机",
+            "max": 2
+          },
+          {
+            "name": "台风战斗轰炸机",
+            "max": 1
+          },
+          {
+            "name": "蚊式侦察机",
+            "max": 1
+          },
+          {
+            "name": "斯图亚特轻坦营",
             "max": 1
           }
         ],
         "B": [
           {
+            "name": "SAS特勤营",
+            "max": 1
+          },
+          {
+            "name": "挑战者中坦营",
+            "max": 1
+          },
+          {
+            "name": "40防空炮营",
+            "max": 1
+          }
+        ],
+        "C": []
+      }
+    },
+    {
+      "id": "uk-15scot",
+      "name": "第15苏格兰步兵师",
+      "type": "infantry",
+      "phase": "AB",
+      "slots": {
+        "main": 7,
+        "support": 5
+      },
+      "planes": 2,
+      "attack": {
+        "A": 245,
+        "B": 295
+      },
+      "defense": {
+        "A": 165,
+        "B": 285
+      },
+      "fundsC": null,
+      "pool": {
+        "A": [
+          {
+            "name": "突击工兵营",
+            "max": 1
+          },
+          {
             "name": "步兵营",
+            "max": 3
+          },
+          {
+            "name": "SAS特勤营",
+            "max": 1
+          },
+          {
+            "name": "侦察营",
+            "max": 2
+          },
+          {
+            "name": "鳄鱼喷火坦克营",
+            "max": 1
+          },
+          {
+            "name": "25磅炮兵营",
+            "max": 2
+          },
+          {
+            "name": "反坦克营",
+            "max": 1
+          },
+          {
+            "name": "探照灯营",
+            "max": 1
+          },
+          {
+            "name": "蚊式侦察机",
             "max": 1
           },
           {
@@ -6735,7 +6644,84 @@ window.PREP_DATA.factions.uk = {
             "max": 1
           },
           {
+            "name": "40防空炮营",
+            "max": 1
+          }
+        ],
+        "B": [
+          {
+            "name": "鳄鱼喷火坦克营",
+            "max": 1
+          },
+          {
+            "name": "克伦威尔中坦营",
+            "max": 1
+          },
+          {
+            "name": "工兵营",
+            "max": 1
+          }
+        ],
+        "C": []
+      }
+    },
+    {
+      "id": "uk-11ind",
+      "name": "印度第11步兵师",
+      "type": "infantry",
+      "phase": "AB",
+      "slots": {
+        "main": 8,
+        "support": 4
+      },
+      "planes": 2,
+      "attack": {
+        "A": 225,
+        "B": 275
+      },
+      "defense": {
+        "A": 185,
+        "B": 275
+      },
+      "fundsC": null,
+      "pool": {
+        "A": [
+          {
+            "name": "步兵营",
+            "max": 4
+          },
+          {
+            "name": "侦察营",
+            "max": 3
+          },
+          {
+            "name": "25磅炮兵营",
+            "max": 3
+          },
+          {
+            "name": "反坦克营",
+            "max": 2
+          },
+          {
+            "name": "40防空炮营",
+            "max": 2
+          },
+          {
             "name": "喷火战斗机",
+            "max": 2
+          },
+          {
+            "name": "蚊式侦察机",
+            "max": 1
+          }
+        ],
+        "B": [
+          {
+            "name": "斯图亚特轻坦营",
+            "max": 2
+          },
+          {
+            "name": "步兵营",
             "max": 1
           }
         ],
@@ -6751,7 +6737,7 @@ window.PREP_DATA.factions.uk = {
         "main": 8,
         "support": 4
       },
-      "planes": 3,
+      "planes": 2,
       "attack": {
         "A": 0,
         "B": 0
@@ -6760,30 +6746,14 @@ window.PREP_DATA.factions.uk = {
         "A": 0,
         "B": 0
       },
-      "fundsC": 350,
+      "fundsC": 545,
       "pool": {
         "A": [],
         "B": [],
         "C": [
           {
-            "name": "小领主轻坦营",
-            "max": 2
-          },
-          {
             "name": "斯图亚特轻坦营",
             "max": 2
-          },
-          {
-            "name": "克伦威尔中坦营",
-            "max": 2
-          },
-          {
-            "name": "萤火虫中坦营",
-            "max": 1
-          },
-          {
-            "name": "挑战者中坦营",
-            "max": 1
           },
           {
             "name": "十字军防空营",
@@ -6794,69 +6764,15 @@ window.PREP_DATA.factions.uk = {
             "max": 2
           },
           {
-            "name": "摩托化营",
-            "max": 2
-          },
-          {
-            "name": "侦察营",
-            "max": 1
-          },
-          {
-            "name": "工兵营",
-            "max": 1
-          },
-          {
-            "name": "反坦克小组",
-            "max": 1
-          },
-          {
-            "name": "台风战斗轰炸机",
-            "max": 1
-          }
-        ]
-      }
-    },
-    {
-      "id": "uk-guards-arm",
-      "name": "近卫装甲师",
-      "type": "armored",
-      "phase": "C",
-      "slots": {
-        "main": 8,
-        "support": 4
-      },
-      "planes": 3,
-      "attack": {
-        "A": 0,
-        "B": 0
-      },
-      "defense": {
-        "A": 0,
-        "B": 0
-      },
-      "fundsC": 360,
-      "pool": {
-        "A": [],
-        "B": [],
-        "C": [
-          {
             "name": "克伦威尔中坦营",
-            "max": 2
+            "max": 1
           },
           {
             "name": "萤火虫中坦营",
-            "max": 1
-          },
-          {
-            "name": "挑战者中坦营",
-            "max": 1
-          },
-          {
-            "name": "丘吉尔重坦营",
             "max": 2
           },
           {
-            "name": "鳄鱼喷火坦克营",
+            "name": "野狗装甲侦察营",
             "max": 1
           },
           {
@@ -6864,23 +6780,23 @@ window.PREP_DATA.factions.uk = {
             "max": 1
           },
           {
-            "name": "百夫长中坦营",
-            "max": 1
-          },
-          {
-            "name": "十字军防空营",
-            "max": 2
-          },
-          {
-            "name": "司事自行火炮营",
-            "max": 2
-          },
-          {
             "name": "摩托化营",
+            "max": 3
+          },
+          {
+            "name": "蚊式侦察机",
             "max": 2
           },
           {
-            "name": "侦察营",
+            "name": "喷火战斗机",
+            "max": 3
+          },
+          {
+            "name": "台风战斗轰炸机",
+            "max": 2
+          },
+          {
+            "name": "惠灵顿轰炸机",
             "max": 1
           }
         ]
@@ -6892,10 +6808,10 @@ window.PREP_DATA.factions.uk = {
       "type": "armored",
       "phase": "C",
       "slots": {
-        "main": 8,
-        "support": 4
+        "main": 7,
+        "support": 5
       },
-      "planes": 3,
+      "planes": 2,
       "attack": {
         "A": 0,
         "B": 0
@@ -6904,37 +6820,29 @@ window.PREP_DATA.factions.uk = {
         "A": 0,
         "B": 0
       },
-      "fundsC": 355,
+      "fundsC": 555,
       "pool": {
         "A": [],
         "B": [],
         "C": [
           {
-            "name": "斯图亚特轻坦营",
-            "max": 2
+            "name": "摩托化营",
+            "max": 3
           },
           {
             "name": "克伦威尔中坦营",
-            "max": 2
+            "max": 3
           },
           {
             "name": "萤火虫中坦营",
-            "max": 2
-          },
-          {
-            "name": "挑战者中坦营",
             "max": 1
           },
           {
-            "name": "丘吉尔重坦营",
+            "name": "百夫长中坦营",
             "max": 1
           },
           {
-            "name": "鳄鱼喷火坦克营",
-            "max": 1
-          },
-          {
-            "name": "黑亲王重坦营",
+            "name": "野狗装甲侦察营",
             "max": 1
           },
           {
@@ -6943,6 +6851,52 @@ window.PREP_DATA.factions.uk = {
           },
           {
             "name": "司事自行火炮营",
+            "max": 2
+          },
+          {
+            "name": "蚊式侦察机",
+            "max": 1
+          },
+          {
+            "name": "喷火战斗机",
+            "max": 2
+          },
+          {
+            "name": "台风战斗轰炸机",
+            "max": 1
+          },
+          {
+            "name": "惠灵顿轰炸机",
+            "max": 1
+          }
+        ]
+      }
+    },
+    {
+      "id": "uk-79arm",
+      "name": "第79装甲师",
+      "type": "armored",
+      "phase": "C",
+      "slots": {
+        "main": 7,
+        "support": 5
+      },
+      "planes": 2,
+      "attack": {
+        "A": 0,
+        "B": 0
+      },
+      "defense": {
+        "A": 0,
+        "B": 0
+      },
+      "fundsC": 530,
+      "pool": {
+        "A": [],
+        "B": [],
+        "C": [
+          {
+            "name": "突击工兵营",
             "max": 1
           },
           {
@@ -6950,12 +6904,44 @@ window.PREP_DATA.factions.uk = {
             "max": 2
           },
           {
-            "name": "工兵营",
+            "name": "斯图亚特轻坦营",
             "max": 1
+          },
+          {
+            "name": "克伦威尔中坦营",
+            "max": 2
           },
           {
             "name": "A39重坦营",
             "max": 1
+          },
+          {
+            "name": "鳄鱼喷火坦克营",
+            "max": 2
+          },
+          {
+            "name": "萤火虫中坦营",
+            "max": 2
+          },
+          {
+            "name": "蚊式侦察机",
+            "max": 1
+          },
+          {
+            "name": "喷火战斗机",
+            "max": 2
+          },
+          {
+            "name": "台风战斗轰炸机",
+            "max": 2
+          },
+          {
+            "name": "十字军防空营",
+            "max": 2
+          },
+          {
+            "name": "司事自行火炮营",
+            "max": 2
           }
         ]
       }
