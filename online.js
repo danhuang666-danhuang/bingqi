@@ -8748,17 +8748,12 @@
         b.selectedId = null;
         b.log.push(unit.name + (spec.rocket ? ' 火箭炮覆盖 ' : (action.type === 'focus' ? ' 集火曲射 ' : ' 曲射 ')) + target.name +
           '：' + hits.join('、') + '（' + battleFmt(cost) + ' 行动力，曲射无反击）');
-        const bRef = b;
-        const finish = function () {
-          if (state.battle !== bRef) return;
-          pendingFloats.forEach(function (f) {
-            try { b3AddDamageFloat(f.unit, f.amount, f.color); } catch (e) { /* ignore */ }
-          });
-          battleRefresh();
-          battleCheckAutoEnd();
-        };
-        if (fxDelay > 0.01) setTimeout(finish, Math.round(fxDelay * 1000) + 20);
-        else finish();
+        // 曲射集火同样立即结算，动画只负责表现，不能阻塞血量/行动力刷新。
+        pendingFloats.forEach(function (f) {
+          try { b3AddDamageFloat(f.unit, f.amount, f.color); } catch (e) { /* ignore */ }
+        });
+        battleRefresh();
+        battleCheckAutoEnd();
         return;
       }
       if (action.type === 'lock') {
