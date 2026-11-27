@@ -2603,33 +2603,47 @@
   }
 
   function battleQueueDamageFx(unit, amount, color) {
-    if (!state.battle || !unit) return;
+    if (!state.battle || !unit) return null;
     const b = state.battle;
     b.damageFx = b.damageFx || [];
-    b.damageFx.push({
+    const fx = {
       id: 'fx-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 6),
       unitId: unit.id, c: unit.c, r: unit.r, amount: Number(amount) || 0,
       color: color || '#ff6b57', round: b.round,
-    });
-    if (b.damageFx.length > 30) b.damageFx = b.damageFx.slice(-30);
+    };
+    b.damageFx.push(fx);
+    if (b.damageFx.length > 60) b.damageFx = b.damageFx.slice(-60);
+    return fx;
   }
 
   function battleFlushDamageFx() {
     const b = state.battle;
     if (!b || !b.damageFx) return;
     state.seenDamageFx = state.seenDamageFx || {};
-    b.damageFx.forEach(function (fx) {
-      if (!fx || !fx.id || state.seenDamageFx[fx.id]) return;
-      state.seenDamageFx[fx.id] = true;
-      if (Number(fx.round) !== Number(b.round)) return;
-      let unit = battleUnitById(fx.unitId);
-      if (!unit) return;
-      b3AddDamageFloat(unit, Number(fx.amount) || 0, fx.color || '#ffb36b');
-    });
+    state._flushingDamageFx = true;
+    try {
+      b.damageFx.forEach(function (fx) {
+        if (!fx || !fx.id || state.seenDamageFx[fx.id]) return;
+        state.seenDamageFx[fx.id] = true;
+        if (Number(fx.round) !== Number(b.round)) return;
+        let unit = battleUnitById(fx.unitId);
+        if (!unit) return;
+        b3AddDamageFloat(unit, Number(fx.amount) || 0, fx.color || '#ffb36b');
+      });
+    } finally {
+      state._flushingDamageFx = false;
+    }
   }
 
   function b3AddDamageFloat(unit, amount, color) {
     if (!B3 || !unit) return;
+    if (!state._flushingDamageFx) {
+      const fx = battleQueueDamageFx(unit, amount, color);
+      if (fx) {
+        state.seenDamageFx = state.seenDamageFx || {};
+        state.seenDamageFx[fx.id] = true;
+      }
+    }
     const L = b3Layout();
     const THREE = window.THREE;
     if (!L || !THREE) return;
