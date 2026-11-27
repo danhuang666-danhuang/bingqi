@@ -1280,6 +1280,7 @@
         fractureKeys: [],
         dustTex: null,
         flashTex: null,
+        trailTex: null,
         shots: [],
         fxSprites: [],
         fxRings: [],
@@ -3811,6 +3812,30 @@
     return tex;
   }
 
+  function b3TrailTexture() {
+    if (B3.trailTex) return B3.trailTex;
+    const THREE = window.THREE;
+    if (!THREE) return null;
+    const cv = document.createElement('canvas');
+    cv.width = 32; cv.height = 128;
+    const g = cv.getContext('2d');
+    const grd = g.createLinearGradient(0, 0, 0, 128);
+    grd.addColorStop(0, 'rgba(255,255,255,0)');
+    grd.addColorStop(0.22, 'rgba(255,255,255,0.28)');
+    grd.addColorStop(0.5, 'rgba(255,255,255,0.95)');
+    grd.addColorStop(0.78, 'rgba(255,255,255,0.28)');
+    grd.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = grd;
+    g.fillRect(0, 0, 32, 128);
+    const tex = new THREE.CanvasTexture(cv);
+    if (THREE.sRGBEncoding !== undefined) tex.encoding = THREE.sRGBEncoding;
+    tex.wrapS = THREE.ClampToEdgeWrapping;
+    tex.wrapT = THREE.ClampToEdgeWrapping;
+    tex.minFilter = THREE.LinearFilter;
+    B3.trailTex = tex;
+    return tex;
+  }
+
   function b3FxSprite(x, y, z, opts) {
     const THREE = window.THREE;
     if (!B3 || !B3.fxGroup || !THREE) return null;
@@ -3974,46 +3999,71 @@
     if (!THREE || !L || !B3 || !B3.fxGroup) return 0;
     const from = L.cell(attacker.c, attacker.r);
     const to = L.cell(target.c, target.r);
-    // 从单位模型顶上一点的位置出膛，保证炮口火光不会被车体挡住。
-    const start = [from[0], b3UnitTopY(attacker) + 1.0, from[1]];
-    const end = [to[0], L.TOP + 4.3, to[1]];
+    const topA = b3UnitTopY(attacker);
+    const topB = b3UnitTopY(target);
+    // 起点和终点用同一个高度，弹道完全水平；高度取双方模型顶部略低一点。
+    const flightY = Math.max(topA, topB) + 0.15;
+    const start = [from[0], flightY, from[1]];
+    const end = [to[0], flightY, to[1]];
     const dx0 = end[0] - start[0], dz0 = end[2] - start[2];
     const dl0 = Math.hypot(dx0, dz0) || 1;
-    start[0] += dx0 / dl0 * 1.2;
-    start[2] += dz0 / dl0 * 1.2;
+    // 从车体边缘出膛，避免整条轨迹从车体内部开始。
+    const out = L.HEXR * 0.55;
+    start[0] += dx0 / dl0 * out;
+    start[2] += dz0 / dl0 * out;
 
     const dist = Math.hypot(end[0] - start[0], end[2] - start[2]);
-    const flight = Math.max(0.06, Math.min(0.12, 0.05 + dist * 0.0008));   // 极快
-    b3SpawnMuzzle(start, kind, delay);
+    const flight = Math.max(0.035, Math.min(0.075, 0.03 + dist * 0.0004));   // 极快
+    // 炮口火光仍在模型顶部，和水平弹道分开。
+    const muzzle = [
+      from[0] + dx0 / dl0 * L.HEXR * 0.3,
+      topA + 0.6,
+      from[1] + dz0 / dl0 * L.HEXR * 0.3,
+    ];
+    b3SpawnMuzzle(muzzle, kind, delay);
 
     const dir = new THREE.Vector3(end[0] - start[0], end[1] - start[1], end[2] - start[2]);
     const fullLen = dir.length() || 1;
     dir.normalize();
-    const geo = new THREE.CylinderGeometry(0.3, 0.3, 1, 6);
-    const mat = new THREE.MeshBasicMaterial({
-      color: 0x3b3e42, transparent: true, opacity: 0.5,
+    // 两层细圆柱：深色核心 + 浅色外晕；纹理沿长度中间深、两端透明。
+    const geo = new THREE.CylinderGeometry(1, 1, 1, 8, 14, true);
+    const tex = b3TrailTexture();
+    const coreMat = new THREE.MeshBasicMaterial({
+      map: tex, color: 0x24272a, transparent: true, opacity: 0.5,
       depthWrite: false, side: THREE.DoubleSide,
     });
-    mat._b3Dispose = true;
-    const trail = new THREE.Mesh(geo, mat);
-    trail.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
-    trail.scale.set(1, 0.001, 1);
-    trail.position.set(start[0], start[1], start[2]);
-    trail.renderOrder = 18;
-    trail.visible = false;
-    B3.fxGroup.add(trail);
+    const glowMat = new THREE.MeshBasicMaterial({
+      map: tex, color: 0x62676d, transparent: true, opacity: 0.2,
+      depthWrite: false, side: THREE.DoubleSide,
+    });
+    coreMat._b3Dispose = true;
+    glowMat._b3Dispose = true;
+    const core = new THREE.Mesh(geo, coreMat);
+    const glow = new THREE.Mesh(geo, glowMat);
+    [core, glow].forEach(function (m, i) {
+      m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
+      m.scale.set(i ? 0.24 : 0.12, 0.001, i ? 0.24 : 0.12);
+      m.position.set(start[0], start[1], start[2]);
+      m.renderOrder = i ? 18 : 19;
+      m.visible = false;
+      B3.fxGroup.add(m);
+    });
 
     B3.shots.push({
-      trail: trail, material: mat, geometry: geo,
+      trail: core, glow: glow, materials: [coreMat, glowMat], geometry: geo,
       from: start, to: end, dir: dir, fullLen: fullLen, kind: kind,
       born: performance.now() + Math.max(0, Number(delay) || 0) * 1000,
-      flight: flight, done: false, doneAt: 0, trailLife: 1.35,
+      flight: flight, done: false, doneAt: 0, trailLife: 1.2,
     });
     while (B3.shots.length > 24) {
       const old = B3.shots.shift();
-      if (old.trail.parent) old.trail.parent.remove(old.trail);
+      [old.trail, old.glow].forEach(function (m) {
+        if (m && m.parent) m.parent.remove(m);
+      });
       try { old.geometry.dispose(); } catch (e) { /* ignore */ }
-      try { old.material.dispose(); } catch (e) { /* ignore */ }
+      (old.materials || []).forEach(function (mt) {
+        try { mt.dispose(); } catch (e) { /* ignore */ }
+      });
     }
     B3.need = true;
     return Math.max(0, Number(delay) || 0) + flight;
@@ -4048,17 +4098,24 @@
     const keepShots = [];
     (B3.shots || []).forEach(function (s) {
       const t = (now - s.born) / 1000;
-      if (t < 0) { s.trail.visible = false; keepShots.push(s); return; }
+      if (t < 0) {
+        s.trail.visible = false;
+        s.glow.visible = false;
+        keepShots.push(s);
+        return;
+      }
       if (!s.done) {
         const k = Math.min(1, t / s.flight);
         const len = Math.max(0.001, s.fullLen * k);
+        const mx = s.from[0] + s.dir.x * len / 2;
+        const my = s.from[1] + s.dir.y * len / 2;
+        const mz = s.from[2] + s.dir.z * len / 2;
         s.trail.visible = true;
-        s.trail.scale.set(1, len, 1);
-        s.trail.position.set(
-          s.from[0] + s.dir.x * len / 2,
-          s.from[1] + s.dir.y * len / 2,
-          s.from[2] + s.dir.z * len / 2
-        );
+        s.glow.visible = true;
+        s.trail.scale.set(0.12, len, 0.12);
+        s.glow.scale.set(0.24, len, 0.24);
+        s.trail.position.set(mx, my, mz);
+        s.glow.position.set(mx, my, mz);
         if (k >= 1) {
           s.done = true;
           s.doneAt = now;
@@ -4067,13 +4124,20 @@
       } else {
         const age = (now - s.doneAt) / 1000;
         if (age >= s.trailLife) {
-          if (s.trail.parent) s.trail.parent.remove(s.trail);
+          [s.trail, s.glow].forEach(function (m) {
+            if (m && m.parent) m.parent.remove(m);
+          });
           try { s.geometry.dispose(); } catch (e) { /* ignore */ }
-          try { s.material.dispose(); } catch (e) { /* ignore */ }
+          (s.materials || []).forEach(function (mt) {
+            try { mt.dispose(); } catch (e) { /* ignore */ }
+          });
           return;
         }
+        const f = 1 - age / s.trailLife;
         s.trail.visible = true;
-        s.material.opacity = 0.5 * (1 - age / s.trailLife);
+        s.glow.visible = true;
+        s.materials[0].opacity = 0.5 * f;
+        s.materials[1].opacity = 0.2 * f;
       }
       keepShots.push(s);
     });
@@ -4127,9 +4191,13 @@
   function b3ClearFx() {
     if (!B3) return;
     (B3.shots || []).forEach(function (s) {
-      if (s.trail.parent) s.trail.parent.remove(s.trail);
+      [s.trail, s.glow].forEach(function (m) {
+        if (m && m.parent) m.parent.remove(m);
+      });
       try { s.geometry.dispose(); } catch (e) { /* ignore */ }
-      try { s.material.dispose(); } catch (e) { /* ignore */ }
+      (s.materials || []).forEach(function (mt) {
+        try { mt.dispose(); } catch (e) { /* ignore */ }
+      });
     });
     (B3.fxSprites || []).forEach(function (p) {
       if (p.sprite.parent) p.sprite.parent.remove(p.sprite);
