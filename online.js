@@ -8865,22 +8865,10 @@
         b.counter = null;
         b.log.push(target.name + ' 没有可见的反击目标');
       }
-      if (fxDelay > 0.01) {
-        const hitTarget = target;
-        const hitDmg = dmg;
-        const bRef = b;
-        setTimeout(function () {
-          if (state.battle !== bRef) return;
-          // 飘字失败也必须继续刷新血量/日志，否则会出现“点集火没结算”。
-          try { b3AddDamageFloat(hitTarget, hitDmg, '#ff6b57'); } catch (e) { /* ignore */ }
-          battleRefresh();
-          battleCheckAutoEnd();
-        }, Math.round(fxDelay * 1000) + 15);
-      } else {
-        try { b3AddDamageFloat(target, dmg, '#ff6b57'); } catch (e) { /* ignore */ }
-        battleRefresh();
-        battleCheckAutoEnd();
-      }
+      // 伤害与血量必须立即结算，不能被攻击特效的播放时长拖住。
+      try { b3AddDamageFloat(target, dmg, '#ff6b57'); } catch (e) { /* ignore */ }
+      battleRefresh();
+      battleCheckAutoEnd();
       return;
     }
   }
