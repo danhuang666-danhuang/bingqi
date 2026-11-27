@@ -2141,7 +2141,9 @@
         state.battle.counter.targetIds.indexOf(found.userData.b3Unit.id) !== -1) {
       const cu = battleUnitById(state.battle.counter.counterUnitId);
       const calc = cu ? battleCounterRaw(cu, found.userData.b3Unit) : { raw: 0 };
-      battleShowTip(clientX, clientY, (cu ? cu.name : '被攻击单位') + ' 反击预计 -' + battleFmt(calc.raw));
+      const supMod = state.battle.counter.airSuperiority ? 0.5 : 1;
+      battleShowTip(clientX, clientY, (cu ? cu.name : '被攻击单位') + ' 反击预计 -' + battleFmt(calc.raw * supMod) +
+        (supMod < 1 ? '（空中优势减半）' : ''));
     } else {
       battleShowTip(clientX, clientY, '');
     }
@@ -8198,9 +8200,11 @@
       const au = battleUnitById(action.counterId);
       if (cu && au && au.alive) {
         const calc = battleCounterRaw(cu, au, au.facing == null ? 0 : au.facing);
-        const dmg = battleRollDamage(calc.raw);
+        const airSupMod = b.counter.airSuperiority ? 0.5 : 1;
+        const dmg = battleRollDamage(calc.raw * airSupMod);
         battleDamageUnit(au, dmg);
-        b.log.push(cu.name + ' 反击 ' + au.name + '：' + battleFmt(calc.raw) + ' → ' + battleFmt(dmg));
+        b.log.push(cu.name + ' 反击 ' + au.name + '：' + battleFmt(calc.raw * airSupMod) + ' → ' + battleFmt(dmg) +
+          (airSupMod < 1 ? '（敌方空中优势，反击减半）' : ''));
         battleHistoryCounter(b.counter.historyId, {
           counterBy: cu.name, counterTarget: au.name, damage: Number(dmg) || 0,
         });
@@ -8481,6 +8485,7 @@
       const groundParts = participants.filter(function (p) {
         return p && p.alive && !battleIsAir(p);
       });
+      const attackAirSuperiority = battleAirSuperiorityFor(unit, target);
       let mainHistoryId = '';
       const hitLogs = [];
       bombTargets.forEach(function (tgt) {
@@ -8519,6 +8524,7 @@
             targetIds: counterTargets.map(function (u) { return u.id; }),
             lethal: !target.alive,
             historyId: mainHistoryId,
+            airSuperiority: !!attackAirSuperiority,
           };
         } else {
           b.counter = null;
@@ -10295,8 +10301,10 @@
     }
     const counterCan = battleUnitCanSee(defender, attacker);
     const counterCalc = counterCan ? battleCounterRaw(defender, attacker, attacker.facing == null ? 0 : attacker.facing) : null;
+    const counterSupMod = battleAirSuperiorityFor(attacker, defender) ? 0.5 : 1;
     const attackLabel = '攻击 · -' + battleFmt(one.raw) +
-      (counterCalc ? (' / 反击 -' + battleFmt(counterCalc.raw)) : ' · 无反击') +
+      (counterCalc ? (' / 反击 -' + battleFmt(counterCalc.raw * counterSupMod) +
+        (counterSupMod < 1 ? '（空中优势减半）' : '')) : ' · 无反击') +
       ' · ' + atkCost + ' 行动力';
     if (canNormal) add(attackLabel, 'attack', availMp < atkCost || needFacing);
     else add('仅靠锁定共享视野 · 只能集火', 'attack', true);
