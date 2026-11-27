@@ -8610,8 +8610,14 @@
           !battleArtilleryHasOwnVision(unit, target)) return;
       const indirect = battleArtilleryIsIndirect(unit, target);
       const artyRemoteLock = !!(action.type === 'lock' && battleArtillerySpec(unit) && targetLocked);
-      if (!battleUnitCanSee(unit, target) && !indirect) return;
-      if (battleHexDistance(unit.c, unit.r, target.c, target.r) > BATTLE_RANGE && !indirect) return;
+      const focusSharedVision = action.type === 'focus' && (target.lockedBy || []).some(function (id) {
+        const u = battleUnitById(id);
+        return u && u.alive && u.side === unit.side;
+      });
+      if (!battleUnitCanSee(unit, target) && !indirect && !focusSharedVision) return;
+      // 集火可以借助队友锁定跨距离发动，不要求发起者自己在直射射程内。
+      if (battleHexDistance(unit.c, unit.r, target.c, target.r) > BATTLE_RANGE &&
+          !indirect && action.type !== 'focus') return;
       if (indirect && action.type !== 'attack' && action.type !== 'focus' && !artyRemoteLock) return;
       if (indirect) {
         if (artyRemoteLock) {
@@ -10191,7 +10197,9 @@
     if (!box) return;
     const b = state.battle;
     const fc = b && b.facingChoice;
-    if (!fc || !battleMySide() || battleMySide() !== fc.defenderSide) {
+    const my = battleMySide();
+    const canChoose = !!(fc && my && (my === fc.defenderSide || state.test));
+    if (!canChoose) {
       box.classList.add('hidden');
       box.innerHTML = '';
       return;
