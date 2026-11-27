@@ -4282,12 +4282,15 @@
       if (seen[u.id]) return;
       seen[u.id] = true;
       let d = 0;
-      if (b3IsFootUnit(u)) {
-        // 步兵 / 徒步单位：连续 5–6 发细长曳光子弹，没有炮弹轨迹。
-        d = b3StartBulletBurst(u, target, delay, 0);
-      } else {
-        d = b3SpawnShot(u, target, part.soft ? 'he' : 'ap', delay);
-      }
+      // 某一个单位的特效失败不能阻断整次集火结算。
+      try {
+        if (b3IsFootUnit(u)) {
+          // 步兵 / 徒步单位：连续 5–6 发细长曳光子弹，没有炮弹轨迹。
+          d = b3StartBulletBurst(u, target, delay, 0);
+        } else {
+          d = b3SpawnShot(u, target, part.soft ? 'he' : 'ap', delay);
+        }
+      } catch (e) { d = 0; }
       if (d > maxDelay) maxDelay = d;
       delay += 0.13;
     });
@@ -8719,8 +8722,10 @@
             hits.push(t.name + ' -' + battleFmt(dmg));
           });
         }
-        const artyDelay = b3StartArtilleryStrike(artilleryUnits, artilleryTargets);
-        const directDelay = b3StartTankVolley(directParts, target, 0.03);
+        let artyDelay = 0;
+        let directDelay = 0;
+        try { artyDelay = b3StartArtilleryStrike(artilleryUnits, artilleryTargets); } catch (e) { artyDelay = 0; }
+        try { directDelay = b3StartTankVolley(directParts, target, 0.03); } catch (e) { directDelay = 0; }
         const fxDelay = Math.max(artyDelay, directDelay);
         unit.mp -= cost;
         unit.artyShots = Number(unit.artyShots || 0) + 1;
@@ -8747,7 +8752,7 @@
         const finish = function () {
           if (state.battle !== bRef) return;
           pendingFloats.forEach(function (f) {
-            b3AddDamageFloat(f.unit, f.amount, f.color);
+            try { b3AddDamageFloat(f.unit, f.amount, f.color); } catch (e) { /* ignore */ }
           });
           battleRefresh();
           battleCheckAutoEnd();
@@ -8816,7 +8821,8 @@
       const dmg = resolved.dmg;
       battleDamageUnit(target, dmg);
       // 先只让炮弹飞；命中后再刷新血量 / 朝向 / 死亡动画和伤害数字。
-      const fxDelay = b3StartTankVolley(calc.parts, target);
+      let fxDelay = 0;
+      try { fxDelay = b3StartTankVolley(calc.parts, target); } catch (e) { fxDelay = 0; }
       const historyId = battleHistoryAdd({
         attackers: participantsUnits.map(function (u) { return u.name; }),
         target: target.name, targetId: target.id, damage: Number(dmg) || 0,
@@ -8865,12 +8871,13 @@
         const bRef = b;
         setTimeout(function () {
           if (state.battle !== bRef) return;
-          b3AddDamageFloat(hitTarget, hitDmg, '#ff6b57');
+          // 飘字失败也必须继续刷新血量/日志，否则会出现“点集火没结算”。
+          try { b3AddDamageFloat(hitTarget, hitDmg, '#ff6b57'); } catch (e) { /* ignore */ }
           battleRefresh();
           battleCheckAutoEnd();
         }, Math.round(fxDelay * 1000) + 15);
       } else {
-        b3AddDamageFloat(target, dmg, '#ff6b57');
+        try { b3AddDamageFloat(target, dmg, '#ff6b57'); } catch (e) { /* ignore */ }
         battleRefresh();
         battleCheckAutoEnd();
       }
