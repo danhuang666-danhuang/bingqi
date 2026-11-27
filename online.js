@@ -1285,6 +1285,8 @@
         shots: [],
         fxSprites: [],
         fxRings: [],
+        debris: [],
+        shakes: [],
         tileMeshes: [],
         cam: { yaw: 0, pitch: 0.86, dist: 320, tx: 0, ty: 0, tz: 0 },
         mapRef: null,
@@ -1336,6 +1338,8 @@
         if (B3.deaths && B3.deaths.length) b3UpdateDeaths(performance.now());
         if ((B3.shots && B3.shots.length) || (B3.fxSprites && B3.fxSprites.length) ||
             (B3.fxRings && B3.fxRings.length)) b3UpdateFx(performance.now());
+        if (B3.debris && B3.debris.length) b3UpdateDebris(performance.now());
+        if (B3.shakes && B3.shakes.length) b3UpdateShakes(performance.now());
         if (B3.flights && B3.flights.length) b3UpdateAirFlights(performance.now());
         if (B3.need) {
           B3.need = false;
@@ -3922,6 +3926,12 @@
           s0: big ? 4.5 : 3.0, s1: big ? 10 : 7,
           life: 0.2, opacity: 1, delay: delay, depthTest: false, renderOrder: 30,
         });
+      // 炮口冲击波：一层快速扩散的淡光晕。
+      b3FxSprite(point[0], point[1], point[2], {
+        map: flash, color: 0xffd9a0, additive: true,
+        s0: 2.2, s1: big ? 18 : 14, life: 0.18, opacity: 0.35,
+        delay: delay, depthTest: false, renderOrder: 29,
+      });
     }
     const dust = b3DustTexture();
     const n = big ? 2 : 1;
@@ -3935,6 +3945,121 @@
         delay: delay,
       });
     }
+  }
+
+  function b3ShakeUnitById(unitId, amp) {
+    if (!B3 || !unitId || !B3.unitsGroup) return;
+    const g = B3.unitsGroup.children.filter(function (o) {
+      return o.userData && o.userData.b3Unit && o.userData.b3Unit.id === unitId;
+    })[0];
+    if (!g) return;
+    const old = (B3.shakes || []).filter(function (s) { return s.group === g; })[0];
+    if (old) {
+      old.amp = Math.max(old.amp, amp || 0.7);
+      return;
+    }
+    B3.shakes.push({
+      group: g, baseX: g.position.x, baseZ: g.position.z,
+      born: performance.now(), dur: 0.3, amp: amp || 0.7,
+    });
+    B3.need = true;
+  }
+
+  function b3UpdateShakes(now) {
+    if (!B3) return;
+    const keep = [];
+    (B3.shakes || []).forEach(function (s) {
+      const t = (now - s.born) / 1000;
+      if (t >= s.dur || !s.group.parent) {
+        try { s.group.position.x = s.baseX; s.group.position.z = s.baseZ; } catch (e) { /* ignore */ }
+        return;
+      }
+      const damp = 1 - t / s.dur;
+      s.group.position.x = s.baseX + Math.sin(t * 75) * s.amp * damp;
+      s.group.position.z = s.baseZ + Math.cos(t * 60) * s.amp * 0.5 * damp;
+      keep.push(s);
+    });
+    B3.shakes = keep;
+    B3.need = true;
+  }
+
+  function b3SpawnArmorHit(point, targetId) {
+    const THREE = window.THREE;
+    const L = b3Layout();
+    if (!THREE || !L || !B3 || !B3.fxGroup) return;
+    const flash = b3FlashTexture();
+    const dust = b3DustTexture();
+    if (flash) {
+      b3FxSprite(point[0], point[1] + 0.25, point[2], {
+        map: flash, color: 0xffe0a8, additive: true,
+        s0: 2.2, s1: 6.0, life: 0.14, opacity: 0.95,
+        depthTest: false, renderOrder: 30,
+      });
+      // 穿甲弹命中：少量高温火星。
+      for (let i = 0; i < 5; i++) {
+        b3FxSprite(point[0], point[1], point[2], {
+          map: flash, color: 0xffc070, additive: true,
+          s0: 0.8, s1: 0.15, life: 0.18 + Math.random() * 0.08, opacity: 1,
+          vx: (Math.random() - 0.5) * 8, vy: 1 + Math.random() * 4,
+          vz: (Math.random() - 0.5) * 8, gravity: 16,
+          depthTest: false, renderOrder: 30,
+        });
+      }
+    }
+    for (let i = 0; i < 2; i++) {
+      b3FxSprite(point[0], point[1], point[2], {
+        map: dust, color: 0x77736b, s0: 1.8, s1: 4.5,
+        life: 0.28 + Math.random() * 0.14, opacity: 0.35,
+        vx: (Math.random() - 0.5) * 2.5, vy: 1.2 + Math.random() * 1.5,
+        vz: (Math.random() - 0.5) * 2.5,
+      });
+    }
+    // 深色金属破片。
+    const now = performance.now();
+    for (let i = 0; i < 6; i++) {
+      const geo = new THREE.TetrahedronGeometry(0.14 + Math.random() * 0.16);
+      const mat = new THREE.MeshBasicMaterial({
+        color: 0x55524b, transparent: true, opacity: 1, depthWrite: false,
+      });
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.position.set(point[0], point[1], point[2]);
+      mesh.rotation.set(Math.random() * 3, Math.random() * 3, Math.random() * 3);
+      B3.fxGroup.add(mesh);
+      B3.debris.push({
+        mesh: mesh, geo: geo, mat: mat, born: now,
+        life: 0.45 + Math.random() * 0.25,
+        x0: point[0], y0: point[1], z0: point[2],
+        vx: (Math.random() - 0.5) * 5, vy: 1.5 + Math.random() * 3.5,
+        vz: (Math.random() - 0.5) * 5,
+        rx: (Math.random() - 0.5) * 8, ry: (Math.random() - 0.5) * 8,
+      });
+    }
+    b3ShakeUnitById(targetId, 0.8);
+  }
+
+  function b3UpdateDebris(now) {
+    if (!B3) return;
+    const keep = [];
+    (B3.debris || []).forEach(function (d) {
+      const t = (now - d.born) / 1000;
+      if (t >= d.life || !d.mesh.parent) {
+        if (d.mesh.parent) d.mesh.parent.remove(d.mesh);
+        try { d.geo.dispose(); } catch (e) { /* ignore */ }
+        try { d.mat.dispose(); } catch (e) { /* ignore */ }
+        return;
+      }
+      d.mesh.position.set(
+        d.x0 + d.vx * t,
+        d.y0 + d.vy * t - 0.5 * 14 * t * t,
+        d.z0 + d.vz * t
+      );
+      d.mesh.rotation.x += d.rx * 0.016;
+      d.mesh.rotation.y += d.ry * 0.016;
+      d.mat.opacity = Math.max(0, 1 - t / d.life);
+      keep.push(d);
+    });
+    B3.debris = keep;
+    B3.need = true;
   }
 
   function b3SpawnImpact(point, kind) {
@@ -4055,7 +4180,7 @@
 
     B3.shots.push({
       trail: core, glow: glow, materials: [coreMat, glowMat], geometry: geo,
-      from: start, to: end, dir: dir, fullLen: fullLen, kind: kind,
+      from: start, to: end, dir: dir, fullLen: fullLen, kind: kind, targetId: target.id,
       born: performance.now() + Math.max(0, Number(delay) || 0) * 1000,
       flight: flight, done: false, doneAt: 0, trailLife: 1.2,
     });
@@ -4242,7 +4367,7 @@
       trailGeos: trailGeos, trailMeshes: trailMeshes, trailMats: trailMats,
       trailCounts: trailCounts, trailOpacities: [0.38, 0.15],
       start: [from[0], baseY, from[1]], end: [to[0], baseY, to[1]],
-      baseY: baseY, peak: peak, flight: flight, kind: 'arty',
+      baseY: baseY, peak: peak, flight: flight, kind: 'arty', targetId: target.id,
       born: performance.now() + Math.max(0, Number(delay) || 0) * 1000,
       trailLife: 1.15,
     });
@@ -4353,6 +4478,7 @@
             });
             s.done = true;
             s.doneAt = now;
+            b3ShakeUnitById(s.targetId, 1.4);
             b3SpawnImpact([s.end[0], s.end[1], s.end[2]], 'he');
           }
         } else {
@@ -4401,7 +4527,13 @@
         if (k >= 1) {
           s.done = true;
           s.doneAt = now;
-          if (s.kind === 'he') b3SpawnImpact([s.to[0], s.to[1], s.to[2]], 'he');
+          b3ShakeUnitById(s.targetId, s.kind === 'he' ? 1.2 : 0.9);
+          if (s.kind === 'he') {
+            b3SpawnImpact([s.to[0], s.to[1], s.to[2]], 'he');
+          } else {
+            // 穿甲弹不生成爆炸，只给命中火星、金属破片和车体抖动。
+            b3SpawnArmorHit([s.to[0], s.to[1], s.to[2]], s.targetId);
+          }
         }
       } else {
         const age = (now - s.doneAt) / 1000;
@@ -4489,9 +4621,19 @@
       try { r.geometry.dispose(); } catch (e) { /* ignore */ }
       try { r.material.dispose(); } catch (e) { /* ignore */ }
     });
+    (B3.debris || []).forEach(function (d) {
+      if (d.mesh.parent) d.mesh.parent.remove(d.mesh);
+      try { d.geo.dispose(); } catch (e) { /* ignore */ }
+      try { d.mat.dispose(); } catch (e) { /* ignore */ }
+    });
+    (B3.shakes || []).forEach(function (s) {
+      try { s.group.position.x = s.baseX; s.group.position.z = s.baseZ; } catch (e) { /* ignore */ }
+    });
     B3.shots = [];
     B3.fxSprites = [];
     B3.fxRings = [];
+    B3.debris = [];
+    B3.shakes = [];
     if (B3.fxGroup) {
       while (B3.fxGroup.children.length) B3.fxGroup.remove(B3.fxGroup.children[0]);
     }
