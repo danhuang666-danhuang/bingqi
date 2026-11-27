@@ -2602,6 +2602,32 @@
     return sp;
   }
 
+  function battleQueueDamageFx(unit, amount, color) {
+    if (!state.battle || !unit) return;
+    const b = state.battle;
+    b.damageFx = b.damageFx || [];
+    b.damageFx.push({
+      id: 'fx-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 6),
+      unitId: unit.id, c: unit.c, r: unit.r, amount: Number(amount) || 0,
+      color: color || '#ff6b57', round: b.round,
+    });
+    if (b.damageFx.length > 30) b.damageFx = b.damageFx.slice(-30);
+  }
+
+  function battleFlushDamageFx() {
+    const b = state.battle;
+    if (!b || !b.damageFx) return;
+    state.seenDamageFx = state.seenDamageFx || {};
+    b.damageFx.forEach(function (fx) {
+      if (!fx || !fx.id || state.seenDamageFx[fx.id]) return;
+      state.seenDamageFx[fx.id] = true;
+      if (Number(fx.round) !== Number(b.round)) return;
+      let unit = battleUnitById(fx.unitId);
+      if (!unit) return;
+      b3AddDamageFloat(unit, Number(fx.amount) || 0, fx.color || '#ffb36b');
+    });
+  }
+
   function b3AddDamageFloat(unit, amount, color) {
     if (!B3 || !unit) return;
     const L = b3Layout();
@@ -4218,6 +4244,7 @@
   function syncBattle3DHUD() {
     const view = el('online-battle-view');
     if (!view || state.view !== 'room') return;
+    battleFlushDamageFx();
     const deploy = state.phase === 'deploy';
     const side = myDeploySide();
     const faction = sideFaction(side);
@@ -5157,6 +5184,7 @@
 
   function initBattleState() {
     state.lastTurnBannerKey = '';
+    state.seenDamageFx = {};
     const units = deployUnits().map(function (u) {
       const faction = normalizeFaction(u.faction) || sideFaction(u.side);
       const hp = prepUnitHp(u.name, faction);
@@ -7574,8 +7602,8 @@
         battleHistoryCounter(b.counter.historyId, {
           counterBy: cu.name, counterTarget: au.name, damage: Number(dmg) || 0,
         });
-        // 等模型刷新后再飘字，死亡单位也能看到反击伤害；0 伤害同样显示。
-        setTimeout(function () { b3AddDamageFloat(au, Number(dmg) || 0, '#ffb36b'); }, 20);
+        // 反击伤害通过同步事件给双方客户端飘字，0 伤害同样显示。
+        battleQueueDamageFx(au, Number(dmg) || 0, '#ffb36b');
       }
       b.counter = null;
       hideEl('battle-counter', true);
