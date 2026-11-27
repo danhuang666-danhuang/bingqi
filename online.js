@@ -9919,38 +9919,26 @@
     const b = state.battle;
     if (!b || !b.counter) { panel.classList.add('hidden'); return; }
     const cu = battleUnitById(b.counter.counterUnitId);
-    const targetIds = (b.counter.targetIds || []).filter(function (id) {
+    const targets = (b.counter.targetIds || []).map(function (id) {
       const u = battleUnitById(id);
-      return u && u.alive;
-    });
-    const targets = targetIds.map(function (id) {
-      const u = battleUnitById(id);
-      return u ? u.name : '';
+      return u && u.alive ? u.name : '';
     }).filter(Boolean);
     panel.innerHTML = '';
+    // 面板只做提示，不挡地图点选；只有“不反击”按钮自己接收点击。
+    panel.style.pointerEvents = 'none';
     const h = document.createElement('b');
     h.textContent = '选择反击目标';
     const p = document.createElement('p');
     p.textContent = (cu ? cu.name : '被攻击单位') +
       (b.counter.lethal ? ' 已阵亡，仍可打出反击' : ' 反击') +
-      (targets.length ? '：点击下方按钮或地图上的 ' + targets.join(' / ') : '：没有可反击的进攻方') +
+      (targets.length ? '：点击地图上的 ' + targets.join(' / ') : '：没有可反击的进攻方') +
       '；悬停可看预计伤害。';
-    // 除了点地图上的进攻方，也可以直接点面板里的目标按钮，避免 3D 点选被挡住。
-    targetIds.forEach(function (id) {
-      const u = battleUnitById(id);
-      if (!u) return;
-      const tb = document.createElement('button');
-      tb.type = 'button';
-      tb.className = 'btn small';
-      tb.textContent = u.name;
-      tb.setAttribute('data-battle-counter-target', id);
-      panel.appendChild(tb);
-    });
     const skip = document.createElement('button');
     skip.type = 'button';
     skip.className = 'btn small';
     skip.textContent = '不反击';
     skip.setAttribute('data-battle-counter-skip', '1');
+    skip.style.pointerEvents = 'auto';
     panel.appendChild(h);
     panel.appendChild(p);
     panel.appendChild(skip);
@@ -14894,16 +14882,6 @@
           attackerIds: attackerIds,
           facing: facing == null ? undefined : facing,
           role: role || undefined, focus: focus, dir: airDir,
-        });
-      }
-      return;
-    }
-    const counterPick = e.target.closest ? e.target.closest('[data-battle-counter-target]') : null;
-    if (counterPick) {
-      if (state.battle && state.battle.counter && battleCanCounter(state.battle.counter.chooserSide)) {
-        battleRequest({
-          type: 'counter', side: state.battle.counter.chooserSide,
-          counterId: counterPick.getAttribute('data-battle-counter-target'),
         });
       }
       return;
