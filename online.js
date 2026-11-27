@@ -3846,52 +3846,86 @@
     });
   }
 
+  function b3UnitTopY(unit) {
+    const THREE = window.THREE;
+    const L = b3Layout();
+    const base = (L ? L.TOP : 0) + 8;
+    if (!THREE || !B3 || !unit || !L) return base;
+    try {
+      const g = B3.unitsGroup.children.filter(function (o) {
+        return o.userData && o.userData.b3Unit && o.userData.b3Unit.id === unit.id;
+      })[0];
+      if (g) {
+        let top = base;
+        g.traverse(function (obj) {
+          if (!obj.isMesh || !obj.geometry) return;
+          const box = new THREE.Box3().setFromObject(obj);
+          if (isFinite(box.max.y) && box.max.y > top) top = box.max.y;
+        });
+        return Math.max(L.TOP + 6, top);
+      }
+    } catch (e) { /* ignore */ }
+    return base;
+  }
+
   function b3SpawnShot(attacker, target, kind, delay) {
     const THREE = window.THREE;
     const L = b3Layout();
-    if (!THREE || !L || !B3 || !B3.fxGroup) return;
+    if (!THREE || !L || !B3 || !B3.fxGroup) return 0;
     const from = L.cell(attacker.c, attacker.r);
     const to = L.cell(target.c, target.r);
-    const start = [from[0], L.TOP + 6.0, from[1]];
+    // 从单位模型顶上一点的位置出膛，保证炮口火光不会被车体挡住。
+    const start = [from[0], b3UnitTopY(attacker) + 1.0, from[1]];
     const end = [to[0], L.TOP + 4.3, to[1]];
+    const dx0 = end[0] - start[0], dz0 = end[2] - start[2];
+    const dl0 = Math.hypot(dx0, dz0) || 1;
+    start[0] += dx0 / dl0 * 1.2;
+    start[2] += dz0 / dl0 * 1.2;
+
     const dist = Math.hypot(end[0] - start[0], end[2] - start[2]);
-    const flight = Math.max(0.24, Math.min(0.5, 0.26 + dist * 0.003));
+    const flight = Math.max(0.06, Math.min(0.12, 0.05 + dist * 0.0008));   // 极快
     b3SpawnMuzzle(start, kind, delay);
-    const flash = b3FlashTexture();
-    if (!flash) return;
-    const mat = new THREE.SpriteMaterial({
-      map: flash,
-      color: kind === 'he' ? 0xffb347 : 0xfff3c4,
-      transparent: true, opacity: 1, depthWrite: false, blending: THREE.AdditiveBlending,
+
+    const dir = new THREE.Vector3(end[0] - start[0], end[1] - start[1], end[2] - start[2]);
+    const fullLen = dir.length() || 1;
+    dir.normalize();
+    const geo = new THREE.CylinderGeometry(0.3, 0.3, 1, 6);
+    const mat = new THREE.MeshBasicMaterial({
+      color: 0x3b3e42, transparent: true, opacity: 0.5,
+      depthWrite: false, side: THREE.DoubleSide,
     });
     mat._b3Dispose = true;
-    const sp = new THREE.Sprite(mat);
-    const sc = kind === 'he' ? 3.2 : 2.2;
-    sp.scale.set(sc, sc * 0.7, 1);
-    sp.position.set(start[0], start[1], start[2]);
-    sp.renderOrder = 17;
-    sp.visible = false;
-    B3.fxGroup.add(sp);
+    const trail = new THREE.Mesh(geo, mat);
+    trail.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
+    trail.scale.set(1, 0.001, 1);
+    trail.position.set(start[0], start[1], start[2]);
+    trail.renderOrder = 18;
+    trail.visible = false;
+    B3.fxGroup.add(trail);
+
     B3.shots.push({
-      sprite: sp, material: mat,
-      from: start, to: end, kind: kind,
+      trail: trail, material: mat, geometry: geo,
+      from: start, to: end, dir: dir, fullLen: fullLen, kind: kind,
       born: performance.now() + Math.max(0, Number(delay) || 0) * 1000,
-      flight: flight,
+      flight: flight, done: false, doneAt: 0, trailLife: 1.35,
     });
     while (B3.shots.length > 24) {
       const old = B3.shots.shift();
-      if (old.sprite.parent) old.sprite.parent.remove(old.sprite);
+      if (old.trail.parent) old.trail.parent.remove(old.trail);
+      try { old.geometry.dispose(); } catch (e) { /* ignore */ }
       try { old.material.dispose(); } catch (e) { /* ignore */ }
     }
     B3.need = true;
+    return Math.max(0, Number(delay) || 0) + flight;
   }
 
   function b3StartTankVolley(parts, target) {
-    if (!B3 || !B3.fxGroup || !target) return;
+    if (!B3 || !B3.fxGroup || !target) return 0;
     const L = b3Layout();
-    if (!L) return;
+    if (!L) return 0;
     const seen = {};
     let delay = 0;
+    let maxDelay = 0;
     (parts || []).forEach(function (part) {
       const u = part && part.unit;
       if (!u || !u.alive || part.indirect) return;
@@ -3902,9 +3936,11 @@
       if (cat === 'inf' || cat === 'support') return;
       if (seen[u.id]) return;
       seen[u.id] = true;
-      b3SpawnShot(u, target, part.soft ? 'he' : 'ap', delay);
+      const d = b3SpawnShot(u, target, part.soft ? 'he' : 'ap', delay);
+      if (d > maxDelay) maxDelay = d;
       delay += 0.13;
     });
+    return maxDelay;
   }
 
   function b3UpdateFx(now) {
@@ -3912,23 +3948,32 @@
     const keepShots = [];
     (B3.shots || []).forEach(function (s) {
       const t = (now - s.born) / 1000;
-      if (t < 0) { s.sprite.visible = false; keepShots.push(s); return; }
-      const k = Math.min(1, t / s.flight);
-      s.sprite.visible = true;
-      const arc = Math.sin(Math.PI * k) * 2.0;
-      s.sprite.position.set(
-        s.from[0] + (s.to[0] - s.from[0]) * k,
-        s.from[1] + (s.to[1] - s.from[1]) * k + arc,
-        s.from[2] + (s.to[2] - s.from[2]) * k
-      );
-      if (k >= 1) {
-        s.sprite.visible = false;
-        if (s.sprite.parent) s.sprite.parent.remove(s.sprite);
-        try { s.material.dispose(); } catch (e) { /* ignore */ }
-        if (s.kind === 'he') {
-          b3SpawnImpact([s.to[0], s.to[1], s.to[2]], 'he');
+      if (t < 0) { s.trail.visible = false; keepShots.push(s); return; }
+      if (!s.done) {
+        const k = Math.min(1, t / s.flight);
+        const len = Math.max(0.001, s.fullLen * k);
+        s.trail.visible = true;
+        s.trail.scale.set(1, len, 1);
+        s.trail.position.set(
+          s.from[0] + s.dir.x * len / 2,
+          s.from[1] + s.dir.y * len / 2,
+          s.from[2] + s.dir.z * len / 2
+        );
+        if (k >= 1) {
+          s.done = true;
+          s.doneAt = now;
+          if (s.kind === 'he') b3SpawnImpact([s.to[0], s.to[1], s.to[2]], 'he');
         }
-        return;
+      } else {
+        const age = (now - s.doneAt) / 1000;
+        if (age >= s.trailLife) {
+          if (s.trail.parent) s.trail.parent.remove(s.trail);
+          try { s.geometry.dispose(); } catch (e) { /* ignore */ }
+          try { s.material.dispose(); } catch (e) { /* ignore */ }
+          return;
+        }
+        s.trail.visible = true;
+        s.material.opacity = 0.5 * (1 - age / s.trailLife);
       }
       keepShots.push(s);
     });
@@ -3982,7 +4027,8 @@
   function b3ClearFx() {
     if (!B3) return;
     (B3.shots || []).forEach(function (s) {
-      if (s.sprite.parent) s.sprite.parent.remove(s.sprite);
+      if (s.trail.parent) s.trail.parent.remove(s.trail);
+      try { s.geometry.dispose(); } catch (e) { /* ignore */ }
       try { s.material.dispose(); } catch (e) { /* ignore */ }
     });
     (B3.fxSprites || []).forEach(function (p) {
@@ -8241,8 +8287,8 @@
       if (unit.mp < cost) return;
       const dmg = resolved.dmg;
       battleDamageUnit(target, dmg);
-      b3AddDamageFloat(target, dmg, '#ff6b57');
-      b3StartTankVolley(calc.parts, target);
+      // 先只让炮弹飞；命中后再刷新血量 / 朝向 / 死亡动画和伤害数字。
+      const fxDelay = b3StartTankVolley(calc.parts, target);
       const historyId = battleHistoryAdd({
         attackers: participantsUnits.map(function (u) { return u.name; }),
         target: target.name, targetId: target.id, damage: Number(dmg) || 0,
@@ -8285,8 +8331,21 @@
         b.counter = null;
         b.log.push(target.name + ' 没有可见的反击目标');
       }
-      battleRefresh();
-      battleCheckAutoEnd();
+      if (fxDelay > 0.01) {
+        const hitTarget = target;
+        const hitDmg = dmg;
+        const bRef = b;
+        setTimeout(function () {
+          if (state.battle !== bRef) return;
+          b3AddDamageFloat(hitTarget, hitDmg, '#ff6b57');
+          battleRefresh();
+          battleCheckAutoEnd();
+        }, Math.round(fxDelay * 1000) + 15);
+      } else {
+        b3AddDamageFloat(target, dmg, '#ff6b57');
+        battleRefresh();
+        battleCheckAutoEnd();
+      }
       return;
     }
   }
