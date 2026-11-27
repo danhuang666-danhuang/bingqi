@@ -2622,12 +2622,16 @@
     const tex = new THREE.CanvasTexture(cv);
     if (THREE.sRGBEncoding !== undefined) tex.encoding = THREE.sRGBEncoding;
     const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false, depthWrite: false });
+    mat.depthTest = false;
+    mat.needsUpdate = true;
     const sp = new THREE.Sprite(mat);
-    sp.scale.set(L.HEXR * 2.6, L.HEXR * 1.3, 1);
+    sp.scale.set(L.HEXR * 0.95, L.HEXR * 0.48, 1);
+    sp.renderOrder = 999;
     const w = unit.airBase
       ? (airPadWorld(unit.side, unit.c, unit.r) || L.cell(unit.c, unit.r))
       : L.cell(unit.c, unit.r);
-    const baseY = L.TOP + L.HEXR * 2.55;
+    // 数字贴在模型头顶，不再用固定的 2.55 格半径（会飘到画面上方看不见）。
+    const baseY = unit.airBase ? L.TOP + L.HEXR * 2.55 : b3UnitTopY(unit) - 2.8;
     sp.position.set(w[0], baseY, w[1]);
     B3.floatGroup.add(sp);
     B3.floats.push({ sprite: sp, born: performance.now(), baseY: baseY });
