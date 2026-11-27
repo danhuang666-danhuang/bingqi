@@ -72,7 +72,7 @@
     { id: 'us', name: '美国', code: 'US', char: '美', color: '#5b8ad6', available: true },
     { id: 'de', name: '德国', code: 'DE', char: '德', color: '#909cab', available: true },
     { id: 'ussr', name: '苏联', code: 'USSR', char: '苏', color: '#d2453c', available: true },
-    { id: 'uk', name: '英国', code: 'UK', char: '英', color: '#8a9a58', available: false },
+    { id: 'uk', name: '英国', code: 'UK', char: '英', color: '#b08a1e', available: true },
     { id: 'cn', name: '中国', code: 'CN', char: '中', color: '#c2603f', available: false },
   ];
   const FACTION_BY_ID = {};
@@ -1306,6 +1306,9 @@
           ussr: new THREE.MeshStandardMaterial({
             color: 0x6f2d29, roughness: 0.85, metalness: 0, flatShading: true, side: THREE.DoubleSide,
           }),
+          uk: new THREE.MeshStandardMaterial({
+            color: 0xb08a1e, roughness: 0.85, metalness: 0, flatShading: true, side: THREE.DoubleSide,
+          }),
         },
         hovered: null,
         hexBaseGeo: null,
@@ -1925,7 +1928,8 @@
     }
     if (!model) {
       const fbMat = new THREE.MeshStandardMaterial({
-        color: faction === 'us' ? 0x163fb7 : (faction === 'ussr' ? 0x6f2d29 : 0x50565e), roughness: 0.8,
+        color: faction === 'us' ? 0x163fb7 : (faction === 'ussr' ? 0x6f2d29 :
+          (faction === 'uk' ? 0xb08a1e : 0x50565e)), roughness: 0.8,
       });
       fbMat._b3Dispose = true;
       const fb = new THREE.Mesh(
@@ -13330,7 +13334,7 @@
     panel.innerHTML =
       '<div class="sandbox-head"><b>沙盒模式</b><button type="button" data-sandbox-close="1">×</button></div>' +
       '<div class="sandbox-current">当前方：<b id="sandbox-side">攻方</b>（点顶部座位切换）</div>' +
-      '<label>本国（当前方）<select id="sandbox-faction"><option value="us">美国</option><option value="de">德国</option><option value="ussr">苏联</option></select></label>' +
+      '<label>本国（当前方）<select id="sandbox-faction"><option value="us">美国</option><option value="de">德国</option><option value="ussr">苏联</option><option value="uk">英国</option></select></label>' +
       '<label>单位<select id="sandbox-unit"></select></label>' +
       '<div class="sandbox-actions">' +
         '<button id="sandbox-place" type="button">放置模式</button>' +
@@ -13544,7 +13548,7 @@
     const units = data && data.units ? data.units : {};
     const names = Object.keys(units).sort();
     const factionNameOf = { us: '美国', de: '德国', ussr: '苏联', uk: '英国', cn: '中国' };
-    const countries = ['us', 'de', 'ussr'].map(function (id) {
+    const countries = ['us', 'de', 'ussr', 'uk'].map(function (id) {
       return '<button type="button" class="sd-country' + (id === faction ? ' is-on' : '') +
         '" data-sd-country="' + id + '">' + (factionNameOf[id] || id.toUpperCase()) + '</button>';
     }).join('');
@@ -14416,7 +14420,7 @@
           '<div>' +
             '<p class="online-kicker">NATION SELECT <span>/</span> BOTH SIDES</p>' +
             '<h2>选择国家阵营</h2>' +
-            '<p class="online-faction-view-lead">双方队长各选一国，双方不能相同。目前只开放美国 / 德国，苏联 / 英国 / 中国暂未开放。</p>' +
+            '<p class="online-faction-view-lead">双方队长各选一国，双方不能相同。目前开放美国 / 德国 / 苏联 / 英国，中国暂未开放。</p>' +
           '</div>' +
           '<button id="online-faction-back" type="button" class="btn">返回房间</button>' +
         '</div>' +
