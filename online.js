@@ -1281,6 +1281,7 @@
         dustTex: null,
         flashTex: null,
         trailTex: null,
+        fxHeight: 12.95,
         shots: [],
         fxSprites: [],
         fxRings: [],
@@ -3971,6 +3972,11 @@
     });
   }
 
+  function b3FxHeight() {
+    // 以超级潘兴的开炮高度为统一基准，所有单位特效都在同一个水平面上。
+    return (B3 && isFinite(B3.fxHeight)) ? B3.fxHeight : 12.95;
+  }
+
   function b3UnitTopY(unit) {
     const THREE = window.THREE;
     const L = b3Layout();
@@ -3999,10 +4005,8 @@
     if (!THREE || !L || !B3 || !B3.fxGroup) return 0;
     const from = L.cell(attacker.c, attacker.r);
     const to = L.cell(target.c, target.r);
-    const topA = b3UnitTopY(attacker);
-    const topB = b3UnitTopY(target);
-    // 起点和终点用同一个高度，弹道完全水平；高度取双方模型顶部略低一点。
-    const flightY = Math.max(topA, topB) + 0.15;
+    // 所有单位统一用超级潘兴的开炮高度，起点终点同高，弹道完全水平。
+    const flightY = b3FxHeight();
     const start = [from[0], flightY, from[1]];
     const end = [to[0], flightY, to[1]];
     const dx0 = end[0] - start[0], dz0 = end[2] - start[2];
@@ -4014,10 +4018,10 @@
 
     const dist = Math.hypot(end[0] - start[0], end[2] - start[2]);
     const flight = Math.max(0.035, Math.min(0.075, 0.03 + dist * 0.0004));   // 极快
-    // 炮口火光仍在模型顶部，和水平弹道分开。
+    // 炮口火光也统一到同一高度，水平偏出车体一点。
     const muzzle = [
       from[0] + dx0 / dl0 * L.HEXR * 0.3,
-      topA + 0.6,
+      flightY,
       from[1] + dz0 / dl0 * L.HEXR * 0.3,
     ];
     b3SpawnMuzzle(muzzle, kind, delay);
@@ -16362,6 +16366,11 @@
       openTutorialScreen();
     });
   }
+
+  window.__unitTop = function (unitId) {
+    const u = battleUnitById(unitId);
+    return u ? { top: b3UnitTopY(u), name: u.name, c: u.c, r: u.r } : null;
+  };
 
   window.Online = {
     traits: {

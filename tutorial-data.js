@@ -414,6 +414,16 @@ window.TUTORIAL_LEVELS = [
         }
       },
       {
+        "text": "先在 D3 直接右键 F3 的德军步兵：中间隔着 E3 房区，会提示没有视野。看到提示后再继续。",
+        "allow": {
+          "type": "attack",
+          "unitId": "tutorial-us-inf",
+          "targetId": "tutorial-de-inf"
+        },
+        "blocked": true,
+        "blockedText": "E3 房区挡住了视线，没有视野；需要先移动获得视野。"
+      },
+      {
         "text": "点顶部座位切回「教程玩家」，把步兵移动到 E3 房屋（4,2），绕开阻挡获得 F3 德军视野。",
         "allow": {
           "type": "move",
