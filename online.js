@@ -7171,8 +7171,10 @@
     const d = battleHexDistance(viewer.c, viewer.r, target.c, target.r);
     // 相邻单位一定互相看见；森林/房区只挡更远的视线。
     if (d <= 1) return true;
-    if (battleIsRecon(viewer)) return d <= battleReconRadius(viewer);
-    return d <= BATTLE_VISION && !battleLineBlocked(viewer, target);
+    if (d <= BATTLE_VISION && !battleLineBlocked(viewer, target)) return true;
+    // 侦查半径是“共享视野”的半径，不覆盖单位自身的默认 2 格视野。
+    if (battleIsRecon(viewer) && d <= battleReconRadius(viewer)) return true;
+    return false;
   }
 
   // 普通单位只看自己的视野；侦察单位的视野实时共享给全队；
@@ -7568,11 +7570,12 @@
         const calc = battleCounterRaw(cu, au, au.facing == null ? 0 : au.facing);
         const dmg = battleRollDamage(calc.raw);
         battleDamageUnit(au, dmg);
-        b3AddDamageFloat(au, dmg, '#ffb36b');
         b.log.push(cu.name + ' 反击 ' + au.name + '：' + battleFmt(calc.raw) + ' → ' + battleFmt(dmg));
         battleHistoryCounter(b.counter.historyId, {
           counterBy: cu.name, counterTarget: au.name, damage: Number(dmg) || 0,
         });
+        // 等模型刷新后再飘字，死亡单位也能看到反击伤害；0 伤害同样显示。
+        setTimeout(function () { b3AddDamageFloat(au, Number(dmg) || 0, '#ffb36b'); }, 20);
       }
       b.counter = null;
       hideEl('battle-counter', true);
