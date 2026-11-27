@@ -4073,24 +4073,114 @@
     return Math.max(0, Number(delay) || 0) + flight;
   }
 
+  function b3IsFootUnit(unit) {
+    if (!unit || unit.airBase || battleIsAir(unit)) return false;
+    if (battleArtillerySpec(unit)) return false;
+    if (battleIsMech(unit)) return false;
+    const info = battleInfoFor(unit);
+    const cat = info && info.cat;
+    if (cat === 'inf') return true;
+    if (cat === 'support') return !/炮/.test(String(unit.name || ''));
+    // 没有分类数据的单位按名字兜底。
+    return /步兵|掷弹|伞兵|山地|步兵班|冲锋枪|游骑兵|突击队|工兵|机枪|迫击炮班/.test(String(unit.name || ''));
+  }
+
+  function b3SpawnBullet(attacker, target, delay, opts) {
+    const THREE = window.THREE;
+    const L = b3Layout();
+    if (!THREE || !L || !B3 || !B3.fxGroup) return 0;
+    opts = opts || {};
+    const from = L.cell(attacker.c, attacker.r);
+    const to = L.cell(target.c, target.r);
+    const y = b3FxHeight();
+    const dxAll = to[0] - from[0], dzAll = to[1] - from[1];
+    const dlAll = Math.hypot(dxAll, dzAll) || 1;
+    // 起点从步兵所在格边缘偏出，终点在目标格内随机散布，形成一片弹着点。
+    const edge = L.HEXR * 0.5;
+    const sx = from[0] + dxAll / dlAll * edge + (Math.random() - 0.5) * 1.4;
+    const sz = from[1] + dzAll / dlAll * edge + (Math.random() - 0.5) * 1.4;
+    const spread = L.HEXR * 0.75;
+    const ex = to[0] + (Math.random() - 0.5) * 2 * spread;
+    const ez = to[1] + (Math.random() - 0.5) * 2 * spread;
+    const start = [sx, y, sz];
+    const end = [ex, y, ez];
+    const dir = new THREE.Vector3(end[0] - start[0], 0, end[2] - start[2]);
+    const fullLen = Math.max(0.1, dir.length());
+    dir.normalize();
+    const bulletLen = opts.len || (L.HEXR * 0.9);
+    const radius = opts.radius || 0.055;
+    const geo = new THREE.CylinderGeometry(1, 1, 1, 5, 1, true);
+    const mat = new THREE.MeshBasicMaterial({
+      color: opts.color != null ? opts.color : 0xffd27a,
+      transparent: true, opacity: 0.92,
+      depthWrite: false, side: THREE.DoubleSide,
+    });
+    mat._b3Dispose = true;
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
+    mesh.scale.set(radius, bulletLen, radius);
+    mesh.position.set(start[0], start[1], start[2]);
+    mesh.renderOrder = 19;
+    mesh.visible = false;
+    B3.fxGroup.add(mesh);
+    B3.shots.push({
+      bullet: true, trail: mesh, glow: null, materials: [mat], geometry: geo,
+      from: start, to: end, dir: dir, fullLen: fullLen, kind: 'bullet',
+      born: performance.now() + Math.max(0, Number(delay) || 0) * 1000,
+      flight: opts.flight || 0.05, done: false, doneAt: 0,
+      trailLife: opts.trailLife != null ? opts.trailLife : 0.16,
+      bulletLen: bulletLen,
+    });
+    while (B3.shots.length > 40) {
+      const old = B3.shots.shift();
+      [old.trail, old.glow].forEach(function (m) {
+        if (m && m.parent) m.parent.remove(m);
+      });
+      try { old.geometry.dispose(); } catch (e) { /* ignore */ }
+      (old.materials || []).forEach(function (mt) {
+        try { mt.dispose(); } catch (e) { /* ignore */ }
+      });
+    }
+    B3.need = true;
+    return Math.max(0, Number(delay) || 0) + (opts.flight || 0.05) + 0.02;
+  }
+
+  function b3StartBulletBurst(attacker, target, delay, count) {
+    if (!B3 || !B3.fxGroup) return 0;
+    const n = count || (5 + Math.floor(Math.random() * 2));   // 5–6 发
+    const span = 0.5;                                          // 整体约 0.7 秒
+    let last = 0;
+    for (let i = 0; i < n; i++) {
+      const d = delay + (n > 1 ? span * i / (n - 1) : 0) + (Math.random() - 0.5) * 0.04;
+      const r = b3SpawnBullet(attacker, target, Math.max(0, d), {
+        flight: 0.045, trailLife: 0.14,
+      });
+      if (r > last) last = r;
+    }
+    return last;
+  }
+
   function b3StartTankVolley(parts, target) {
     if (!B3 || !B3.fxGroup || !target) return 0;
     const L = b3Layout();
     if (!L) return 0;
+    if (battleIsAir(target)) return 0;
     const seen = {};
     let delay = 0;
     let maxDelay = 0;
     (parts || []).forEach(function (part) {
       const u = part && part.unit;
       if (!u || !u.alive || part.indirect) return;
-      if (u.airBase || battleIsAir(u) || battleIsAir(target)) return;
-      // 步兵 / 支援单位不开炮，避免步枪兵也打出坦克炮弹。
-      const info = battleInfoFor(u);
-      const cat = info && info.cat;
-      if (cat === 'inf' || cat === 'support') return;
+      if (u.airBase || battleIsAir(u)) return;
       if (seen[u.id]) return;
       seen[u.id] = true;
-      const d = b3SpawnShot(u, target, part.soft ? 'he' : 'ap', delay);
+      let d = 0;
+      if (b3IsFootUnit(u)) {
+        // 步兵 / 徒步单位：连续 5–6 发细长曳光子弹，没有炮弹轨迹。
+        d = b3StartBulletBurst(u, target, delay, 0);
+      } else {
+        d = b3SpawnShot(u, target, part.soft ? 'he' : 'ap', delay);
+      }
       if (d > maxDelay) maxDelay = d;
       delay += 0.13;
     });
@@ -4104,22 +4194,33 @@
       const t = (now - s.born) / 1000;
       if (t < 0) {
         s.trail.visible = false;
-        s.glow.visible = false;
+        if (s.glow) s.glow.visible = false;
         keepShots.push(s);
         return;
       }
       if (!s.done) {
         const k = Math.min(1, t / s.flight);
         const len = Math.max(0.001, s.fullLen * k);
-        const mx = s.from[0] + s.dir.x * len / 2;
-        const my = s.from[1] + s.dir.y * len / 2;
-        const mz = s.from[2] + s.dir.z * len / 2;
         s.trail.visible = true;
-        s.glow.visible = true;
-        s.trail.scale.set(0.12, len, 0.12);
-        s.glow.scale.set(0.24, len, 0.24);
-        s.trail.position.set(mx, my, mz);
-        s.glow.position.set(mx, my, mz);
+        if (s.bullet) {
+          // 子弹：细长曳光，只显示靠近弹头的一小截。
+          const bl = s.bulletLen;
+          s.trail.scale.set(0.055, bl, 0.055);
+          s.trail.position.set(
+            s.from[0] + s.dir.x * (len - bl / 2),
+            s.from[1],
+            s.from[2] + s.dir.z * (len - bl / 2)
+          );
+        } else {
+          const mx = s.from[0] + s.dir.x * len / 2;
+          const my = s.from[1] + s.dir.y * len / 2;
+          const mz = s.from[2] + s.dir.z * len / 2;
+          s.glow.visible = true;
+          s.trail.scale.set(0.12, len, 0.12);
+          s.glow.scale.set(0.24, len, 0.24);
+          s.trail.position.set(mx, my, mz);
+          s.glow.position.set(mx, my, mz);
+        }
         if (k >= 1) {
           s.done = true;
           s.doneAt = now;
@@ -4139,9 +4240,14 @@
         }
         const f = 1 - age / s.trailLife;
         s.trail.visible = true;
-        s.glow.visible = true;
-        s.materials[0].opacity = 0.5 * f;
-        s.materials[1].opacity = 0.2 * f;
+        if (s.bullet) {
+          // 子弹命中后只留一小截快速淡掉的曳光。
+          s.materials[0].opacity = 0.92 * f;
+        } else {
+          s.glow.visible = true;
+          s.materials[0].opacity = 0.5 * f;
+          s.materials[1].opacity = 0.2 * f;
+        }
       }
       keepShots.push(s);
     });
