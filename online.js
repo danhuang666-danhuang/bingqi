@@ -4288,10 +4288,11 @@
       let d = 0;
       // 某一个单位的特效失败不能阻断整次集火结算。
       try {
-        if (b3IsFootUnit(u)) {
-          // 步兵 / 徒步单位：连续 5–6 发细长曳光子弹，没有炮弹轨迹。
+        if (b3IsFootUnit(u) && soft) {
+          // 步兵软攻：连续 5–6 发细长曳光子弹，没有炮弹轨迹。
           d = b3StartBulletBurst(u, target, delay, 0);
         } else {
+          // 步兵硬攻也走坦克同款炮弹 + 双层曳光；软攻以外的单位同理。
           d = b3SpawnShot(u, target, soft ? 'he' : 'ap', delay);
         }
       } catch (e) { d = 0; }
