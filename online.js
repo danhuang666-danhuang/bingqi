@@ -2728,8 +2728,8 @@
     const w = unit.airBase
       ? (airPadWorld(unit.side, unit.c, unit.r) || L.cell(unit.c, unit.r))
       : L.cell(unit.c, unit.r);
-    // 恢复固定高度：死亡单位的模型顶部不可靠，固定高度保证反击伤害也能看见。
-    const baseY = L.TOP + L.HEXR * 2.55;
+    // 统一到超级潘兴的开炮高度；死亡单位的模型顶部不可靠，固定高度也更稳。
+    const baseY = b3FxHeight();
     sp.position.set(w[0], baseY, w[1]);
     B3.floatGroup.add(sp);
     B3.floats.push({ sprite: sp, born: performance.now(), baseY: baseY });
@@ -16366,11 +16366,6 @@
       openTutorialScreen();
     });
   }
-
-  window.__unitTop = function (unitId) {
-    const u = battleUnitById(unitId);
-    return u ? { top: b3UnitTopY(u), name: u.name, c: u.c, r: u.r } : null;
-  };
 
   window.Online = {
     traits: {
