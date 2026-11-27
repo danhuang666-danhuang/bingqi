@@ -4160,6 +4160,73 @@
     return last;
   }
 
+  function b3DisposeShot(s) {
+    if (!s) return;
+    if (s.group) {
+      if (s.group.parent) s.group.parent.remove(s.group);
+      try { s.bodyGeo.dispose(); } catch (e) { /* ignore */ }
+      try { s.noseGeo.dispose(); } catch (e) { /* ignore */ }
+      (s.materials || []).forEach(function (m) { try { m.dispose(); } catch (e) { /* ignore */ } });
+      return;
+    }
+    [s.trail, s.glow].forEach(function (m) {
+      if (m && m.parent) m.parent.remove(m);
+    });
+    try { s.geometry.dispose(); } catch (e) { /* ignore */ }
+    (s.materials || []).forEach(function (m) { try { m.dispose(); } catch (e) { /* ignore */ } });
+  }
+
+  function b3SpawnArtilleryShell(attacker, target, delay) {
+    const THREE = window.THREE;
+    const L = b3Layout();
+    if (!THREE || !L || !B3 || !B3.fxGroup) return 0;
+    const from = L.cell(attacker.c, attacker.r);
+    const to = L.cell(target.c, target.r);
+    const baseY = b3FxHeight();
+    const dist = Math.hypot(to[0] - from[0], to[1] - from[1]);
+    const flight = Math.max(0.85, Math.min(1.65, 0.65 + dist * 0.012)); // 曲射慢很多
+    const peak = Math.max(9, Math.min(30, 8 + dist * 0.28));
+    const bodyGeo = new THREE.CylinderGeometry(0.36, 0.46, 2.0, 8);
+    const noseGeo = new THREE.ConeGeometry(0.46, 1.1, 8);
+    const bodyMat = new THREE.MeshBasicMaterial({ color: 0x8a6a3f });
+    const noseMat = new THREE.MeshBasicMaterial({ color: 0x4c4842 });
+    const group = new THREE.Group();
+    const body = new THREE.Mesh(bodyGeo, bodyMat);
+    const nose = new THREE.Mesh(noseGeo, noseMat);
+    nose.position.y = 1.55;
+    group.add(body);
+    group.add(nose);
+    group.visible = false;
+    group.renderOrder = 20;
+    B3.fxGroup.add(group);
+    B3.shots.push({
+      artillery: true, group: group, bodyGeo: bodyGeo, noseGeo: noseGeo,
+      materials: [bodyMat, noseMat],
+      start: [from[0], baseY, from[1]], end: [to[0], baseY, to[1]],
+      baseY: baseY, peak: peak, flight: flight, kind: 'arty',
+      born: performance.now() + Math.max(0, Number(delay) || 0) * 1000,
+    });
+    while (B3.shots.length > 30) b3DisposeShot(B3.shots.shift());
+    B3.need = true;
+    return Math.max(0, Number(delay) || 0) + flight;
+  }
+
+  function b3StartArtilleryStrike(units, targets) {
+    if (!B3 || !B3.fxGroup) return 0;
+    let delay = 0;
+    let maxDelay = 0;
+    (units || []).forEach(function (u) {
+      if (!u || !u.alive) return;
+      (targets || []).forEach(function (t) {
+        if (!t) return;
+        const d = b3SpawnArtilleryShell(u, t, delay);
+        if (d > maxDelay) maxDelay = d;
+        delay += 0.16;
+      });
+    });
+    return maxDelay;
+  }
+
   function b3StartTankVolley(parts, target) {
     if (!B3 || !B3.fxGroup || !target) return 0;
     const L = b3Layout();
@@ -4189,9 +4256,34 @@
 
   function b3UpdateFx(now) {
     if (!B3) return;
+    const THREE = window.THREE;
     const keepShots = [];
     (B3.shots || []).forEach(function (s) {
       const t = (now - s.born) / 1000;
+      if (s.artillery) {
+        if (t < 0) { s.group.visible = false; keepShots.push(s); return; }
+        const k = Math.min(1, t / s.flight);
+        const sx = s.start[0], sz = s.start[2];
+        const ex = s.end[0], ez = s.end[2];
+        const x = sx + (ex - sx) * k;
+        const z = sz + (ez - sz) * k;
+        const y = s.baseY + 4 * s.peak * k * (1 - k);
+        const tangent = new THREE.Vector3(
+          ex - sx,
+          4 * s.peak * (1 - 2 * k),
+          ez - sz
+        ).normalize();
+        s.group.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), tangent);
+        s.group.position.set(x, y, z);
+        s.group.visible = true;
+        if (k >= 1) {
+          b3DisposeShot(s);
+          b3SpawnImpact([s.end[0], s.end[1], s.end[2]], 'he');
+          return;
+        }
+        keepShots.push(s);
+        return;
+      }
       if (t < 0) {
         s.trail.visible = false;
         if (s.glow) s.glow.visible = false;
@@ -4301,13 +4393,7 @@
   function b3ClearFx() {
     if (!B3) return;
     (B3.shots || []).forEach(function (s) {
-      [s.trail, s.glow].forEach(function (m) {
-        if (m && m.parent) m.parent.remove(m);
-      });
-      try { s.geometry.dispose(); } catch (e) { /* ignore */ }
-      (s.materials || []).forEach(function (mt) {
-        try { mt.dispose(); } catch (e) { /* ignore */ }
-      });
+      b3DisposeShot(s);
     });
     (B3.fxSprites || []).forEach(function (p) {
       if (p.sprite.parent) p.sprite.parent.remove(p.sprite);
@@ -8469,6 +8555,9 @@
         const cost = spec.rocket ? 2 : 1;
         if (unit.mp < cost) return;
         const hits = [];
+        const pendingFloats = [];
+        let artilleryUnits = [unit];
+        let artilleryTargets = [target];
         if (action.type === 'focus') {
           const participants = [unit.id];
           (target.lockedBy || []).forEach(function (id) {
@@ -8476,6 +8565,11 @@
             if (u && u.alive && u.side === unit.side && participants.indexOf(id) === -1) participants.push(id);
           });
           const parts = participants.map(battleUnitById).filter(Boolean);
+          const firingParts = parts.filter(function (p) {
+            return p && p.alive && battleArtilleryIsIndirect(p, target);
+          });
+          artilleryUnits = firingParts.length ? firingParts : [unit];
+          artilleryTargets = [target];
           const facingInfo = battleAutoFacing(target, parts);
           const facing = facingInfo.facing;
           target.facing = facing;
@@ -8483,7 +8577,7 @@
           const calc = resolved.calc;
           const dmg = resolved.dmg;
           battleDamageUnit(target, dmg);
-          b3AddDamageFloat(target, dmg, '#ff6b57');
+          pendingFloats.push({ unit: target, amount: dmg, color: '#ff6b57' });
           const historyId = battleHistoryAdd({
             attackers: parts.map(function (p) { return p.name; }),
             target: target.name, targetId: target.id, damage: Number(dmg) || 0,
@@ -8524,11 +8618,13 @@
           hits.push(target.name + ' -' + battleFmt(dmg));
         } else {
           const targets = spec.rocket ? battleRocketArea(target) : [target];
+          artilleryUnits = [unit];
+          artilleryTargets = targets;
           targets.forEach(function (t) {
             const calc = battleAttackRawOne(unit, t, battleDistanceKey(unit, t));
             const dmg = battleRollDamage(calc.raw);
             battleDamageUnit(t, dmg);
-            b3AddDamageFloat(t, dmg, t.side === unit.side ? '#ffcc66' : '#ff6b57');
+            pendingFloats.push({ unit: t, amount: dmg, color: t.side === unit.side ? '#ffcc66' : '#ff6b57' });
             battleHistoryAdd({
               attackers: [unit.name], target: t.name, targetId: t.id,
               damage: Number(dmg) || 0, cell: { c: t.c, r: t.r }, side: unit.side,
@@ -8536,6 +8632,7 @@
             hits.push(t.name + ' -' + battleFmt(dmg));
           });
         }
+        const fxDelay = b3StartArtilleryStrike(artilleryUnits, artilleryTargets);
         unit.mp -= cost;
         unit.artyShots = Number(unit.artyShots || 0) + 1;
         if (!spec.rocket && unit.artyShots >= 2) {
@@ -8557,8 +8654,17 @@
         b.selectedId = null;
         b.log.push(unit.name + (spec.rocket ? ' 火箭炮覆盖 ' : (action.type === 'focus' ? ' 集火曲射 ' : ' 曲射 ')) + target.name +
           '：' + hits.join('、') + '（' + battleFmt(cost) + ' 行动力，曲射无反击）');
-        battleRefresh();
-        battleCheckAutoEnd();
+        const bRef = b;
+        const finish = function () {
+          if (state.battle !== bRef) return;
+          pendingFloats.forEach(function (f) {
+            b3AddDamageFloat(f.unit, f.amount, f.color);
+          });
+          battleRefresh();
+          battleCheckAutoEnd();
+        };
+        if (fxDelay > 0.01) setTimeout(finish, Math.round(fxDelay * 1000) + 20);
+        else finish();
         return;
       }
       if (action.type === 'lock') {
