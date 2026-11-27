@@ -3896,6 +3896,10 @@
       const u = part && part.unit;
       if (!u || !u.alive || part.indirect) return;
       if (u.airBase || battleIsAir(u) || battleIsAir(target)) return;
+      // 步兵 / 支援单位不开炮，避免步枪兵也打出坦克炮弹。
+      const info = battleInfoFor(u);
+      const cat = info && info.cat;
+      if (cat === 'inf' || cat === 'support') return;
       if (seen[u.id]) return;
       seen[u.id] = true;
       b3SpawnShot(u, target, part.soft ? 'he' : 'ap', delay);
