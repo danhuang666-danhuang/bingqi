@@ -2728,6 +2728,26 @@
     }
   }
 
+  function battleScheduleDamageVisual(target, amount, delay, color) {
+    const bRef = state.battle;
+    let done = false;
+    const finish = function () {
+      if (done || state.battle !== bRef) return;
+      done = true;
+      try { b3AddDamageFloat(target, Number(amount) || 0, color || '#ff6b57'); } catch (e) { /* ignore */ }
+      battleRefresh();
+      battleCheckAutoEnd();
+    };
+    const sec = Math.max(0, Number(delay) || 0);
+    if (sec <= 0.01) {
+      finish();
+      return;
+    }
+    // 伤害数据已经结算，只把血条/朝向/飘字视觉延后；4.5 秒兜底，避免特效异常导致界面不刷新。
+    setTimeout(finish, Math.min(3500, Math.round(sec * 1000) + 120));
+    setTimeout(finish, 4500);
+  }
+
   function b3AddDamageFloat(unit, amount, color, at) {
     if (!B3 || !unit) return;
     if (!state._flushingDamageFx) {
@@ -9176,7 +9196,6 @@
         b.selectedId = null;
         b.counter = null;
         b.log.push(unit.name + ' 集火曲射 ' + target.name + '：' + battleFmt(actualLoss) + '（' + cost + ' 行动力）');
-        b3AddDamageFloat(target, actualLoss, '#ff6b57');
         // 炮兵集火也把每个参战单位的特效补上：火炮打抛物线，直射队友打各自的弹道。
         const focusArtyUnits = parts.filter(function (p) {
           return p && p.alive && battleArtilleryIsIndirect(p, target);
@@ -9184,15 +9203,18 @@
         const focusDirectParts = parts.filter(function (p) {
           return p && p.alive && !battleArtilleryIsIndirect(p, target);
         });
+        let fxDelay = 0;
         try {
-          if (spec.rocket) b3StartRocketBarrage(unit, target);
-          else b3StartArtilleryStrike(focusArtyUnits.length ? focusArtyUnits : [unit], [target]);
+          const d = spec.rocket
+            ? b3StartRocketBarrage(unit, target)
+            : b3StartArtilleryStrike(focusArtyUnits.length ? focusArtyUnits : [unit], [target]);
+          fxDelay = Math.max(fxDelay, Number(d) || 0);
         } catch (e) { /* ignore */ }
         try {
-          b3StartTankVolley(focusDirectParts, target, 0.03);
+          const d = b3StartTankVolley(focusDirectParts, target, 0.03);
+          fxDelay = Math.max(fxDelay, Number(d) || 0);
         } catch (e) { /* ignore */ }
-        battleRefresh();
-        battleCheckAutoEnd();
+        battleScheduleDamageVisual(target, actualLoss, fxDelay, '#ff6b57');
         return;
       }
       if (targetLocked && action.type === 'attack' &&
@@ -9341,12 +9363,10 @@
         b.selectedId = null;
         b.log.push(unit.name + (spec.rocket ? ' 火箭炮覆盖 ' : (action.type === 'focus' ? ' 集火曲射 ' : ' 曲射 ')) + target.name +
           '：' + hits.join('、') + '（' + battleFmt(cost) + ' 行动力，曲射无反击）');
-        // 曲射集火同样立即结算，动画只负责表现，不能阻塞血量/行动力刷新。
+        // 曲射集火同样等参战单位特效播放完，再刷新血量/朝向和飘字。
         pendingFloats.forEach(function (f) {
-          try { b3AddDamageFloat(f.unit, f.amount, f.color); } catch (e) { /* ignore */ }
+          battleScheduleDamageVisual(f.unit, f.amount, fxDelay, f.color);
         });
-        battleRefresh();
-        battleCheckAutoEnd();
         return;
       }
       if (action.type === 'lock') {
@@ -9456,9 +9476,7 @@
         b.log.push(target.name + ' 没有可见的反击目标');
       }
       // 伤害与血量必须立即结算，不能被攻击特效的播放时长拖住。
-      try { b3AddDamageFloat(target, actualLoss, '#ff6b57'); } catch (e) { /* ignore */ }
-      battleRefresh();
-      battleCheckAutoEnd();
+      battleScheduleDamageVisual(target, actualLoss, fxDelay, '#ff6b57');
       return;
     }
   }
