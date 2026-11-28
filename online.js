@@ -1288,6 +1288,7 @@
         debris: [],
         shakes: [],
         bombs: [],
+        rockets: [],
         tileMeshes: [],
         cam: { yaw: 0, pitch: 0.86, dist: 320, tx: 0, ty: 0, tz: 0 },
         mapRef: null,
@@ -1346,6 +1347,7 @@
         b3UpdateCounterBatteryMarks(performance.now());
         if (B3.shakes && B3.shakes.length) b3UpdateShakes(performance.now());
         if (B3.bombs && B3.bombs.length) b3UpdateBombs(performance.now());
+        if (B3.rockets && B3.rockets.length) b3UpdateRockets(performance.now());
         if (B3.flights && B3.flights.length) b3UpdateAirFlights(performance.now());
         if (B3.need) {
           B3.need = false;
@@ -3006,6 +3008,133 @@
       keep.push(b);
     });
     B3.bombs = keep;
+    B3.need = true;
+  }
+
+  function b3DisposeRocket(r) {
+    if (!r) return;
+    if (r.group) {
+      if (r.group.parent) r.group.parent.remove(r.group);
+      try { r.bodyGeo.dispose(); } catch (e) { /* ignore */ }
+      try { r.noseGeo.dispose(); } catch (e) { /* ignore */ }
+      try { r.flameMat.dispose(); } catch (e) { /* ignore */ }
+      (r.materials || []).forEach(function (m) { try { m.dispose(); } catch (e) { /* ignore */ } });
+      r.group = null;
+    }
+  }
+
+  function b3RocketCells(target) {
+    const cells = [{ c: target.c, r: target.r }];
+    if (window.HG && HG.neighbors && state.map) {
+      HG.neighbors(target.c, target.r).forEach(function (p) {
+        const c = p[0], r = p[1];
+        if (c >= 0 && r >= 0 && c < state.map.cols && r < state.map.rows) {
+          cells.push({ c: c, r: r });
+        }
+      });
+    }
+    return cells;
+  }
+
+  function b3SpawnRocket(unit, cell, delay) {
+    const THREE = window.THREE;
+    const L = b3Layout();
+    if (!THREE || !L || !B3 || !B3.fxGroup) return 0;
+    const from = L.cell(unit.c, unit.r);
+    const to = L.cell(cell.c, cell.r);
+    const start = [from[0] + (Math.random() - 0.5) * L.HEXR * 0.35,
+      b3FxHeight() + 0.2,
+      from[1] + (Math.random() - 0.5) * L.HEXR * 0.35];
+    const end = [to[0] + (Math.random() - 0.5) * L.HEXR * 0.28,
+      L.TOP + 0.12,
+      to[1] + (Math.random() - 0.5) * L.HEXR * 0.28];
+    const dist = Math.hypot(end[0] - start[0], end[2] - start[2]);
+    const dur = Math.max(0.8, Math.min(1.45, 0.7 + dist * 0.008));
+    const peak = Math.max(6, Math.min(16, 5 + dist * 0.16));
+    const bodyGeo = new THREE.CylinderGeometry(0.16, 0.22, 1.15, 6);
+    const noseGeo = new THREE.ConeGeometry(0.22, 0.6, 6);
+    const bodyMat = new THREE.MeshBasicMaterial({ color: 0x5a554b });
+    const noseMat = new THREE.MeshBasicMaterial({ color: 0x38342e });
+    const group = new THREE.Group();
+    const body = new THREE.Mesh(bodyGeo, bodyMat);
+    const nose = new THREE.Mesh(noseGeo, noseMat);
+    nose.position.y = 0.85;
+    group.add(body);
+    group.add(nose);
+    // 尾部喷火，只在刚发射的一小段时间可见。
+    const flameMat = new THREE.SpriteMaterial({
+      map: b3FlashTexture(), color: 0xffb060, transparent: true,
+      opacity: 1, depthTest: false, depthWrite: false, blending: THREE.AdditiveBlending,
+    });
+    const flame = new THREE.Sprite(flameMat);
+    flame.position.set(0, -0.95, 0);
+    flame.scale.set(2.2, 2.2, 1);
+    flame.renderOrder = 30;
+    group.add(flame);
+    group.visible = false;
+    group.renderOrder = 20;
+    B3.fxGroup.add(group);
+    const unitAt = battleUnitAt(cell.c, cell.r);
+    B3.rockets.push({
+      group: group, flame: flame, flameMat: flameMat,
+      bodyGeo: bodyGeo, noseGeo: noseGeo, materials: [bodyMat, noseMat],
+      start: start, end: end, dur: dur, peak: peak, flameLife: 0.2,
+      born: performance.now() + Math.max(0, Number(delay) || 0) * 1000,
+      targetId: unitAt ? unitAt.id : '',
+    });
+    while (B3.rockets.length > 80) b3DisposeRocket(B3.rockets.shift());
+    B3.need = true;
+    return Math.max(0, Number(delay) || 0) + dur;
+  }
+
+  function b3StartRocketBarrage(unit, target) {
+    if (!B3 || !B3.fxGroup || !unit || !target) return 0;
+    const cells = b3RocketCells(target);
+    let delay = 0;
+    let maxDelay = 0;
+    cells.forEach(function (cell) {
+      const n = 2 + (Math.random() < 0.5 ? 1 : 0);   // 每格 2–3 枚
+      for (let i = 0; i < n; i++) {
+        const d = b3SpawnRocket(unit, cell, delay);
+        if (d > maxDelay) maxDelay = d;
+        delay += 0.075 + Math.random() * 0.045;       // 一枚一枚发射
+      }
+    });
+    return maxDelay;
+  }
+
+  function b3UpdateRockets(now) {
+    if (!B3) return;
+    const THREE = window.THREE;
+    const keep = [];
+    (B3.rockets || []).forEach(function (r) {
+      const t = (now - r.born) / 1000;
+      if (t < 0) { r.group.visible = false; keep.push(r); return; }
+      const k = Math.min(1, t / r.dur);
+      const h = k * k * (3 - 2 * k);      // 先加速，后减速
+      const dh = 6 * k * (1 - k);
+      const x = r.start[0] + (r.end[0] - r.start[0]) * h;
+      const z = r.start[2] + (r.end[2] - r.start[2]) * h;
+      const y = r.start[1] + (r.end[1] - r.start[1]) * k +
+        4 * r.peak * k * (1 - k);
+      const tangent = new THREE.Vector3(
+        (r.end[0] - r.start[0]) * dh,
+        (r.end[1] - r.start[1]) + 4 * r.peak * (1 - 2 * k),
+        (r.end[2] - r.start[2]) * dh
+      ).normalize();
+      r.group.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), tangent);
+      r.group.position.set(x, y, z);
+      r.group.visible = true;
+      r.flame.visible = t < r.flameLife;
+      if (k >= 1) {
+        b3DisposeRocket(r);
+        b3SpawnImpact([r.end[0], r.end[1], r.end[2]], 'he');
+        b3ShakeUnitById(r.targetId, 1.0);
+        return;
+      }
+      keep.push(r);
+    });
+    B3.rockets = keep;
     B3.need = true;
   }
 
@@ -4775,12 +4904,14 @@
       try { s.group.position.x = s.baseX; s.group.position.z = s.baseZ; } catch (e) { /* ignore */ }
     });
     (B3.bombs || []).forEach(function (b) { b3DisposeBomb(b); });
+    (B3.rockets || []).forEach(function (r) { b3DisposeRocket(r); });
     B3.shots = [];
     B3.fxSprites = [];
     B3.fxRings = [];
     B3.debris = [];
     B3.shakes = [];
     B3.bombs = [];
+    B3.rockets = [];
     if (B3.fxGroup) {
       while (B3.fxGroup.children.length) B3.fxGroup.remove(B3.fxGroup.children[0]);
     }
@@ -9006,7 +9137,8 @@
           return p && p.alive && !battleArtilleryIsIndirect(p, target);
         });
         try {
-          b3StartArtilleryStrike(focusArtyUnits.length ? focusArtyUnits : [unit], [target]);
+          if (spec.rocket) b3StartRocketBarrage(unit, target);
+          else b3StartArtilleryStrike(focusArtyUnits.length ? focusArtyUnits : [unit], [target]);
         } catch (e) { /* ignore */ }
         try {
           b3StartTankVolley(focusDirectParts, target, 0.03);
@@ -9133,7 +9265,11 @@
         }
         let artyDelay = 0;
         let directDelay = 0;
-        try { artyDelay = b3StartArtilleryStrike(artilleryUnits, artilleryTargets); } catch (e) { artyDelay = 0; }
+        try {
+          artyDelay = spec.rocket
+            ? b3StartRocketBarrage(unit, target)
+            : b3StartArtilleryStrike(artilleryUnits, artilleryTargets);
+        } catch (e) { artyDelay = 0; }
         try { directDelay = b3StartTankVolley(directParts, target, 0.03); } catch (e) { directDelay = 0; }
         const fxDelay = Math.max(artyDelay, directDelay);
         unit.mp -= cost;
