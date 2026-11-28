@@ -2044,15 +2044,15 @@
   function b3ApplyDayNight() {
     if (!B3 || !B3.lights) return;
     const night = battleIsNight();
-    B3.lights.hemi.intensity = night ? 0.06 : 0.18;
-    B3.lights.key.intensity = night ? 0.34 : 0.95;
-    B3.lights.rim.intensity = night ? 0.05 : 0.16;
-    if (B3.lights.hemi.color) B3.lights.hemi.color.setHex(night ? 0x6b83a8 : 0xd6e4f5);
-    if (B3.lights.hemi.groundColor) B3.lights.hemi.groundColor.setHex(night ? 0x080b10 : 0x2a2620);
-    if (B3.lights.key.color) B3.lights.key.color.setHex(night ? 0x9db7e8 : 0xfff3e2);
-    if (B3.lights.rim.color) B3.lights.rim.color.setHex(night ? 0x5577b8 : 0x9cbcff);
+    B3.lights.hemi.intensity = night ? 0.16 : 0.18;
+    B3.lights.key.intensity = night ? 0.62 : 0.95;
+    B3.lights.rim.intensity = night ? 0.14 : 0.16;
+    if (B3.lights.hemi.color) B3.lights.hemi.color.setHex(night ? 0x8fa8cc : 0xd6e4f5);
+    if (B3.lights.hemi.groundColor) B3.lights.hemi.groundColor.setHex(night ? 0x202a38 : 0x2a2620);
+    if (B3.lights.key.color) B3.lights.key.color.setHex(night ? 0xc4d4f2 : 0xfff3e2);
+    if (B3.lights.rim.color) B3.lights.rim.color.setHex(night ? 0x6f91cc : 0x9cbcff);
     if (B3.scene && B3.scene.background && B3.scene.background.setHex) {
-      B3.scene.background.setHex(night ? 0x0b0e13 : 0x171b21);
+      B3.scene.background.setHex(night ? 0x182234 : 0x171b21);
     }
     B3.need = true;
   }
@@ -2644,12 +2644,12 @@
     if (aa) parts.push('防空伤害 ' + battleFmt(aa.damage));
     if (arty) parts.push((arty.rocket ? '火箭炮伤害 ' : '炮击伤害 ') + battleFmt(arty.damage));
     if (cbR) parts.push('反炮兵');
-    if (guardCount) parts.push('警戒区');
+    if (!parts.length) { B3.need = true; return; }
     const labelText = parts.join(' / ');
     const label = b3CostSprite(labelText, { color: '#ff6b6b' });
     if (label) {
       const w = L.cell(unit.c, unit.r);
-      label.position.set(w[0], L.TOP + L.HEXR * 2.8, w[1]);
+      label.position.set(w[0], L.TOP + L.HEXR * 3.55, w[1]);
       B3.rangeGroup.add(label);
     }
     B3.need = true;
@@ -5321,6 +5321,12 @@
       end.classList.toggle('hidden', !battle);
       end.disabled = !battle || !activeCan || !!battle.counter || !!battle.reinforce;
       end.textContent = battle && battle.activeSide === side ? '结束回合' : '等待对方';
+    }
+    const surrender = el('online-battle-surrender');
+    if (surrender) {
+      const canSurrender = !!(battle && !battle.winner && !state.tutorial && side);
+      surrender.classList.toggle('hidden', !canSurrender);
+      surrender.disabled = !canSurrender;
     }
     if (back) back.classList.toggle('hidden', !(state.role === 'host' && (state.phase === 'deploy' || state.phase === 'battle')));
     if (undo) undo.classList.toggle('hidden', !deploy);
@@ -8499,9 +8505,21 @@
         b.facingChoice.defenderSide === actionSide) ||
       (b.airIntercept && action.type === 'airIntercept' &&
         b.airIntercept.defenderSide === actionSide)
-    );
+    ) || action.type === 'surrender';
     if (!state.test && b.turnOrder && b.activePlayerId && action.playerId &&
         action.playerId !== b.activePlayerId && !pendingOwner) return;
+    if (action.type === 'surrender') {
+      const loser = normalizeSide(action.side);
+      if (!loser) return;
+      const winner = otherSide(loser);
+      battleFinishBattle(b, loser === 'attacker'
+        ? { attacker: '完全失败', defender: '大获全胜', winner: 'defender' }
+        : { attacker: '大获全胜', defender: '完全失败', winner: 'attacker' });
+      b.winReason = (loser === 'attacker' ? '进攻方' : '防守方') + '投降';
+      b.log.push(b.winReason);
+      battleRefresh();
+      return;
+    }
     if (String(action.type || '').indexOf('reinforce') === 0) {
       battleApplyReinforce(action);
       return;
@@ -9949,6 +9967,14 @@
     if (!state.battle || state.battle.counter || state.battle.reinforce || state.battle.airIntercept || state.battle.facingChoice) return;
     if (!battleCanControl(state.battle.activeSide)) return;
     battleRequest({ type: 'endTurn', side: state.battle.activeSide });
+  }
+
+  function battleSurrender() {
+    const b = state.battle;
+    if (!b || b.winner || state.tutorial || state.phase !== 'battle') return;
+    const side = battleMySide();
+    if (!side) return;
+    battleRequest({ type: 'surrender', side: side });
   }
 
   function battleHasPendingLock() {
@@ -14932,6 +14958,7 @@
               '<button id="online-battle-undo" type="button" class="btn small">撤销</button>' +
               '<button id="online-battle-done" type="button" class="btn small primary">部署完成</button>' +
               '<button id="online-battle-end-turn" type="button" class="btn small primary hidden">结束回合</button>' +
+              '<button id="online-battle-surrender" type="button" class="btn small hidden">投降</button>' +
               '<button id="online-save-game" type="button" class="btn small">保存对局</button>' +
               '<button id="online-load-game" type="button" class="btn small">载入对局</button>' +
               '<button id="battle-history-open" type="button" class="btn small">对战历史</button>' +
@@ -15820,6 +15847,7 @@
 
   mount.addEventListener('click', function (e) {
     if (e.target.closest && e.target.closest('#online-battle-end-turn')) { battleEndTurn(); return; }
+    if (e.target.closest && e.target.closest('#online-battle-surrender')) { battleSurrender(); return; }
     if (e.target.closest && e.target.closest('#online-save-game')) { saveGameFile(); return; }
     if (e.target.closest && e.target.closest('#online-load-game')) { loadGameFile(); return; }
     if (e.target.closest && e.target.closest('#battle-history-open')) {
