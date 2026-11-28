@@ -2851,7 +2851,8 @@
         const pathLen = Math.hypot(f.dest[0] - f.from[0], f.dest[2] - f.from[2]);
         const k = Math.max(0, Math.min(1, t / (f.out || 0.001)));
         const remain = pathLen * (1 - k);
-        if (remain <= (L ? L.HEXR : 10) * 1.05 || t >= f.out) {
+        // 提前到约 2 格就开始投弹，让炸弹有足够时间缓慢下落。
+        if (remain <= (L ? L.HEXR : 10) * 2.0 || t >= f.out) {
           f.impacted = true;
           const dropFrom = t >= f.out
             ? [f.dest[0], f.from[1], f.dest[2]]
@@ -2917,7 +2918,8 @@
     const startY = from[1];
     const endY = end[1];
     const fall = Math.max(0.05, startY - endY);
-    const dur = Math.max(0.45, Math.min(0.9, 0.35 + fall * 0.02));
+    // 炸弹下落明显慢于飞机飞行，突出“缓慢下坠”的观感。
+    const dur = Math.max(1.1, Math.min(2.0, 0.9 + fall * 0.025));
     const bodyGeo = new THREE.CylinderGeometry(0.22, 0.3, 1.25, 6);
     const noseGeo = new THREE.ConeGeometry(0.3, 0.62, 6);
     const bodyMat = new THREE.MeshBasicMaterial({ color: 0x4d4a40 });
