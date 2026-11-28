@@ -862,7 +862,7 @@ window.TUTORIAL_LEVELS = [
         }
       },
       {
-        "text": "战壕修好了。选中德军步兵（F2），移动到 E3 战壕上。",
+        "text": "战壕修好了。战壕所在格现在提供高达 70% 的伤害抗性。选中德军步兵（F2），移动到 E3 战壕上。",
         "allow": {
           "type": "move",
           "unitId": "tutorial2-de-inf",
