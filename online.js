@@ -1203,6 +1203,7 @@
       const ghostGroup = new THREE.Group();
       const floatGroup = new THREE.Group();
       const deathGroup = new THREE.Group();
+      const deathHoldGroup = new THREE.Group();
       const fxGroup = new THREE.Group();
       const apGroup = new THREE.Group();
       const airGroup = new THREE.Group();
@@ -1226,6 +1227,7 @@
       scene.add(ghostGroup);
       scene.add(floatGroup);
       scene.add(deathGroup);
+      scene.add(deathHoldGroup);
       scene.add(fxGroup);
       scene.add(apGroup);
       scene.add(airGroup);
@@ -1258,6 +1260,7 @@
         ghostGroup: ghostGroup,
         floatGroup: floatGroup,
         deathGroup: deathGroup,
+        deathHoldGroup: deathHoldGroup,
         fxGroup: fxGroup,
         apGroup: apGroup,
         airGroup: airGroup,
@@ -1276,6 +1279,8 @@
         floats: [],
         flights: [],
         deaths: [],
+        pendingDeaths: [],
+        deathHoldUntil: 0,
         fractureCache: {},
         fractureKeys: [],
         dustTex: null,
@@ -1340,6 +1345,7 @@
           b3KeyboardPan(dt);
         }
         if (B3.floats && B3.floats.length) b3UpdateFloats(performance.now());
+        if (B3.pendingDeaths && B3.pendingDeaths.length) b3UpdatePendingDeaths(performance.now());
         if (B3.deaths && B3.deaths.length) b3UpdateDeaths(performance.now());
         if ((B3.shots && B3.shots.length) || (B3.fxSprites && B3.fxSprites.length) ||
             (B3.fxRings && B3.fxRings.length)) b3UpdateFx(performance.now());
@@ -2319,14 +2325,19 @@
     if (B3.zoneGroup) B3.zoneGroup.visible = state.phase === 'deploy';
     if (B3.hovered) b3SetUnitHover(null);
     B3.hovered = null;
-    // 重建前先把这一帧“刚阵亡”的单位拍下来：清空 unitsGroup 会把模型材质一起释放。
+    // 重建前先把这一帧“刚阵亡”的单位拍下来；旧模型先移到 hold 组，
+    // 等所有攻击特效落地后再开始碎裂，避免炮弹还在飞就碎了。
     const deadSnaps = [];
-    B3.unitsGroup.children.forEach(function (g) {
+    B3.unitsGroup.children.slice().forEach(function (g) {
       const u = g.userData && g.userData.b3Unit;
       if (u && u.alive === false) {
         const snap = b3DeathSnapshot(g);
-        if (snap) deadSnaps.push(snap);
+        if (snap) deadSnaps.push({ snap: snap, group: g });
       }
+    });
+    deadSnaps.forEach(function (d) {
+      B3.unitsGroup.remove(d.group);
+      B3.deathHoldGroup.add(d.group);
     });
     b3ClearGroup(B3.unitsGroup);
     const source = state.phase === 'battle' && state.battle
@@ -2336,7 +2347,15 @@
       const g = buildBattle3DUnit(u);
       if (g) B3.unitsGroup.add(g);
     });
-    deadSnaps.forEach(function (snap) { b3StartUnitDeath(snap); });
+    const holdUntil = Math.max(performance.now(), Number(B3.deathHoldUntil) || 0);
+    deadSnaps.forEach(function (d) {
+      if (holdUntil > performance.now() + 10) {
+        B3.pendingDeaths.push({ snap: d.snap, group: d.group, at: holdUntil });
+      } else {
+        if (d.group.parent) d.group.parent.remove(d.group);
+        b3StartUnitDeath(d.snap);
+      }
+    });
     refreshBattle3DEligible();
     refreshBattle3DApRings();
     refreshBattle3DAirPads();
@@ -2831,6 +2850,7 @@
       hold: hit ? 1.1 : 0,
       back: hit ? 0.55 : 0.8,
     });
+    if (bomb) b3HoldDeathUntil((Number(delay) || 0) * 1000 + 3200);
     B3.need = true;
   }
 
@@ -3025,7 +3045,7 @@
 
   function b3RocketCells(target) {
     const cells = [{ c: target.c, r: target.r }];
-    if (window.HG && HG.neighbors && state.map) {
+    if (typeof HG !== 'undefined' && HG.neighbors && state.map) {
       HG.neighbors(target.c, target.r).forEach(function (p) {
         const c = p[0], r = p[1];
         if (c >= 0 && r >= 0 && c < state.map.cols && r < state.map.rows) {
@@ -3100,6 +3120,7 @@
         delay += 0.075 + Math.random() * 0.045;       // 一枚一枚发射
       }
     });
+    if (maxDelay > 0) b3HoldDeathUntil(maxDelay * 1000 + 80);
     return maxDelay;
   }
 
@@ -3111,8 +3132,9 @@
       const t = (now - r.born) / 1000;
       if (t < 0) { r.group.visible = false; keep.push(r); return; }
       const k = Math.min(1, t / r.dur);
-      const h = k * k * (3 - 2 * k);      // 先加速，后减速
-      const dh = 6 * k * (1 - k);
+      // 水平匀速、垂直抛物线：整条轨迹是一条连续的抛物线，不再有平飞段。
+      const h = k;
+      const dh = 1;
       const x = r.start[0] + (r.end[0] - r.start[0]) * h;
       const z = r.start[2] + (r.end[2] - r.start[2]) * h;
       const y = r.start[1] + (r.end[1] - r.start[1]) * k +
@@ -4663,6 +4685,7 @@
         delay += 0.16;
       });
     });
+    if (maxDelay > 0) b3HoldDeathUntil(maxDelay * 1000 + 80);
     return maxDelay;
   }
 
@@ -4698,6 +4721,7 @@
       if (d > maxDelay) maxDelay = d;
       delay += 0.13;
     });
+    if (maxDelay > 0) b3HoldDeathUntil(maxDelay * 1000 + 80);
     return maxDelay;
   }
 
@@ -4918,6 +4942,25 @@
     B3.need = true;
   }
 
+  function b3HoldDeathUntil(ms) {
+    if (!B3) return;
+    const at = performance.now() + Math.max(0, Number(ms) || 0);
+    if (!isFinite(B3.deathHoldUntil) || at > B3.deathHoldUntil) B3.deathHoldUntil = at;
+  }
+
+  function b3UpdatePendingDeaths(now) {
+    if (!B3) return;
+    const keep = [];
+    (B3.pendingDeaths || []).forEach(function (d) {
+      if (now < d.at) { keep.push(d); return; }
+      if (d.group && d.group.parent) d.group.parent.remove(d.group);
+      b3StartUnitDeath(d.snap);
+    });
+    B3.pendingDeaths = keep;
+    if (!keep.length && Number(B3.deathHoldUntil) <= now) B3.deathHoldUntil = 0;
+    B3.need = true;
+  }
+
   function b3DisposeDeath(d) {
     if (!d || !B3) return;
     d.pieces.forEach(function (p) {
@@ -4947,6 +4990,11 @@
     if (!B3) return;
     (B3.deaths || []).slice().forEach(b3DisposeDeath);
     B3.deaths = [];
+    if (B3.deathHoldGroup) {
+      while (B3.deathHoldGroup.children.length) B3.deathHoldGroup.remove(B3.deathHoldGroup.children[0]);
+    }
+    B3.pendingDeaths = [];
+    B3.deathHoldUntil = 0;
     if (B3.deathGroup) {
       while (B3.deathGroup.children.length) B3.deathGroup.remove(B3.deathGroup.children[0]);
     }
