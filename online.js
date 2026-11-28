@@ -9233,7 +9233,7 @@
         b.log.push(target.name + ' 没有可见的反击目标');
       }
       // 伤害与血量必须立即结算，不能被攻击特效的播放时长拖住。
-      try { b3AddDamageFloat(target, dmg, '#ff6b57'); } catch (e) { /* ignore */ }
+      try { b3AddDamageFloat(target, dealt, '#ff6b57'); } catch (e) { /* ignore */ }
       battleRefresh();
       battleCheckAutoEnd();
       return;
