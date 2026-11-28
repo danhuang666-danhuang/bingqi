@@ -8990,7 +8990,9 @@
         fxDelay = Math.max(fxDelay, Number(d) || 0);
       } catch (e) { /* ignore */ }
       try {
-        const d = b3StartTankVolley(groundDirectParts, target, 0.05);
+        const d = b3StartTankVolley(groundDirectParts.map(function (p) {
+          return { unit: p, indirect: false, soft: !battleHasArmor(battleInfoFor(target)) };
+        }), target, 0.05);
         fxDelay = Math.max(fxDelay, Number(d) || 0);
       } catch (e) { /* ignore */ }
       group.filter(function (u) { return u.id !== unit.id; }).forEach(function (e) {
@@ -9000,6 +9002,7 @@
       b.selectedId = null;
       b.log.push(unit.name + (heavyDir != null ? ' 重轰覆盖 ' : ' 空中压制 ') + target.name + '：' +
         hitLogs.join('；') +
+        (groundParts.length ? '（地面参战：' + groundParts.map(function (p) { return p.name; }).join('、') + '）' : '') +
         (participants.length > 1 ? ('（' + participants.length + ' 个单位集火）') : ''));
       group.forEach(function (a) { battleReconAfterSortie(a, target); });
       group.forEach(function (a) {
@@ -10549,7 +10552,7 @@
     if (!battleIsAir(target) && battleAirCanLock(air) &&
         (target.lockedBy || []).indexOf(air.id) === -1) {
       add('锁定 · 1 行动力', 'airLock', false,
-        mismatch || heavyCooling || air.mp < 1 || !canNormalAir);
+        mismatch || heavyCooling || air.mp < 1);
     }
     if (escortOnly) {
       const heavyLock = (target.lockedBy || []).map(battleUnitById).filter(function (u) {
