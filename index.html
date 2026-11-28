@@ -1,15 +1,15 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-<script>window.__BUILD__="20261128221313";</script>
+<script>window.__BUILD__="20261128221552";</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>兵棋 · 线上战术桌</title>
 <meta name="description" content="兵棋线上战术桌：3D 打印六角图块地图编辑器与对局工具。">
-<link rel="stylesheet" href="style.css?v=20261128221313">
-<link rel="stylesheet" href="armory.css?v=20261128221313">
-<link rel="stylesheet" href="codex.css?v=20261128221313">
-<link rel="stylesheet" href="online.css?v=20261128221313">
+<link rel="stylesheet" href="style.css?v=20261128221552">
+<link rel="stylesheet" href="armory.css?v=20261128221552">
+<link rel="stylesheet" href="codex.css?v=20261128221552">
+<link rel="stylesheet" href="online.css?v=20261128221552">
 </head>
 <body class="view3d menu-open">
 
@@ -119,9 +119,9 @@
     <div id="online-entry" class="online-view">
       <div class="online-entry-grid">
         <section class="online-entry-main">
-          <p class="online-kicker">ROOM CODE <span>/</span> ENCRYPTED RELAY</p>
-          <h1 class="online-title">把战场<br>搬到线上。</h1>
-          <p class="online-lead">房主创建房间，把 8 位房间码发给同学。地图、作战模式和玩家状态会自动同步。</p>
+          <p class="online-kicker">ONLINE ROOM <span>/</span> 4 位房间码</p>
+          <h1 class="online-title">创建或加入房间</h1>
+          <p class="online-lead">房主建房间并选图，把房间码发给朋友；地图、模式和玩家状态会自动同步。</p>
 
           <div class="online-entry-card">
             <div class="online-tabs" role="tablist" aria-label="联机方式">
@@ -136,11 +136,11 @@
 
             <label id="online-code-field" class="online-field hidden">
               <span>房间码</span>
-              <input id="online-code" type="text" maxlength="9" autocomplete="off" spellcheck="false" placeholder="ABCD-EFGH">
+              <input id="online-code" type="text" maxlength="4" inputmode="numeric" autocomplete="off" spellcheck="false" placeholder="4 位数字">
             </label>
 
             <button id="online-go" type="button" class="btn primary online-go">创建房间</button>
-            <p id="online-entry-hint" class="online-hint">创建后会生成 8 位房间码。房间是 2 人局：房主 + 1 位对手。</p>
+            <p id="online-entry-hint" class="online-hint">创建后生成 4 位数字房间码；默认 2 人，房主可开 2v2。</p>
 
             <details class="online-advanced">
               <summary>高级：中继服务器</summary>
@@ -156,14 +156,14 @@
         <aside class="online-entry-side">
           <figure class="online-side-art">
             <img src="menu-board.png" alt="3D 打印六角图块拼成的示例战场">
-            <figcaption><span>8 位房间码</span><span class="mono">AES-GCM</span></figcaption>
+            <figcaption><span>4 位房间码</span><span class="mono">AES-GCM</span></figcaption>
           </figure>
           <ol class="online-steps">
-            <li><b>01</b><span>房主创建房间，选一张地图。</span></li>
-            <li><b>02</b><span>把房间码发给外地同学。</span></li>
-            <li><b>03</b><span>客人准备，房主开始对战。</span></li>
+            <li><b>01</b><span>创建房间并选图。</span></li>
+            <li><b>02</b><span>把房间码发给朋友。</span></li>
+            <li><b>03</b><span>双方准备后开局。</span></li>
           </ol>
-          <p class="online-note">不经过游戏服务器：网页通过公共 MQTT 中继交换加密消息。中继能看到房间主题和流量，但读不到地图与玩家内容。</p>
+          <p class="online-note">不经过游戏服务器：房间内容用房间码派生的密钥加密，中继只能看到连接和流量。</p>
         </aside>
       </div>
     </div>
@@ -388,19 +388,19 @@
 
 <input type="file" id="file" accept=".json,application/json" hidden>
 
-<script src="lib/three.min.js?v=20261128221313"></script>
-<script src="terrain.js?v=20261128221313"></script>
-<script src="hexgrid.js?v=20261128221313"></script>
-<script src="mapio.js?v=20261128221313"></script>
-<script src="markers.js?v=20261128221313"></script>
-<script src="models3d.js?v=20261128221313"></script>
-<script src="lib/mqtt.min.js?v=20261128221313"></script>
-<script src="home.js?v=20261128221313"></script>
-<script src="online-net.js?v=20261128221313"></script>
-<script src="tutorial-data.js?v=20261128221313"></script>
-<script src="online.js?v=20261128221313"></script>
-<script src="armory.js?v=20261128221313"></script>
-<script src="codex.js?v=20261128221313"></script>
-<script src="app3d.js?v=20261128221313"></script>
+<script src="lib/three.min.js?v=20261128221552"></script>
+<script src="terrain.js?v=20261128221552"></script>
+<script src="hexgrid.js?v=20261128221552"></script>
+<script src="mapio.js?v=20261128221552"></script>
+<script src="markers.js?v=20261128221552"></script>
+<script src="models3d.js?v=20261128221552"></script>
+<script src="lib/mqtt.min.js?v=20261128221552"></script>
+<script src="home.js?v=20261128221552"></script>
+<script src="online-net.js?v=20261128221552"></script>
+<script src="tutorial-data.js?v=20261128221552"></script>
+<script src="online.js?v=20261128221552"></script>
+<script src="armory.js?v=20261128221552"></script>
+<script src="codex.js?v=20261128221552"></script>
+<script src="app3d.js?v=20261128221552"></script>
 </body>
 </html>

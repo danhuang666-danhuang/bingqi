@@ -1469,3 +1469,38 @@ body.menu-open { background: #0b0e13; }
   padding: 0 16px;
   font-size: 14px;
 }
+
+/* ============================================================
+   线上对战入口（UI 覆盖：去掉口号式大标题，入口更像大厅）
+   ============================================================ */
+
+#online-entry .online-entry-grid {
+  align-items: center;
+  padding-top: 0;
+}
+
+@media (max-width: 900px) {
+  #online-entry .online-entry-grid { align-items: start; }
+}
+
+#online-entry .online-entry-main { max-width: 620px; }
+
+#online-entry .online-kicker { margin-bottom: 9px; }
+
+#online-entry .online-title {
+  font-size: clamp(30px, 3.6vw, 46px);
+  line-height: 1.16;
+  letter-spacing: 0.03em;
+  text-shadow: none;
+}
+
+#online-entry .online-lead {
+  margin: 10px 0 20px;
+  max-width: 540px;
+  font-size: 12.5px;
+  line-height: 1.8;
+}
+
+#online-entry .online-entry-card { width: min(560px, 100%); }
+
+#online-entry .online-side-art img { aspect-ratio: 16 / 8.5; }
