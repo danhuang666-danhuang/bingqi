@@ -9186,13 +9186,15 @@
       const cost = battleAttackCost(unit, target);
       if (unit.mp < cost) return;
       const dmg = resolved.dmg;
+      const hpBefore = Number(target.hp) || 0;
       const dealt = battleDamageUnit(target, dmg);
+      const actualLoss = Math.max(0, hpBefore - (Number(target.hp) || 0));
       // 先只让炮弹飞；命中后再刷新血量 / 朝向 / 死亡动画和伤害数字。
       let fxDelay = 0;
       try { fxDelay = b3StartTankVolley(calc.parts, target); } catch (e) { fxDelay = 0; }
       const historyId = battleHistoryAdd({
         attackers: participantsUnits.map(function (u) { return u.name; }),
-        target: target.name, targetId: target.id, damage: Number(dealt) || 0,
+        target: target.name, targetId: target.id, damage: Number(actualLoss) || 0,
         cell: { c: target.c, r: target.r }, side: unit.side,
       });
       if (action.type === 'focus') {
@@ -9211,7 +9213,7 @@
       battleActionLockUnit(unit);
       b.selectedId = null;
       b.log.push(unit.name + (action.type === 'focus' ? ' 集火 ' : ' 攻击 ') + target.name +
-        '：' + battleFmt(calc.raw) + ' → ' + battleFmt(dealt) +
+        '：' + battleFmt(calc.raw) + ' → ' + battleFmt(actualLoss) +
         '（穿透 ' + battleFmt(calc.pen) + '，地形 -' + Math.round(calc.protect * 100) + '%' +
         (calc.night < 1 ? '，夜间' : '') + '，' + cost + ' 行动力）');
       // 混乱单位被击中直接消灭，且不能再反击；本次被集火打出混乱也同样无法反击。
@@ -9233,7 +9235,7 @@
         b.log.push(target.name + ' 没有可见的反击目标');
       }
       // 伤害与血量必须立即结算，不能被攻击特效的播放时长拖住。
-      try { b3AddDamageFloat(target, dealt, '#ff6b57'); } catch (e) { /* ignore */ }
+      try { b3AddDamageFloat(target, actualLoss, '#ff6b57'); } catch (e) { /* ignore */ }
       battleRefresh();
       battleCheckAutoEnd();
       return;
