@@ -1287,6 +1287,7 @@
         fxRings: [],
         debris: [],
         shakes: [],
+        bombs: [],
         tileMeshes: [],
         cam: { yaw: 0, pitch: 0.86, dist: 320, tx: 0, ty: 0, tz: 0 },
         mapRef: null,
@@ -1343,6 +1344,7 @@
             (B3.fxRings && B3.fxRings.length)) b3UpdateFx(performance.now());
         if (B3.debris && B3.debris.length) b3UpdateDebris(performance.now());
         if (B3.shakes && B3.shakes.length) b3UpdateShakes(performance.now());
+        if (B3.bombs && B3.bombs.length) b3UpdateBombs(performance.now());
         if (B3.flights && B3.flights.length) b3UpdateAirFlights(performance.now());
         if (B3.need) {
           B3.need = false;
@@ -2791,7 +2793,7 @@
     B3.need = true;
   }
 
-  function b3StartAirFlight(unit, target, hit, delay, stay, bomb) {
+  function b3StartAirFlight(unit, target, hit, delay, stay, bomb, bombDir, heavy) {
     if (!B3 || !B3.flightGroup || !unit || !target) return;
     const L = b3Layout();
     if (!L) return;
@@ -2814,6 +2816,9 @@
       aa: hit ? hit.aa : null, spec: hit ? hit.spec : null,
       warningShown: false, stay: !!stay,
       bomb: !!bomb, impacted: false, targetId: target.id,
+      targetC: target.c, targetR: target.r,
+      bombDir: bombDir == null ? null : Number(bombDir),
+      heavy: !!heavy,
       started: performance.now() + Math.max(0, Number(delay) || 0) * 1000,
       out: hit ? 0.55 : 0.8,
       hold: hit ? 1.1 : 0,
@@ -2833,6 +2838,7 @@
 
   function b3UpdateAirFlights(now) {
     if (!B3 || !B3.flights) return;
+    const L = b3Layout();
     const keep = [];
     B3.flights.forEach(function (f) {
       const t = (now - f.started) / 1000;
@@ -2841,10 +2847,19 @@
         keep.push(f);
         return;
       }
-      if (f.bomb && !f.impacted && t >= f.out) {
-        f.impacted = true;
-        b3SpawnImpact([f.dest[0], b3FxHeight(), f.dest[2]], 'he');
-        b3ShakeUnitById(f.targetId, 1.2);
+      if (f.bomb && !f.impacted) {
+        const pathLen = Math.hypot(f.dest[0] - f.from[0], f.dest[2] - f.from[2]);
+        const k = Math.max(0, Math.min(1, t / (f.out || 0.001)));
+        const remain = pathLen * (1 - k);
+        if (remain <= (L ? L.HEXR : 10) * 1.05 || t >= f.out) {
+          f.impacted = true;
+          const dropFrom = t >= f.out
+            ? [f.dest[0], f.from[1], f.dest[2]]
+            : [f.clone ? f.clone.position.x : f.from[0],
+               f.clone ? f.clone.position.y : f.from[1],
+               f.clone ? f.clone.position.z : f.from[2]];
+          b3DropBombs(f, dropFrom);
+        }
       }
       let p;
       if (t <= f.out) {
@@ -2882,6 +2897,101 @@
       keep.push(f);
     });
     B3.flights = keep;
+    B3.need = true;
+  }
+
+  function b3DisposeBomb(b) {
+    if (!b) return;
+    if (b.group) {
+      if (b.group.parent) b.group.parent.remove(b.group);
+      try { b.bodyGeo.dispose(); } catch (e) { /* ignore */ }
+      try { b.noseGeo.dispose(); } catch (e) { /* ignore */ }
+      (b.materials || []).forEach(function (m) { try { m.dispose(); } catch (e) { /* ignore */ } });
+      b.group = null;
+    }
+  }
+
+  function b3DropBomb(from, end, cell, delay, targetId) {
+    const THREE = window.THREE;
+    if (!THREE || !B3 || !B3.fxGroup) return;
+    const startY = from[1];
+    const endY = end[1];
+    const fall = Math.max(0.05, startY - endY);
+    const dur = Math.max(0.45, Math.min(0.9, 0.35 + fall * 0.02));
+    const bodyGeo = new THREE.CylinderGeometry(0.22, 0.3, 1.25, 6);
+    const noseGeo = new THREE.ConeGeometry(0.3, 0.62, 6);
+    const bodyMat = new THREE.MeshBasicMaterial({ color: 0x4d4a40 });
+    const noseMat = new THREE.MeshBasicMaterial({ color: 0x2f2d28 });
+    const group = new THREE.Group();
+    const body = new THREE.Mesh(bodyGeo, bodyMat);
+    const nose = new THREE.Mesh(noseGeo, noseMat);
+    nose.position.y = 0.9;
+    group.add(body);
+    group.add(nose);
+    group.visible = false;
+    group.renderOrder = 20;
+    B3.fxGroup.add(group);
+    B3.bombs.push({
+      group: group, bodyGeo: bodyGeo, noseGeo: noseGeo,
+      materials: [bodyMat, noseMat],
+      start: [from[0], startY, from[2]], end: [end[0], endY, end[2]],
+      dur: dur, born: performance.now() + Math.max(0, Number(delay) || 0) * 1000,
+      cell: { c: cell.c, r: cell.r }, targetId: targetId || '',
+    });
+    while (B3.bombs.length > 60) b3DisposeBomb(B3.bombs.shift());
+    B3.need = true;
+  }
+
+  function b3DropBombs(f, from) {
+    const L = b3Layout();
+    if (!L || !B3 || !B3.fxGroup) return;
+    const cells = (f.heavy && f.bombDir != null)
+      ? battleBombCells({ c: f.targetC, r: f.targetR }, f.bombDir)
+      : [{ c: f.targetC, r: f.targetR }];
+    if (!cells.length) cells.push({ c: f.targetC, r: f.targetR });
+    const n = f.heavy ? 5 : 2;             // 重轰多抛几枚
+    for (let i = 0; i < n; i++) {
+      const cell = cells[i % cells.length];
+      const to = L.cell(cell.c, cell.r);
+      const spread = f.heavy ? L.HEXR * 0.22 : L.HEXR * 0.55;
+      const end = [
+        to[0] + (Math.random() - 0.5) * spread,
+        b3FxHeight(),
+        to[1] + (Math.random() - 0.5) * spread,
+      ];
+      const unitAt = battleUnitAt(cell.c, cell.r);
+      b3DropBomb(from, end, cell, i * 0.07, unitAt ? unitAt.id : f.targetId);
+    }
+  }
+
+  function b3UpdateBombs(now) {
+    if (!B3) return;
+    const THREE = window.THREE;
+    const keep = [];
+    (B3.bombs || []).forEach(function (b) {
+      const t = (now - b.born) / 1000;
+      if (t < 0) { b.group.visible = false; keep.push(b); return; }
+      const k = Math.min(1, t / b.dur);
+      const x = b.start[0] + (b.end[0] - b.start[0]) * k;
+      const z = b.start[2] + (b.end[2] - b.start[2]) * k;
+      const y = b.start[1] + (b.end[1] - b.start[1]) * k * k;
+      const tangent = new THREE.Vector3(
+        b.end[0] - b.start[0],
+        2 * (b.end[1] - b.start[1]) * k,
+        b.end[2] - b.start[2]
+      ).normalize();
+      b.group.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), tangent);
+      b.group.position.set(x, y, z);
+      b.group.visible = true;
+      if (k >= 1) {
+        b3DisposeBomb(b);
+        b3SpawnImpact([b.end[0], b.end[1], b.end[2]], 'he');
+        b3ShakeUnitById(b.targetId, 1.1);
+        return;
+      }
+      keep.push(b);
+    });
+    B3.bombs = keep;
     B3.need = true;
   }
 
@@ -4650,11 +4760,13 @@
     (B3.shakes || []).forEach(function (s) {
       try { s.group.position.x = s.baseX; s.group.position.z = s.baseZ; } catch (e) { /* ignore */ }
     });
+    (B3.bombs || []).forEach(function (b) { b3DisposeBomb(b); });
     B3.shots = [];
     B3.fxSprites = [];
     B3.fxRings = [];
     B3.debris = [];
     B3.shakes = [];
+    B3.bombs = [];
     if (B3.fxGroup) {
       while (B3.fxGroup.children.length) B3.fxGroup.remove(B3.fxGroup.children[0]);
     }
@@ -8543,9 +8655,11 @@
         target.lockedBy = [];
         target.lockCosts = {};
       }
-      // 所有参战飞机都起飞；每架到达目标时各投一次弹。
+      // 所有参战飞机都起飞；距目标约一格时投弹，重轰按轰炸方向多投几枚。
       group.forEach(function (a, i) {
-        b3StartAirFlight(a, target, null, i * 0.28, false, true);
+        const isHeavy = battleHeavyBomber(a);
+        b3StartAirFlight(a, target, null, i * 0.28, false, true,
+          isHeavy ? heavyDir : null, isHeavy);
       });
       // 空中集火里的地面参战单位也生成自己的开火特效。
       const groundArtyParts = groundParts.filter(function (p) { return battleArtillerySpec(p); });
