@@ -1343,6 +1343,7 @@
         if ((B3.shots && B3.shots.length) || (B3.fxSprites && B3.fxSprites.length) ||
             (B3.fxRings && B3.fxRings.length)) b3UpdateFx(performance.now());
         if (B3.debris && B3.debris.length) b3UpdateDebris(performance.now());
+        b3UpdateCounterBatteryMarks(performance.now());
         if (B3.shakes && B3.shakes.length) b3UpdateShakes(performance.now());
         if (B3.bombs && B3.bombs.length) b3UpdateBombs(performance.now());
         if (B3.flights && B3.flights.length) b3UpdateAirFlights(performance.now());
@@ -6418,15 +6419,19 @@
     const L = b3Layout();
     if (!THREE || !L) return;
     b3ClearGroup(B3.counterBatteryGroup);
+    B3.counterBatteryAnims = [];
     const side = battleMySide();
     if (!side) return;
-    (state.battle.counterBatteryMarks || []).forEach(function (m) {
+    (state.battle.counterBatteryMarks || []).forEach(function (m, markIndex) {
       if (m.forSide !== side) return;
       const w = L.cell(m.c, m.r);
-      const y = L.TOP + 0.12;
+      const y = L.TOP + L.HEXR * 0.22;
+      const markGroup = new THREE.Group();
+      markGroup.position.set(w[0], y, w[1]);
+      markGroup.renderOrder = 80;
       const glowMat = new THREE.MeshBasicMaterial({
         color: 0xff2020, transparent: true, opacity: 0.20,
-        depthTest: true, depthWrite: false, side: THREE.DoubleSide,
+        depthTest: false, depthWrite: false, side: THREE.DoubleSide,
         blending: THREE.AdditiveBlending,
       });
       glowMat._b3Dispose = true;
@@ -6435,12 +6440,12 @@
         glowMat
       );
       glow.rotation.x = -Math.PI / 2;
-      glow.position.set(w[0], y - 0.02, w[1]);
-      glow.renderOrder = 4;
-      B3.counterBatteryGroup.add(glow);
+      glow.position.y = -0.02;
+      glow.renderOrder = 80;
+      markGroup.add(glow);
       const mat = new THREE.MeshBasicMaterial({
         color: 0xff3a3a, transparent: true, opacity: 0.48,
-        depthTest: true, depthWrite: false, side: THREE.DoubleSide,
+        depthTest: false, depthWrite: false, side: THREE.DoubleSide,
         blending: THREE.AdditiveBlending,
       });
       mat._b3Dispose = true;
@@ -6449,12 +6454,13 @@
         mat
       );
       ring.rotation.x = -Math.PI / 2;
-      ring.position.set(w[0], y, w[1]);
-      ring.renderOrder = 5;
-      B3.counterBatteryGroup.add(ring);
+      ring.renderOrder = 81;
+      markGroup.add(ring);
+      const spin = new THREE.Group();
+      spin.renderOrder = 82;
       const barMat = new THREE.MeshBasicMaterial({
         color: 0xff1414, transparent: true, opacity: 0.46,
-        depthTest: true, depthWrite: false,
+        depthTest: false, depthWrite: false,
         blending: THREE.AdditiveBlending,
       });
       barMat._b3Dispose = true;
@@ -6462,23 +6468,35 @@
         new THREE.BoxGeometry(L.HEXR * 1.7, 0.08, L.HEXR * 0.20),
         barMat
       );
-      barX.position.set(w[0], y, w[1]);
-      barX.renderOrder = 6;
-      B3.counterBatteryGroup.add(barX);
+      barX.renderOrder = 82;
+      spin.add(barX);
       const barZ = new THREE.Mesh(
         new THREE.BoxGeometry(L.HEXR * 0.20, 0.08, L.HEXR * 1.7),
         barMat
       );
-      barZ.position.set(w[0], y, w[1]);
-      barZ.renderOrder = 6;
-      B3.counterBatteryGroup.add(barZ);
+      barZ.renderOrder = 82;
+      spin.add(barZ);
       const dot = new THREE.Mesh(
         new THREE.CylinderGeometry(L.HEXR * 0.16, L.HEXR * 0.16, 0.10, 16),
         barMat
       );
-      dot.position.set(w[0], y + 0.05, w[1]);
-      dot.renderOrder = 7;
-      B3.counterBatteryGroup.add(dot);
+      dot.position.y = 0.05;
+      dot.renderOrder = 83;
+      spin.add(dot);
+      markGroup.add(spin);
+      B3.counterBatteryGroup.add(markGroup);
+      B3.counterBatteryAnims.push({
+        group: markGroup, spin: spin, baseY: y, phase: markIndex * 1.7,
+      });
+    });
+    B3.need = true;
+  }
+
+  function b3UpdateCounterBatteryMarks(now) {
+    if (!B3 || !B3.counterBatteryAnims || !B3.counterBatteryAnims.length) return;
+    B3.counterBatteryAnims.forEach(function (m) {
+      m.spin.rotation.y = now * 0.00022 + m.phase;
+      m.group.position.y = m.baseY + Math.sin(now * 0.0014 + m.phase) * (b3Layout().HEXR * 0.09);
     });
     B3.need = true;
   }
