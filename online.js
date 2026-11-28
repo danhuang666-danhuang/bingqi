@@ -8839,6 +8839,7 @@
       const attackAirSuperiority = battleAirSuperiorityFor(unit, target);
       let mainHistoryId = '';
       const hitLogs = [];
+      const pendingVisual = [];
       bombTargets.forEach(function (tgt) {
         let raw = 0;
         participants.forEach(function (p) {
@@ -8858,7 +8859,7 @@
         const hpBefore = Number(tgt.hp) || 0;
         battleDamageUnit(tgt, dmg);
         const actualLoss = Math.max(0, hpBefore - (Number(tgt.hp) || 0));
-        b3AddDamageFloat(tgt, actualLoss, '#ff6b57');
+        pendingVisual.push({ target: tgt, amount: actualLoss });
         const historyId = battleHistoryAdd({
           attackers: participants.map(function (p) { return p.name; }),
           target: tgt.name, targetId: tgt.id, damage: Number(actualLoss) || 0,
@@ -8898,8 +8899,16 @@
       // 空中集火里的地面参战单位也生成自己的开火特效。
       const groundArtyParts = groundParts.filter(function (p) { return battleArtillerySpec(p); });
       const groundDirectParts = groundParts.filter(function (p) { return !battleArtillerySpec(p); });
-      try { b3StartArtilleryStrike(groundArtyParts, [target]); } catch (e) { /* ignore */ }
-      try { b3StartTankVolley(groundDirectParts, target, 0.05); } catch (e) { /* ignore */ }
+      // 空中投弹需要飞完航线；地面参战的炮兵/直射单位也等自己的特效结束。
+      let fxDelay = 1.0;
+      try {
+        const d = b3StartArtilleryStrike(groundArtyParts, [target]);
+        fxDelay = Math.max(fxDelay, Number(d) || 0);
+      } catch (e) { /* ignore */ }
+      try {
+        const d = b3StartTankVolley(groundDirectParts, target, 0.05);
+        fxDelay = Math.max(fxDelay, Number(d) || 0);
+      } catch (e) { /* ignore */ }
       group.filter(function (u) { return u.id !== unit.id; }).forEach(function (e) {
         if (!battleAirLockedParticipant(target, e)) e.mp = Math.max(0, e.mp - airCost);
       });
@@ -8912,8 +8921,9 @@
       group.forEach(function (a) {
         if (battleHeavyBomber(a)) a.cooldownRound = b.round + 1;
       });
-      battleRefresh();
-      battleCheckAutoEnd();
+      pendingVisual.forEach(function (f) {
+        battleScheduleDamageVisual(f.target, f.amount, fxDelay, '#ff6b57');
+      });
       return;
     }
     if (action.type === 'aaAttack') {
