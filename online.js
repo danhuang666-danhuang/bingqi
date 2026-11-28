@@ -1751,7 +1751,7 @@
     });
     const moveCode = { KeyW: 'w', KeyA: 'a', KeyS: 's', KeyD: 'd' };
     window.addEventListener('keydown', function (e) {
-      if (!B3 || state.phase !== 'battle') return;
+      if (!B3 || (state.phase !== 'battle' && state.phase !== 'deploy')) return;
       if (/INPUT|TEXTAREA|SELECT/.test((e.target && e.target.tagName) || '')) return;
       const k = moveCode[e.code];
       if (!k) return;
@@ -16899,6 +16899,10 @@
     // 反击属于防守方选择，不拦。
     if (action.type === 'counter' || action.type === 'counterSkip') return true;
     if (!step) return true;
+    if (step.camera) {
+      toast('先完成当前镜头操作，再继续');
+      return false;
+    }
     if (step.auto) {
       toast('请阅读提示后点「下一步」继续');
       return false;
