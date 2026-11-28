@@ -16339,15 +16339,16 @@
   function tutorialGuideHtml(level, step) {
     const stepDef = level && level.steps ? level.steps[step] : null;
     const text = typeof stepDef === 'string' ? stepDef : ((stepDef && stepDef.text) || '');
-    const autoPending = !!(stepDef && stepDef.auto && stepDef.auto !== 'rewind' &&
+    const review = !!(state.tutorial && state.tutorial.reviewStep === step);
+    const autoPending = !!(!review && stepDef && stepDef.auto && stepDef.auto !== 'rewind' &&
       !(state.tutorial && state.tutorial.enemyDone));
-    const quizLocked = !!(stepDef && stepDef.quiz && !(state.tutorial && state.tutorial.quizCorrect));
+    const quizLocked = !!(!review && stepDef && stepDef.quiz && !(state.tutorial && state.tutorial.quizCorrect));
     const lastStep = step + 1 >= ((level && level.steps && level.steps.length) || 1);
     const finalDone = !!(lastStep && state.tutorial && state.tutorial.finalReady);
-    const finalLocked = !!(lastStep && stepDef && stepDef.allow && !finalDone);
-    const actionLocked = !!(!lastStep && stepDef &&
+    const finalLocked = !!(!review && lastStep && stepDef && stepDef.allow && !finalDone);
+    const actionLocked = !!(!review && !lastStep && stepDef &&
       (stepDef.allow || stepDef.blocked || stepDef.expectCounter || stepDef.camera));
-    const locked = autoPending || quizLocked || finalLocked || actionLocked;
+    const locked = !review && (autoPending || quizLocked || finalLocked || actionLocked);
     let media = '';
     if (stepDef && Array.isArray(stepDef.images) && stepDef.images.length) {
       media = '<div class="tutorial-slide-images">' + stepDef.images.map(function (src) {
@@ -16369,7 +16370,7 @@
       media +
       '<p>' + battleReinforceEsc(text) + '</p>' + quiz +
       '<div class="tutorial-guide-actions">' +
-        '<button type="button" class="btn small" data-tutorial-prev="1" disabled title="教程是顺序流程，暂不支持回退">上一步</button>' +
+        '<button type="button" class="btn small" data-tutorial-prev="1"' + (step <= 0 ? ' disabled title="已经是第一步"' : '') + '>上一步</button>' +
         '<button type="button" class="btn small primary" data-tutorial-next="1"' + (locked ? ' disabled' : '') + '>' + (step + 1 >= ((level && level.steps && level.steps.length) || 1) ? '完成教程' : '下一步') + '</button>' +
         '<button type="button" class="btn small" data-tutorial-guide-close="1">收起</button>' +
       '</div>';
@@ -16512,10 +16513,12 @@
     }
     if (e.target.closest && e.target.closest('[data-tutorial-next]')) {
       const current = tutorialCurrentStep();
-      if (current && current.auto === 'rewind') {
+      const reviewing = !!(state.tutorial && state.tutorial.reviewStep === state.tutorial.step);
+      if (!reviewing && current && current.auto === 'rewind') {
         if (tutorialRestoreCheckpoint()) {
           state.tutorial.step = 9;
           state.tutorial.enemyDone = false;
+          state.tutorial.reviewStep = null;
           renderTutorialGuide();
           refreshTutorialFocus();
           return;
@@ -16526,6 +16529,7 @@
         return;
       }
       state.tutorial.step = (state.tutorial.step || 0) + 1;
+      state.tutorial.reviewStep = null;
       state.tutorial.enemyDone = false;
       state.tutorial.finalReady = false;
       state.tutorial.quizCorrect = false;
@@ -16536,6 +16540,7 @@
       renderTutorialGuide();
       refreshTutorialFocus();
       const nextStep = tutorialCurrentStep();
+      if (reviewing) return;
       if (nextStep && nextStep.auto === 'stagePlain') {
         setTimeout(function () { tutorial3Stage('plain'); }, 300);
       } else if (nextStep && nextStep.auto === 'stageMaus') {
@@ -16556,8 +16561,12 @@
       return;
     }
     if (e.target.closest && e.target.closest('[data-tutorial-prev]')) {
-      state.tutorial.step = Math.max(0, (state.tutorial.step || 0) - 1);
+      const prev = Math.max(0, (state.tutorial.step || 0) - 1);
+      state.tutorial.step = prev;
+      // 只回退说明文字，不回退战场状态；回退后的旧步骤视为已读，可直接点下一步。
+      state.tutorial.reviewStep = prev;
       renderTutorialGuide();
+      refreshTutorialFocus();
       return;
     }
     if (e.target.closest && e.target.closest('[data-tutorial-guide-close]')) {
@@ -16604,6 +16613,7 @@
       return;
     }
     t.step = (t.step || 0) + 1;
+    t.reviewStep = null;
     t.enemyDone = false;
     t.finalReady = false;
     t.quizCorrect = false;
