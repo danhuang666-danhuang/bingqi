@@ -2673,14 +2673,15 @@
     return sp;
   }
 
-  function battleQueueDamageFx(unit, amount, color) {
+  function battleQueueDamageFx(unit, amount, color, at) {
     if (!state.battle || !unit) return null;
     const b = state.battle;
     b.damageFx = b.damageFx || [];
+    const cell = at && isFinite(at.c) && isFinite(at.r) ? at : null;
     const fx = {
       id: 'fx-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 6),
-      unitId: unit.id, c: unit.c, r: unit.r, amount: Number(amount) || 0,
-      color: color || '#ff6b57', round: b.round,
+      unitId: unit.id, c: cell ? cell.c : unit.c, r: cell ? cell.r : unit.r,
+      amount: Number(amount) || 0, color: color || '#ff6b57', round: b.round,
     };
     b.damageFx.push(fx);
     if (b.damageFx.length > 60) b.damageFx = b.damageFx.slice(-60);
@@ -2699,17 +2700,17 @@
         if (Number(fx.round) !== Number(b.round)) return;
         let unit = battleUnitById(fx.unitId);
         if (!unit) return;
-        b3AddDamageFloat(unit, Number(fx.amount) || 0, fx.color || '#ffb36b');
+        b3AddDamageFloat(unit, Number(fx.amount) || 0, fx.color || '#ffb36b', { c: fx.c, r: fx.r });
       });
     } finally {
       state._flushingDamageFx = false;
     }
   }
 
-  function b3AddDamageFloat(unit, amount, color) {
+  function b3AddDamageFloat(unit, amount, color, at) {
     if (!B3 || !unit) return;
     if (!state._flushingDamageFx) {
-      const fx = battleQueueDamageFx(unit, amount, color);
+      const fx = battleQueueDamageFx(unit, amount, color, at);
       if (fx) {
         state.seenDamageFx = state.seenDamageFx || {};
         state.seenDamageFx[fx.id] = true;
@@ -2738,9 +2739,12 @@
     const sp = new THREE.Sprite(mat);
     sp.scale.set(L.HEXR * 0.95, L.HEXR * 0.48, 1);
     sp.renderOrder = 999;
-    const w = unit.airBase
-      ? (airPadWorld(unit.side, unit.c, unit.r) || L.cell(unit.c, unit.r))
-      : L.cell(unit.c, unit.r);
+    const atCell = at && isFinite(at.c) && isFinite(at.r) ? at : null;
+    const w = atCell
+      ? L.cell(atCell.c, atCell.r)
+      : (unit.airBase
+        ? (airPadWorld(unit.side, unit.c, unit.r) || L.cell(unit.c, unit.r))
+        : L.cell(unit.c, unit.r));
     // 统一到超级潘兴的开炮高度；死亡单位的模型顶部不可靠，固定高度也更稳。
     const baseY = b3FxHeight();
     sp.position.set(w[0], baseY, w[1]);
@@ -7274,7 +7278,7 @@
       const hit = battleAirPathIntercept(it, target);
       if (!hit || !it.alive) return;
       battleDamageUnit(it, hit.spec.damage);
-      b3AddDamageFloat(it, hit.spec.damage, '#ffb36b');
+      b3AddDamageFloat(it, hit.spec.damage, '#ffb36b', { c: target.c, r: target.r });
       aborted[it.id] = true;
       b.log.push(hit.aa.name + ' 拦截防守方飞机 ' + it.name + '：' + hit.spec.damage +
         (it.alive ? '，该机退出拦截任务' : '，该机被击落'));
@@ -7294,7 +7298,7 @@
       const alive = attackers.filter(function (a) { return a.alive; });
       if (!alive.length) return;
       battleDamageUnit(alive[0], spec.damage);
-      b3AddDamageFloat(alive[0], spec.damage, '#ff6b57');
+      b3AddDamageFloat(alive[0], spec.damage, '#ff6b57', { c: target.c, r: target.r });
       b.log.push(aa.name + ' 参战支援，防空射击 ' + alive[0].name + '：' + spec.damage);
     });
     // 护航战斗机先与所有拦截机交战；护航不触发速度决胜。
@@ -7306,7 +7310,7 @@
         if (battleHighAltitude(enemy) && !battleHighAltitude(escort)) dmg *= 0.2;
         if (dmg <= 0) return;
         battleDamageUnit(enemy, dmg);
-        b3AddDamageFloat(enemy, dmg, '#ff6b57');
+        b3AddDamageFloat(enemy, dmg, '#ff6b57', { c: target.c, r: target.r });
         b.log.push(escort.name + ' 护航，攻击 ' + enemy.name + '：' + battleFmt(dmg));
       });
     });
@@ -7335,7 +7339,7 @@
       hits.forEach(function (h) {
         if (battleHighAltitude(h.u) && !battleHighAltitude(it)) h.d *= 0.2;
         battleDamageUnit(h.u, h.d);
-        b3AddDamageFloat(h.u, h.d, '#ff6b57');
+        b3AddDamageFloat(h.u, h.d, '#ff6b57', { c: target.c, r: target.r });
         b.log.push(it.name + ' 拦截 ' + h.u.name + '：' + battleFmt(h.d) +
           (h.extra ? '（速度决胜）' : ''));
       });
@@ -8580,7 +8584,7 @@
         const hpBefore = Number(target.hp) || 0;
         battleDamageUnit(target, dmg);
         const actualLoss = Math.max(0, hpBefore - (Number(target.hp) || 0));
-        b3AddDamageFloat(target, actualLoss, '#ff6b57');
+        b3AddDamageFloat(target, actualLoss, '#ff6b57', { c: target.c, r: target.r });
         unit.mp -= airCost;
         group.filter(function (u) { return u.id !== unit.id; }).forEach(function (e) {
           e.mp = Math.max(0, e.mp - airCost);
@@ -8596,7 +8600,7 @@
       const intercept = battleAirPathIntercept(unit, target);
       if (intercept) {
         battleDamageUnit(unit, intercept.spec.damage);
-        b3AddDamageFloat(unit, intercept.spec.damage, '#ffb36b');
+        b3AddDamageFloat(unit, intercept.spec.damage, '#ffb36b', { c: target.c, r: target.r });
         if (!unit.alive) {
           b.log.push(intercept.aa.name + ' 拦截 ' + unit.name + '：' + intercept.spec.damage + '，飞机被击落');
           unit.mp = Math.max(0, unit.mp - airCost);
