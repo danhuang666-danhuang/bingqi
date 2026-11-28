@@ -2961,9 +2961,10 @@
       const cell = cells[i % cells.length];
       const to = L.cell(cell.c, cell.r);
       const spread = f.heavy ? L.HEXR * 0.22 : L.HEXR * 0.55;
+      // 炸弹落点压到地图格表面，而不是悬在单位头顶的统一特效高度。
       const end = [
         to[0] + (Math.random() - 0.5) * spread,
-        b3FxHeight(),
+        L.TOP + 0.12,
         to[1] + (Math.random() - 0.5) * spread,
       ];
       const unitAt = battleUnitAt(cell.c, cell.r);
