@@ -9186,13 +9186,13 @@
       const cost = battleAttackCost(unit, target);
       if (unit.mp < cost) return;
       const dmg = resolved.dmg;
-      battleDamageUnit(target, dmg);
+      const dealt = battleDamageUnit(target, dmg);
       // 先只让炮弹飞；命中后再刷新血量 / 朝向 / 死亡动画和伤害数字。
       let fxDelay = 0;
       try { fxDelay = b3StartTankVolley(calc.parts, target); } catch (e) { fxDelay = 0; }
       const historyId = battleHistoryAdd({
         attackers: participantsUnits.map(function (u) { return u.name; }),
-        target: target.name, targetId: target.id, damage: Number(dmg) || 0,
+        target: target.name, targetId: target.id, damage: Number(dealt) || 0,
         cell: { c: target.c, r: target.r }, side: unit.side,
       });
       if (action.type === 'focus') {
@@ -9211,7 +9211,7 @@
       battleActionLockUnit(unit);
       b.selectedId = null;
       b.log.push(unit.name + (action.type === 'focus' ? ' 集火 ' : ' 攻击 ') + target.name +
-        '：' + battleFmt(calc.raw) + ' → ' + battleFmt(dmg) +
+        '：' + battleFmt(calc.raw) + ' → ' + battleFmt(dealt) +
         '（穿透 ' + battleFmt(calc.pen) + '，地形 -' + Math.round(calc.protect * 100) + '%' +
         (calc.night < 1 ? '，夜间' : '') + '，' + cost + ' 行动力）');
       // 混乱单位被击中直接消灭，且不能再反击；本次被集火打出混乱也同样无法反击。
@@ -16339,7 +16339,7 @@
   function tutorialGuideHtml(level, step) {
     const stepDef = level && level.steps ? level.steps[step] : null;
     const text = typeof stepDef === 'string' ? stepDef : ((stepDef && stepDef.text) || '');
-    const review = !!(state.tutorial && state.tutorial.reviewStep === step);
+    const review = !!(state.tutorial && state.tutorial.doneSteps && state.tutorial.doneSteps[step]);
     const autoPending = !!(!review && stepDef && stepDef.auto && stepDef.auto !== 'rewind' &&
       !(state.tutorial && state.tutorial.enemyDone));
     const quizLocked = !!(!review && stepDef && stepDef.quiz && !(state.tutorial && state.tutorial.quizCorrect));
@@ -16513,23 +16513,26 @@
     }
     if (e.target.closest && e.target.closest('[data-tutorial-next]')) {
       const current = tutorialCurrentStep();
-      const reviewing = !!(state.tutorial && state.tutorial.reviewStep === state.tutorial.step);
+      const currentIndex = state.tutorial.step || 0;
+      state.tutorial.doneSteps = state.tutorial.doneSteps || {};
+      const reviewing = !!state.tutorial.doneSteps[currentIndex];
       if (!reviewing && current && current.auto === 'rewind') {
         if (tutorialRestoreCheckpoint()) {
           state.tutorial.step = 9;
           state.tutorial.enemyDone = false;
-          state.tutorial.reviewStep = null;
           renderTutorialGuide();
           refreshTutorialFocus();
           return;
         }
       }
-      if ((state.tutorial.step || 0) + 1 >= steps.length) {
+      if (currentIndex + 1 >= steps.length) {
         finishTutorialFlow();
         return;
       }
-      state.tutorial.step = (state.tutorial.step || 0) + 1;
-      state.tutorial.reviewStep = null;
+      state.tutorial.doneSteps[currentIndex] = true;
+      const targetIndex = currentIndex + 1;
+      const targetDone = !!state.tutorial.doneSteps[targetIndex];
+      state.tutorial.step = targetIndex;
       state.tutorial.enemyDone = false;
       state.tutorial.finalReady = false;
       state.tutorial.quizCorrect = false;
@@ -16540,7 +16543,7 @@
       renderTutorialGuide();
       refreshTutorialFocus();
       const nextStep = tutorialCurrentStep();
-      if (reviewing) return;
+      if (targetDone) return;
       if (nextStep && nextStep.auto === 'stagePlain') {
         setTimeout(function () { tutorial3Stage('plain'); }, 300);
       } else if (nextStep && nextStep.auto === 'stageMaus') {
@@ -16561,10 +16564,7 @@
       return;
     }
     if (e.target.closest && e.target.closest('[data-tutorial-prev]')) {
-      const prev = Math.max(0, (state.tutorial.step || 0) - 1);
-      state.tutorial.step = prev;
-      // 只回退说明文字，不回退战场状态；回退后的旧步骤视为已读，可直接点下一步。
-      state.tutorial.reviewStep = prev;
+      state.tutorial.step = Math.max(0, (state.tutorial.step || 0) - 1);
       renderTutorialGuide();
       refreshTutorialFocus();
       return;
@@ -16612,8 +16612,9 @@
       renderTutorialGuide();
       return;
     }
+    t.doneSteps = t.doneSteps || {};
+    t.doneSteps[t.step || 0] = true;
     t.step = (t.step || 0) + 1;
-    t.reviewStep = null;
     t.enemyDone = false;
     t.finalReady = false;
     t.quizCorrect = false;
@@ -16622,6 +16623,7 @@
     renderTutorialGuide();
     refreshTutorialFocus();
     if (B3) B3.need = true;
+    if (t.doneSteps[t.step]) return;
     const step = tutorialCurrentStep();
     if (step && step.auto === 'enemyRiver') {
       setTimeout(tutorialEnemyRiver, 500);
@@ -17022,7 +17024,7 @@
         }
         state.battle.buildings = [];
         state.battle.history = [];
-        state.tutorial = { level: level, step: 0, enemyDone: false, finalReady: false, tutorialGuideCollapsed: false };
+        state.tutorial = { level: level, step: 0, enemyDone: false, finalReady: false, tutorialGuideCollapsed: false, doneSteps: {} };
         state.tutorialGuideCollapsed = false;
         state.tutorialGuidePos = null;
         hideEl('sandbox-dock', true);
