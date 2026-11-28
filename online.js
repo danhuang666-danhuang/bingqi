@@ -2969,7 +2969,7 @@
       ];
       const unitAt = battleUnitAt(cell.c, cell.r);
       // 初始点抬高：炸弹从飞机上方平抛出去，再加速下落砸向目标。
-      const dropFrom = [from[0], from[1] + L.HEXR * 0.9, from[2]];
+      const dropFrom = [from[0], from[1] + L.HEXR * 1.8, from[2]];
       b3DropBomb(dropFrom, end, cell, i * 0.07, unitAt ? unitAt.id : f.targetId);
     }
   }
