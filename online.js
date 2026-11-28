@@ -2321,6 +2321,8 @@
   function refreshBattle3DUnits() {
     if (B3) B3.shadowDirty = true;   // 单位/建筑变了，下一帧重算阴影
     if (!B3 || !state.map) return;
+    // 客人先回放主机刚发出的攻击特效，再判断死亡，保证死亡延后能读到弹着时间。
+    if (state.net && state.role !== 'host') battleFlushBattleFx();
     b3ApplyDayNight();
     if (B3.zoneGroup) B3.zoneGroup.visible = state.phase === 'deploy';
     if (B3.hovered) b3SetUnitHover(null);
@@ -2728,6 +2730,49 @@
     }
   }
 
+  function battleEmitFx(ev) {
+    if (!state.battle || !state.net || state.test || state.role !== 'host') return;
+    const b = state.battle;
+    b.fxEvents = b.fxEvents || [];
+    ev.id = 'fx-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 6);
+    b.fxEvents.push(ev);
+    if (b.fxEvents.length > 100) b.fxEvents = b.fxEvents.slice(-100);
+    state.seenBattleFx = state.seenBattleFx || {};
+    state.seenBattleFx[ev.id] = true;
+  }
+
+  function b3ReplayBattleFx(e) {
+    const u = battleUnitById(e.unitId || e.attackerId);
+    const t = battleUnitById(e.targetId);
+    if (!u || !t) return;
+    try {
+      if (e.k === 'shot') b3SpawnShot(u, t, e.kind || 'ap', e.delay || 0);
+      else if (e.k === 'burst') b3StartBulletBurst(u, t, e.delay || 0, e.count);
+      else if (e.k === 'arty') b3SpawnArtilleryShell(u, t, e.delay || 0);
+      else if (e.k === 'rocket') b3StartRocketBarrage(u, t);
+      else if (e.k === 'air') {
+        b3StartAirFlight(u, t, null, e.delay || 0, !!e.stay, !!e.bomb, e.bombDir, !!e.heavy);
+      }
+    } catch (err) { /* ignore */ }
+  }
+
+  function battleFlushBattleFx() {
+    const b = state.battle;
+    if (!b || !b.fxEvents || !B3 || state.test || state.role === 'host') return;
+    state.seenBattleFx = state.seenBattleFx || {};
+    if (!state._battleFxInit) {
+      // 刚进房间/重连时不要把历史队列一次性重放。
+      b.fxEvents.forEach(function (e) { if (e && e.id) state.seenBattleFx[e.id] = true; });
+      state._battleFxInit = true;
+      return;
+    }
+    b.fxEvents.forEach(function (e) {
+      if (!e || !e.id || state.seenBattleFx[e.id]) return;
+      state.seenBattleFx[e.id] = true;
+      b3ReplayBattleFx(e);
+    });
+  }
+
   function battleScheduleDamageVisual(target, amount, delay, color) {
     const bRef = state.battle;
     let done = false;
@@ -2847,6 +2892,11 @@
       return g.userData && g.userData.b3Unit && g.userData.b3Unit.id === unit.id;
     })[0];
     if (!src) return;
+    battleEmitFx({
+      k: 'air', unitId: unit.id, targetId: target.id,
+      delay: Number(delay) || 0, stay: !!stay, bomb: !!bomb,
+      bombDir: bombDir == null ? null : Number(bombDir), heavy: !!heavy,
+    });
     const clone = src.clone(true);
     clone.userData = { b3FlightClone: true };
     clone.visible = true;
@@ -3129,6 +3179,7 @@
 
   function b3StartRocketBarrage(unit, target) {
     if (!B3 || !B3.fxGroup || !unit || !target) return 0;
+    battleEmitFx({ k: 'rocket', unitId: unit.id, targetId: target.id });
     const cells = b3RocketCells(target);
     let delay = 0;
     let maxDelay = 0;
@@ -4444,6 +4495,10 @@
     const THREE = window.THREE;
     const L = b3Layout();
     if (!THREE || !L || !B3 || !B3.fxGroup) return 0;
+    battleEmitFx({
+      k: 'shot', attackerId: attacker.id, targetId: target.id,
+      kind: kind || 'ap', delay: Number(delay) || 0,
+    });
     const from = L.cell(attacker.c, attacker.r);
     const to = L.cell(target.c, target.r);
     // 所有单位统一用超级潘兴的开炮高度，起点终点同高，弹道完全水平。
@@ -4589,6 +4644,10 @@
   function b3StartBulletBurst(attacker, target, delay, count) {
     if (!B3 || !B3.fxGroup) return 0;
     const n = count || (5 + Math.floor(Math.random() * 2));   // 5–6 发
+    battleEmitFx({
+      k: 'burst', attackerId: attacker.id, targetId: target.id,
+      delay: Number(delay) || 0, count: n,
+    });
     const span = 0.5;                                          // 整体约 0.7 秒
     let last = 0;
     for (let i = 0; i < n; i++) {
@@ -4626,6 +4685,10 @@
     const THREE = window.THREE;
     const L = b3Layout();
     if (!THREE || !L || !B3 || !B3.fxGroup) return 0;
+    battleEmitFx({
+      k: 'arty', unitId: attacker.id, targetId: target.id,
+      delay: Number(delay) || 0,
+    });
     const from = L.cell(attacker.c, attacker.r);
     const to = L.cell(target.c, target.r);
     const baseY = b3FxHeight();
@@ -5152,6 +5215,7 @@
     const view = el('online-battle-view');
     if (!view || state.view !== 'room') return;
     battleFlushDamageFx();
+    if (state.net && state.role !== 'host') battleFlushBattleFx();
     const deploy = state.phase === 'deploy';
     const side = myDeploySide();
     const faction = sideFaction(side);
@@ -6098,6 +6162,8 @@
   function initBattleState() {
     state.lastTurnBannerKey = '';
     state.seenDamageFx = {};
+    state.seenBattleFx = {};
+    state._battleFxInit = false;
     const units = deployUnits().map(function (u) {
       const faction = normalizeFaction(u.faction) || sideFaction(u.side);
       const hp = prepUnitHp(u.name, faction);
