@@ -14794,6 +14794,7 @@
   }
 
   function resetRoom() {
+    if (state.tutorial) clearTutorialState();
     clearJoinTimer();
     state.host = null;
     state.hostSeen = 0;
@@ -15543,6 +15544,7 @@
 
   function close() {
     if (!state.open) return;
+    if (state.tutorial) clearTutorialState();
     if (state.view === 'room' || state.net) leaveRoom();
     state.gen++;
     state.open = false;
@@ -16358,9 +16360,25 @@
     });
   }
 
+  function clearTutorialState() {
+    state.tutorial = null;
+    state.tutorialGuideCollapsed = false;
+    state.tutorialCheckpoint = null;
+    state.tutorialScripting = false;
+    state.tutorialGuidePos = null;
+    hideEl('tutorial-guide', true);
+    hideEl('tutorial-guide-open', true);
+    refreshTutorialFocus();
+  }
+
   function closeTutorialScreen() {
     const screen = el('tutorial-screen');
     if (screen) screen.classList.add('hidden');
+    // 关闭教程窗口 = 放弃当前教程；必须清掉教程状态，不能把它带进线上对战。
+    if (state.tutorial) {
+      clearTutorialState();
+      if (state.open) close();
+    }
   }
 
   function tutorialCameraAction(kind) {
