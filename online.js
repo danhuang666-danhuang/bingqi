@@ -2791,7 +2791,7 @@
     B3.need = true;
   }
 
-  function b3StartAirFlight(unit, target, hit, delay, stay) {
+  function b3StartAirFlight(unit, target, hit, delay, stay, bomb) {
     if (!B3 || !B3.flightGroup || !unit || !target) return;
     const L = b3Layout();
     if (!L) return;
@@ -2813,6 +2813,7 @@
       clone: clone, from: from, dest: dest,
       aa: hit ? hit.aa : null, spec: hit ? hit.spec : null,
       warningShown: false, stay: !!stay,
+      bomb: !!bomb, impacted: false, targetId: target.id,
       started: performance.now() + Math.max(0, Number(delay) || 0) * 1000,
       out: hit ? 0.55 : 0.8,
       hold: hit ? 1.1 : 0,
@@ -2839,6 +2840,11 @@
         if (f.clone) f.clone.position.set(f.from[0], f.from[1], f.from[2]);
         keep.push(f);
         return;
+      }
+      if (f.bomb && !f.impacted && t >= f.out) {
+        f.impacted = true;
+        b3SpawnImpact([f.dest[0], b3FxHeight(), f.dest[2]], 'he');
+        b3ShakeUnitById(f.targetId, 1.2);
       }
       let p;
       if (t <= f.out) {
@@ -8445,6 +8451,7 @@
         });
         b.selectedId = null;
         b.log.push(unit.name + ' 空战 ' + target.name + '：' + battleFmt(dmg));
+        group.forEach(function (a, i) { b3StartAirFlight(a, target, null, i * 0.28); });
         battleRefresh();
         battleCheckAutoEnd();
         return;
@@ -8536,11 +8543,17 @@
         target.lockedBy = [];
         target.lockCosts = {};
       }
-      const airStarts = participants.filter(battleIsAir).slice(0, 2);
-      airStarts.forEach(function (a, i) { b3StartAirFlight(a, target, null, i * 0.28); });
-      group.filter(function (u) { return u.id !== unit.id; }).forEach(function (e, i) {
+      // 所有参战飞机都起飞；每架到达目标时各投一次弹。
+      group.forEach(function (a, i) {
+        b3StartAirFlight(a, target, null, i * 0.28, false, true);
+      });
+      // 空中集火里的地面参战单位也生成自己的开火特效。
+      const groundArtyParts = groundParts.filter(function (p) { return battleArtillerySpec(p); });
+      const groundDirectParts = groundParts.filter(function (p) { return !battleArtillerySpec(p); });
+      try { b3StartArtilleryStrike(groundArtyParts, [target]); } catch (e) { /* ignore */ }
+      try { b3StartTankVolley(groundDirectParts, target, 0.05); } catch (e) { /* ignore */ }
+      group.filter(function (u) { return u.id !== unit.id; }).forEach(function (e) {
         if (!battleAirLockedParticipant(target, e)) e.mp = Math.max(0, e.mp - airCost);
-        b3StartAirFlight(e, target, null, 0.7 + i * 0.2);
       });
       unit.mp -= airCost;
       b.selectedId = null;
