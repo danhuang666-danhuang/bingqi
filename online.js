@@ -2982,13 +2982,17 @@
       const t = (now - b.born) / 1000;
       if (t < 0) { b.group.visible = false; keep.push(b); return; }
       const k = Math.min(1, t / b.dur);
-      const x = b.start[0] + (b.end[0] - b.start[0]) * k;
-      const z = b.start[2] + (b.end[2] - b.start[2]) * k;
+      // 动画式风阻：水平速度快速衰减（前段冲得快，越接近落点越慢），
+      // 垂直方向仍保持加速下坠。
+      const h = 1 - Math.pow(1 - k, 2.6);
+      const dh = 2.6 * Math.pow(1 - k, 1.6);
+      const x = b.start[0] + (b.end[0] - b.start[0]) * h;
+      const z = b.start[2] + (b.end[2] - b.start[2]) * h;
       const y = b.start[1] + (b.end[1] - b.start[1]) * k * k;
       const tangent = new THREE.Vector3(
-        b.end[0] - b.start[0],
+        (b.end[0] - b.start[0]) * dh,
         2 * (b.end[1] - b.start[1]) * k,
-        b.end[2] - b.start[2]
+        (b.end[2] - b.start[2]) * dh
       ).normalize();
       b.group.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), tangent);
       b.group.position.set(x, y, z);
