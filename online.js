@@ -3069,7 +3069,7 @@
       L.TOP + 0.12,
       to[1] + (Math.random() - 0.5) * L.HEXR * 0.28];
     const dist = Math.hypot(end[0] - start[0], end[2] - start[2]);
-    const dur = Math.max(0.8, Math.min(1.45, 0.7 + dist * 0.008));
+    const dur = Math.max(0.55, Math.min(1.0, 0.45 + dist * 0.006));
     const peak = Math.max(6, Math.min(16, 5 + dist * 0.16));
     const bodyGeo = new THREE.CylinderGeometry(0.16, 0.22, 1.15, 6);
     const noseGeo = new THREE.ConeGeometry(0.22, 0.6, 6);
@@ -3117,7 +3117,7 @@
       for (let i = 0; i < n; i++) {
         const d = b3SpawnRocket(unit, cell, delay);
         if (d > maxDelay) maxDelay = d;
-        delay += 0.075 + Math.random() * 0.045;       // 一枚一枚发射
+        delay += 0.045 + Math.random() * 0.02;        // 更短的逐枚间隔
       }
     });
     if (maxDelay > 0) b3HoldDeathUntil(maxDelay * 1000 + 80);
