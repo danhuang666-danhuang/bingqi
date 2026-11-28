@@ -16533,6 +16533,7 @@
       const targetIndex = currentIndex + 1;
       const targetDone = !!state.tutorial.doneSteps[targetIndex];
       state.tutorial.step = targetIndex;
+      tutorialCaptureStepSnapshot();
       state.tutorial.enemyDone = false;
       state.tutorial.finalReady = false;
       state.tutorial.quizCorrect = false;
@@ -16564,7 +16565,21 @@
       return;
     }
     if (e.target.closest && e.target.closest('[data-tutorial-prev]')) {
-      state.tutorial.step = Math.max(0, (state.tutorial.step || 0) - 1);
+      const t = state.tutorial;
+      const prev = Math.max(0, (t.step || 0) - 1);
+      tutorialRestoreStepSnapshot(prev);
+      t.step = prev;
+      t.doneSteps = t.doneSteps || {};
+      Object.keys(t.doneSteps).forEach(function (k) {
+        if (Number(k) >= prev) delete t.doneSteps[k];
+      });
+      Object.keys(t.stepSnapshots || {}).forEach(function (k) {
+        if (Number(k) > prev) delete t.stepSnapshots[k];
+      });
+      t.enemyDone = false;
+      t.finalReady = false;
+      t.quizCorrect = false;
+      t.quizChoice = null;
       renderTutorialGuide();
       refreshTutorialFocus();
       return;
@@ -16580,6 +16595,36 @@
     const t = state.tutorial;
     if (!t || !t.level || !t.level.steps) return null;
     return t.level.steps[t.step || 0] || null;
+  }
+
+  function tutorialCaptureStepSnapshot() {
+    const t = state.tutorial;
+    if (!t || !state.battle) return;
+    t.stepSnapshots = t.stepSnapshots || {};
+    try {
+      t.stepSnapshots[t.step || 0] = JSON.stringify(state.battle);
+    } catch (e) { /* ignore */ }
+  }
+
+  function tutorialRestoreStepSnapshot(step) {
+    const t = state.tutorial;
+    const raw = t && t.stepSnapshots ? t.stepSnapshots[step] : null;
+    if (!raw) return false;
+    try { state.battle = JSON.parse(raw); } catch (e) { return false; }
+    const side = state.battle.activeSide || 'attacker';
+    const seat = state.testSeats.filter(function (s) { return s.side === side; })[0] ||
+      state.testSeats.filter(function (s) { return s.side === 'attacker'; })[0];
+    if (seat) {
+      state.activeSeat = seat.id;
+      syncActiveSeat();
+    }
+    state.battle.selectedId = null;
+    state.battle.ghost = null;
+    state.battle.counter = null;
+    state.battle.choice = null;
+    state.battle.damageFx = [];
+    renderRoom();
+    return true;
   }
 
   function tutorialSaveCheckpoint() {
@@ -16615,6 +16660,7 @@
     t.doneSteps = t.doneSteps || {};
     t.doneSteps[t.step || 0] = true;
     t.step = (t.step || 0) + 1;
+    tutorialCaptureStepSnapshot();
     t.enemyDone = false;
     t.finalReady = false;
     t.quizCorrect = false;
@@ -17024,7 +17070,7 @@
         }
         state.battle.buildings = [];
         state.battle.history = [];
-        state.tutorial = { level: level, step: 0, enemyDone: false, finalReady: false, tutorialGuideCollapsed: false, doneSteps: {} };
+        state.tutorial = { level: level, step: 0, enemyDone: false, finalReady: false, tutorialGuideCollapsed: false, doneSteps: {}, stepSnapshots: {} };
         state.tutorialGuideCollapsed = false;
         state.tutorialGuidePos = null;
         hideEl('sandbox-dock', true);
@@ -17032,6 +17078,7 @@
         hideEl('sandbox-toggle', true);
         ensureTutorialGuideToggle();
         state.battleSeenAction = '';
+        tutorialCaptureStepSnapshot();
         ensureDeployModels();
         setView('room');
         renderRoom();
