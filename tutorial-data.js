@@ -1372,7 +1372,7 @@ window.TUTORIAL_LEVELS = [
         }
       },
       {
-        "text": "从 E3 城区右键攻击 E4 四号突击炮，观察巷战伤害和穿甲提示是否比平原时提高。具体伤害系数由 AP 与 AV 的差值决定，详见规则书。",
+        "text": "从 E3 城区右键攻击 E4 四号突击炮，观察巷战伤害是否比平原时提高。",
         "allow": {
           "type": "attack",
           "unitId": "tutorial3-us-1",
