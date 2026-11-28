@@ -16567,6 +16567,7 @@
       const targetIndex = currentIndex + 1;
       const targetDone = !!state.tutorial.doneSteps[targetIndex];
       state.tutorial.step = targetIndex;
+      state.tutorial.stepChanged = false;
       tutorialCaptureStepSnapshot();
       state.tutorial.enemyDone = false;
       state.tutorial.finalReady = false;
@@ -16601,15 +16602,19 @@
     if (e.target.closest && e.target.closest('[data-tutorial-prev]')) {
       const t = state.tutorial;
       const prev = Math.max(0, (t.step || 0) - 1);
-      tutorialRestoreStepSnapshot(prev);
+      const shouldRestore = !!t.stepChanged;
+      if (shouldRestore) {
+        tutorialRestoreStepSnapshot(prev);
+        t.doneSteps = t.doneSteps || {};
+        Object.keys(t.doneSteps).forEach(function (k) {
+          if (Number(k) >= prev) delete t.doneSteps[k];
+        });
+        Object.keys(t.stepSnapshots || {}).forEach(function (k) {
+          if (Number(k) > prev) delete t.stepSnapshots[k];
+        });
+      }
       t.step = prev;
-      t.doneSteps = t.doneSteps || {};
-      Object.keys(t.doneSteps).forEach(function (k) {
-        if (Number(k) >= prev) delete t.doneSteps[k];
-      });
-      Object.keys(t.stepSnapshots || {}).forEach(function (k) {
-        if (Number(k) > prev) delete t.stepSnapshots[k];
-      });
+      t.stepChanged = false;
       t.enemyDone = false;
       t.finalReady = false;
       t.quizCorrect = false;
@@ -16694,6 +16699,7 @@
     t.doneSteps = t.doneSteps || {};
     t.doneSteps[t.step || 0] = true;
     t.step = (t.step || 0) + 1;
+    t.stepChanged = false;
     tutorialCaptureStepSnapshot();
     t.enemyDone = false;
     t.finalReady = false;
@@ -16794,6 +16800,7 @@
     if (!state.tutorial || state.tutorialScripting) return;
     const step = tutorialCurrentStep();
     if (!step) return;
+    state.tutorial.stepChanged = true;
     if (action.type === 'counter' && step.expectCounter) {
       tutorialAdvance();
       return;
@@ -17104,7 +17111,7 @@
         }
         state.battle.buildings = [];
         state.battle.history = [];
-        state.tutorial = { level: level, step: 0, enemyDone: false, finalReady: false, tutorialGuideCollapsed: false, doneSteps: {}, stepSnapshots: {} };
+        state.tutorial = { level: level, step: 0, enemyDone: false, finalReady: false, tutorialGuideCollapsed: false, doneSteps: {}, stepSnapshots: {}, stepChanged: false };
         state.tutorialGuideCollapsed = false;
         state.tutorialGuidePos = null;
         hideEl('sandbox-dock', true);
