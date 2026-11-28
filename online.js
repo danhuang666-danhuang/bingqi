@@ -16822,18 +16822,16 @@
     }
     if (state.tutorial.level && state.tutorial.level.id === 't05' && action.type === 'airRecon' &&
         step.switchSide === 'defender') {
-      state.battle.activeSide = 'defender';
+      // 只切换观察/操作座位，不切换行动方：拦截是攻方回合内的防守反应。
       const deSeat = state.testSeats.filter(function (s) { return s.side === 'defender'; })[0];
       if (deSeat) { state.activeSeat = deSeat.id; syncActiveSeat(); }
-      battleResetMp(state.battle, 'defender');
       renderRoom();
     }
     if (state.tutorial.level && state.tutorial.level.id === 't05' &&
-        action.unitId === 't5-bf') {
-      state.battle.activeSide = 'attacker';
+        (action.unitId === 't5-bf' || action.type === 'airIntercept') &&
+        (state.tutorial.step || 0) === 10) {
       const usSeat = state.testSeats.filter(function (s) { return s.side === 'attacker'; })[0];
       if (usSeat) { state.activeSeat = usSeat.id; syncActiveSeat(); }
-      battleResetMp(state.battle, 'attacker');
       renderRoom();
     }
     if (!step.allow) return;
