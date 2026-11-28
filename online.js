@@ -9893,6 +9893,13 @@
         state.deploy = data.deploy || null;
         state.battle = data.battle || null;
         state.phase = data.phase;
+        if (state.battle && !state.test) {
+          // 存档里的玩家 ID 属于旧房间；清空逐玩家队列，改用当前房间的攻守方控制。
+          state.battle.turnOrder = [];
+          state.battle.activePlayerId = '';
+          state.battle.turnIndex = 0;
+          state.battle.firstRoundSkipId = '';
+        }
         state.ghost = null;
         state.choice = null;
         state.deploySel = '';
@@ -14395,6 +14402,15 @@
         maybePrepare();
       });
       readyWrap.appendChild(readyBtn);
+      if (state.role === 'host' && bothSidesHavePlayers()) {
+        const loadBtn = document.createElement('button');
+        loadBtn.type = 'button';
+        loadBtn.className = 'btn';
+        loadBtn.textContent = '载入对局';
+        loadBtn.title = '载入之前的战局存档，直接继续对局';
+        loadBtn.addEventListener('click', function () { loadGameFile(); });
+        readyWrap.appendChild(loadBtn);
+      }
       box.appendChild(readyWrap);
     }
   }
