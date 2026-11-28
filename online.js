@@ -8557,14 +8557,16 @@
         let dmg = battleAirIntercept(unit);
         if (battleHighAltitude(target) && !battleHighAltitude(unit)) dmg *= 0.2;
         if (dmg <= 0) return;
+        const hpBefore = Number(target.hp) || 0;
         battleDamageUnit(target, dmg);
-        b3AddDamageFloat(target, dmg, '#ff6b57');
+        const actualLoss = Math.max(0, hpBefore - (Number(target.hp) || 0));
+        b3AddDamageFloat(target, actualLoss, '#ff6b57');
         unit.mp -= airCost;
         group.filter(function (u) { return u.id !== unit.id; }).forEach(function (e) {
           e.mp = Math.max(0, e.mp - airCost);
         });
         b.selectedId = null;
-        b.log.push(unit.name + ' 空战 ' + target.name + '：' + battleFmt(dmg));
+        b.log.push(unit.name + ' 空战 ' + target.name + '：' + battleFmt(actualLoss));
         group.forEach(function (a, i) { b3StartAirFlight(a, target, null, i * 0.28); });
         battleRefresh();
         battleCheckAutoEnd();
@@ -8625,15 +8627,17 @@
           }
         });
         const dmg = battleRollDamage(raw);
+        const hpBefore = Number(tgt.hp) || 0;
         battleDamageUnit(tgt, dmg);
-        b3AddDamageFloat(tgt, dmg, '#ff6b57');
+        const actualLoss = Math.max(0, hpBefore - (Number(tgt.hp) || 0));
+        b3AddDamageFloat(tgt, actualLoss, '#ff6b57');
         const historyId = battleHistoryAdd({
           attackers: participants.map(function (p) { return p.name; }),
-          target: tgt.name, targetId: tgt.id, damage: Number(dmg) || 0,
+          target: tgt.name, targetId: tgt.id, damage: Number(actualLoss) || 0,
           cell: { c: tgt.c, r: tgt.r }, side: unit.side,
         });
         if (tgt.id === target.id) mainHistoryId = historyId;
-        hitLogs.push(tgt.name + ' -' + battleFmt(dmg) + '（' + battleFmt(raw) + '）');
+        hitLogs.push(tgt.name + ' -' + battleFmt(actualLoss) + '（' + battleFmt(raw) + '）');
       });
       // 空中集火里的地面参战单位会被目标反击；纯飞机轰炸仍然没有反击。
       if (groundParts.length && !target.confused) {
@@ -8941,10 +8945,12 @@
         target.facing = facing;
         const resolved = battleResolveFocus(unit, target, participants, facing);
         const dmg = resolved.dmg;
+        const hpBefore = Number(target.hp) || 0;
         battleDamageUnit(target, dmg);
+        const actualLoss = Math.max(0, hpBefore - (Number(target.hp) || 0));
         battleHistoryAdd({
           attackers: parts.map(function (p) { return p.name; }),
-          target: target.name, targetId: target.id, damage: Number(dmg) || 0,
+          target: target.name, targetId: target.id, damage: Number(actualLoss) || 0,
           cell: { c: target.c, r: target.r }, side: unit.side,
         });
         unit.mp -= cost;
@@ -8961,8 +8967,8 @@
         target.lockCosts = {};
         b.selectedId = null;
         b.counter = null;
-        b.log.push(unit.name + ' 集火曲射 ' + target.name + '：' + battleFmt(dmg) + '（' + cost + ' 行动力）');
-        b3AddDamageFloat(target, dmg, '#ff6b57');
+        b.log.push(unit.name + ' 集火曲射 ' + target.name + '：' + battleFmt(actualLoss) + '（' + cost + ' 行动力）');
+        b3AddDamageFloat(target, actualLoss, '#ff6b57');
         // 炮兵集火也把每个参战单位的特效补上：火炮打抛物线，直射队友打各自的弹道。
         const focusArtyUnits = parts.filter(function (p) {
           return p && p.alive && battleArtilleryIsIndirect(p, target);
@@ -9038,11 +9044,13 @@
           const resolved = battleResolveFocus(unit, target, participants, facing);
           const calc = resolved.calc;
           const dmg = resolved.dmg;
+          const hpBefore = Number(target.hp) || 0;
           battleDamageUnit(target, dmg);
-          pendingFloats.push({ unit: target, amount: dmg, color: '#ff6b57' });
+          const actualLoss = Math.max(0, hpBefore - (Number(target.hp) || 0));
+          pendingFloats.push({ unit: target, amount: actualLoss, color: '#ff6b57' });
           const historyId = battleHistoryAdd({
             attackers: parts.map(function (p) { return p.name; }),
-            target: target.name, targetId: target.id, damage: Number(dmg) || 0,
+            target: target.name, targetId: target.id, damage: Number(actualLoss) || 0,
             cell: { c: target.c, r: target.r }, side: unit.side,
           });
           target.lastConfusionRoll = null;
@@ -9077,7 +9085,7 @@
           } else {
             b.counter = null;
           }
-          hits.push(target.name + ' -' + battleFmt(dmg));
+          hits.push(target.name + ' -' + battleFmt(actualLoss));
         } else {
           const targets = spec.rocket ? battleRocketArea(target) : [target];
           artilleryUnits = [unit];
