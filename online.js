@@ -7450,7 +7450,7 @@
     b.log.push(air.name + ' 投掷核弹 ' + target.name + '：中心必死，半径1受到4伤，半径2受到2伤，敌友不分');
   }
 
-  function battleBeginAirIntercept(unit, target, attackerIds, role) {
+  function battleBeginAirIntercept(unit, target, attackerIds, role, groundIds) {
     const b = state.battle;
     const opts = battleAirInterceptOptions(target.side);
     if (!b || !opts.length) return false;
@@ -7459,6 +7459,7 @@
       attackerSide: unit.side,
       defenderSide: target.side,
       attackerIds: attackerIds.slice(),
+      groundIds: (groundIds || []).slice(),
       targetId: target.id,
       targetName: target.name,
       attackerCount: attackerIds.length,
@@ -7535,6 +7536,9 @@
     }
     const target = battleUnitById(ai.targetId);
     const attackers = ai.attackerIds.map(battleUnitById).filter(function (u) { return u && u.alive; });
+    const groundSupport = (ai.groundIds || []).map(battleUnitById).filter(function (u) {
+      return u && u.alive && !battleIsAir(u) && u.side === ai.attackerSide;
+    });
     const opts = battleAirInterceptOptions(ai.defenderSide);
     const interceptors = (ids || []).map(battleUnitById).filter(function (u) {
       return u && u.alive && opts.some(function (o) { return o.id === u.id; });
@@ -7621,7 +7625,7 @@
       });
     });
     const survivors = attackers.filter(function (a) { return a.alive; });
-    if (survivors.length) {
+    if (survivors.length || groundSupport.length) {
       const bombTargets = ai.dir != null ? battleBombTargets(target, ai.dir) : [target];
       const logs = [];
       bombTargets.forEach(function (tgt) {
@@ -7632,11 +7636,19 @@
           raw += (battleIsTransportTarget(tgt) ? stats.soft : (battleHasArmor(info) ? stats.hard : stats.soft)) *
             (battleAirSuperiorityFor(a, tgt) ? 1.5 : 1) * (1 - battleProtectAt(tgt.c, tgt.r));
         });
+        // 空中集火随行的地面单位只打原目标，不跟着重轰延伸格扩散。
+        if (tgt.id === target.id) {
+          groundSupport.forEach(function (p) {
+            raw += battleAttackRawOne(p, tgt, battleDistanceKey(p, tgt), null, null).raw *
+              (battleAirSuperiorityFor(p, tgt) ? 1.5 : 1);
+          });
+        }
         const dmg = battleRollDamage(raw);
         battleDamageUnit(tgt, dmg);
         b3AddDamageFloat(tgt, dmg, '#ff6b57');
         battleHistoryAdd({
-          attackers: attackers.filter(function (a) { return a.alive; }).map(function (a) { return a.name; }),
+          attackers: survivors.map(function (a) { return a.name; })
+            .concat(groundSupport.map(function (p) { return p.name; })),
           target: tgt.name, targetId: tgt.id, damage: Number(dmg) || 0,
           cell: { c: tgt.c, r: tgt.r }, side: target.side === 'attacker' ? 'defender' : 'attacker',
         });
@@ -7652,6 +7664,14 @@
       }
     });
     survivors.forEach(function (a, i) { b3StartAirFlight(a, target, null, i * 0.28); });
+    const supportArty = groundSupport.filter(function (p) { return battleArtillerySpec(p); });
+    const supportDirect = groundSupport.filter(function (p) { return !battleArtillerySpec(p); });
+    try { b3StartArtilleryStrike(supportArty, [target]); } catch (e) { /* ignore */ }
+    try {
+      b3StartTankVolley(supportDirect.map(function (p) {
+        return { unit: p, indirect: false, soft: !battleHasArmor(battleInfoFor(target)) };
+      }), target, 0.05);
+    } catch (e) { /* ignore */ }
     attackers.forEach(function (a) { battleReconAfterSortie(a, target); });
     if (b.airIntercept) {
       target.lockedBy = [];
@@ -8861,7 +8881,8 @@
           !battleLockedBySide(target, unit.side)) return;
       if (!battleIsAir(target) && !battleAirCanTarget(unit, target)) return;
       if (!battleIsAir(target) && battleAirInterceptOptions(target.side).length) {
-        battleBeginAirIntercept(unit, target, attackerIds, role);
+        battleBeginAirIntercept(unit, target, attackerIds, role,
+          focusGround.map(function (u) { return u.id; }));
         if (b.airIntercept) b.airIntercept.dir = heavyDir;
         return;
       }
@@ -9836,6 +9857,7 @@
     if (!b || b.counter || b.reinforce || b.facingChoice) return;
     b3ClearAirFlights();
     const leavingSide = b.activeSide;
+    const roundStart = Number(b.round) || 1;
     const occupied = {};
     b.units.forEach(function (u) {
       if (u.alive && u.airBase) occupied[u.c + ',' + u.r] = true;
@@ -9860,12 +9882,14 @@
       return m.forSide !== leavingSide;
     });
     battleClearTransient();
-    b.units.forEach(function (u) { u.lockedBy = []; u.lockCosts = {}; });
     if (!state.test && b.turnOrder && b.turnOrder.length) {
       battleNextPlayer(b);
       if (b.engineerProject && b.engineerProject.round < b.round - 1) {
         b.engineerProject = null;
         b.log.push('碉堡工程因超过连续回合而失效');
+      }
+      if (Number(b.round) !== roundStart) {
+        b.units.forEach(function (u) { u.lockedBy = []; u.lockCosts = {}; });
       }
       b.selectedId = null;
       b.ghost = null;
@@ -9891,6 +9915,9 @@
       if (b.phase !== prevPhase && (b.phase === 'b' || b.phase === 'c')) {
         battleReinforceBegin(b, b.phase);
       }
+    }
+    if (Number(b.round) !== roundStart) {
+      b.units.forEach(function (u) { u.lockedBy = []; u.lockCosts = {}; });
     }
     if (b.engineerProject && b.engineerProject.round < b.round - 1) {
       b.engineerProject = null;
